@@ -1,0 +1,69 @@
+# Project Tracker (Monday.com-style MVP)
+
+A full-stack project tracking app inspired by Monday.com.
+
+## What this includes
+
+- Multiple projects
+- Kanban board with statuses:
+  - Backlog
+  - In Progress
+  - Review
+  - Done
+- Task CRUD:
+  - Title
+  - Description
+  - Assignee
+  - Priority
+  - Due date
+  - Status
+- Drag-and-drop between status columns
+- Search and priority filtering
+- JSON file persistence (`data/store.json`)
+
+## Tech stack
+
+- Node.js + Express (API + static hosting)
+- Vanilla HTML/CSS/JavaScript frontend
+- File-based persistence (no external database required)
+
+## Quick start
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Start the app:
+
+```bash
+npm start
+```
+
+3. Open:
+
+```text
+http://localhost:3000
+```
+
+## Development mode
+
+```bash
+npm run dev
+```
+
+This uses Node's built-in watch mode and reloads when files change.
+
+## API endpoints
+
+- `GET /api/health`
+- `GET /api/meta`
+- `GET /api/projects`
+- `GET /api/projects/:projectId`
+- `POST /api/projects`
+- `PATCH /api/projects/:projectId`
+- `DELETE /api/projects/:projectId`
+- `POST /api/projects/:projectId/tasks`
+- `PATCH /api/projects/:projectId/tasks/:taskId`
+- `DELETE /api/projects/:projectId/tasks/:taskId`

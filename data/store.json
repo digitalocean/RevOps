@@ -1,0 +1,56 @@
+{
+  "projects": [
+    {
+      "id": "demo-project",
+      "name": "Website Redesign",
+      "createdAt": "2026-03-01T09:00:00.000Z",
+      "updatedAt": "2026-03-01T12:40:00.000Z",
+      "tasks": [
+        {
+          "id": "task-1",
+          "title": "Collect design references",
+          "description": "Gather 10 examples from competitors and inspiration sites.",
+          "assignee": "Alex",
+          "status": "Backlog",
+          "priority": "Medium",
+          "dueDate": "2026-03-09",
+          "createdAt": "2026-03-01T09:10:00.000Z",
+          "updatedAt": "2026-03-01T09:10:00.000Z"
+        },
+        {
+          "id": "task-2",
+          "title": "Draft homepage wireframe",
+          "description": "Build desktop and mobile wireframes in Figma.",
+          "assignee": "Jordan",
+          "status": "In Progress",
+          "priority": "High",
+          "dueDate": "2026-03-06",
+          "createdAt": "2026-03-01T10:00:00.000Z",
+          "updatedAt": "2026-03-01T10:00:00.000Z"
+        },
+        {
+          "id": "task-3",
+          "title": "Approve typography system",
+          "description": "Review type scale with brand team.",
+          "assignee": "Taylor",
+          "status": "Review",
+          "priority": "Low",
+          "dueDate": "2026-03-08",
+          "createdAt": "2026-03-01T11:00:00.000Z",
+          "updatedAt": "2026-03-01T11:00:00.000Z"
+        },
+        {
+          "id": "task-4",
+          "title": "Define analytics events",
+          "description": "Document click and conversion events for the new page.",
+          "assignee": "Sam",
+          "status": "Done",
+          "priority": "Critical",
+          "dueDate": "2026-03-03",
+          "createdAt": "2026-03-01T12:00:00.000Z",
+          "updatedAt": "2026-03-01T12:30:00.000Z"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Project Tracker</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <h1>Project Tracker</h1>
+          <p>Monday-style project visibility for your team.</p>
+        </div>
+
+        <form id="project-form" class="stacked-form">
+          <label for="project-name">Create project</label>
+          <div class="inline-row">
+            <input id="project-name" name="name" maxlength="80" placeholder="Website launch" required />
+            <button type="submit">Add</button>
+          </div>
+        </form>
+
+        <div class="projects-toolbar">
+          <h2>Projects</h2>
+          <button id="rename-project-btn" type="button" class="ghost-btn">Rename</button>
+        </div>
+
+        <ul id="project-list" class="project-list" aria-label="Project list"></ul>
+      </aside>
+
+      <main class="board-area">
+        <header class="board-toolbar">
+          <div>
+            <h2 id="board-title">Select a project</h2>
+            <p id="board-subtitle">Create or select a project to start planning work.</p>
+          </div>
+          <div class="toolbar-actions">
+            <input id="search-input" type="search" placeholder="Search tasks..." />
+            <select id="priority-filter">
+              <option value="all">All priorities</option>
+            </select>
+            <button id="add-task-btn" type="button" disabled>Add task</button>
+            <button id="delete-project-btn" type="button" class="danger-btn" disabled>Delete project</button>
+          </div>
+        </header>
+
+        <section id="stats-strip" class="stats-strip"></section>
+
+        <section id="board-columns" class="board-columns"></section>
+      </main>
+    </div>
+
+    <dialog id="task-dialog">
+      <form id="task-form" class="task-form">
+        <h3 id="task-dialog-title">Add task</h3>
+        <input type="hidden" id="task-id" name="taskId" />
+
+        <label for="task-title">Title</label>
+        <input id="task-title" name="title" maxlength="120" required />
+
+        <label for="task-description">Description</label>
+        <textarea id="task-description" name="description" rows="4" maxlength="2000"></textarea>
+
+        <div class="form-grid">
+          <div>
+            <label for="task-assignee">Assignee</label>
+            <input id="task-assignee" name="assignee" maxlength="80" placeholder="Alex" />
+          </div>
+          <div>
+            <label for="task-due-date">Due date</label>
+            <input id="task-due-date" name="dueDate" type="date" />
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div>
+            <label for="task-status">Status</label>
+            <select id="task-status" name="status" required></select>
+          </div>
+          <div>
+            <label for="task-priority">Priority</label>
+            <select id="task-priority" name="priority" required></select>
+          </div>
+        </div>
+
+        <div class="dialog-actions">
+          <button id="cancel-task-btn" type="button" class="ghost-btn">Cancel</button>
+          <button id="save-task-btn" type="submit">Save task</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" role="status" aria-live="polite"></div>
+    <script src="./app.js" defer></script>
+  </body>
+</html>

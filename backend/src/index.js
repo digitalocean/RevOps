@@ -8,9 +8,22 @@ if (isRemoteDb || dbUrl.includes('ondigitalocean.com') || /sslmode=/.test(dbUrl)
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 }
 
+const fs   = require('fs');
+const path = require('path');
 const express = require('express');
 const cors    = require('cors');
 const pool    = require('./db/pool');
+
+async function ensureSchema() {
+  try {
+    const sql = fs.readFileSync(path.join(__dirname, 'db', 'schema.sql'), 'utf8');
+    await pool.query(sql);
+    console.log('Schema ensured (tables exist)');
+  } catch (err) {
+    console.error('Schema init failed:', err.message);
+    process.exit(1);
+  }
+}
 
 const app  = express();
 const PORT = process.env.PORT || 4000;
@@ -61,8 +74,6 @@ app.post('/api/admin/reset', async (req, res) => {
   if (!secret || req.headers['x-reset-secret'] !== secret) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const fs = require('fs');
-  const path = require('path');
   const sql = fs.readFileSync(path.join(__dirname, 'db', 'reset.sql'), 'utf8');
   try {
     await pool.query(sql);
@@ -110,8 +121,13 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
-// ─── Start ────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n🚀 AgileOps API running on http://localhost:${PORT}`);
-  console.log(`   Health: http://localhost:${PORT}/health\n`);
+// ─── Start: ensure DB schema then listen ───────────────────────
+ensureSchema().then(() => {
+  app.listen(PORT, () => {
+    console.log(`\n🚀 AgileOps API running on http://localhost:${PORT}`);
+    console.log(`   Health: http://localhost:${PORT}/health\n`);
+  });
+}).catch((err) => {
+  console.error('Startup failed:', err);
+  process.exit(1);
 });

@@ -78,25 +78,13 @@ Use the **web** URL in the browser; use the **revops** URL only for API/health c
 - **FRONTEND_URL** = your **web** URL (e.g. `https://web-xxxxx.ondigitalocean.app`)  
 - Saves CORS; redeploy revops if needed.
 
-### 3.4 Database: create tables and seed data
+### 3.4 Database: tables and data
 
-The **db** component gives you PostgreSQL and injects **DATABASE_URL** into **revops**. You still need to run schema + seed once.
+The **db** component gives you PostgreSQL and injects **DATABASE_URL** into **revops**. The backend **creates all tables on startup** (no manual `db:init` needed). If you saw `relation "projects" does not exist` or data not persisting after refresh, **redeploy the revops service** so it runs the schema on start; then creates will persist.
 
-**Option A – From your machine**
+**Optional seed data:** Run `DATABASE_URL="<connection-string>" npm run db:seed` from `backend/`, or run `backend/src/db/seed.sql` in the database Console.
 
-1. In DigitalOcean: **Apps** → your app → **db** (or **Resources** → database) → **Connection details**.
-2. Copy the **connection string** (e.g. `postgresql://...?sslmode=require`).
-3. Locally:
 
-```bash
-cd agileops-full/backend
-DATABASE_URL="<paste-connection-string>" npm run db:init
-DATABASE_URL="<paste-connection-string>" npm run db:seed
-```
-
-**Option B – DigitalOcean console**
-
-Use the database’s “Console” or “Web SQL” and run the contents of `backend/src/db/schema.sql`, then `backend/src/db/seed.sql`.
 
 ---
 

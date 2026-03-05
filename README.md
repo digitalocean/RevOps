@@ -1,5 +1,5 @@
-# AgileOps — Complete Setup Guide
 
+<<<<<<< HEAD
 > **Written for non-technical users.** Every step is explained from scratch.  
 > If you get stuck anywhere, the error message usually tells you exactly what to fix.
 
@@ -453,3 +453,5 @@ Here are features that would make this significantly more powerful:
 
 *AgileOps — Built for DigitalOcean / Salesforce Engineering*  
 *Questions? Check the troubleshooting section above or open the browser console (F12) for errors.*
+=======
+>>>>>>> e590d066f1eda2354508f2f7dc7b65d440a48ef5

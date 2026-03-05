@@ -52,7 +52,13 @@ const PRIO = {
 const SPRINT_START = new Date("2026-03-01");
 const mkId = () => Math.random().toString(36).slice(2,9);
 // In dev use same-origin so Vite proxy can forward (avoids browser blocking self-signed API certs)
-const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.DEV) ? "" : ((typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://localhost:4000");
+// In production: use VITE_API_URL if set at build time; else same origin (for DO single-domain deploy)
+function getApiBase() {
+  if (typeof import.meta !== "undefined" && import.meta.env?.DEV) return "";
+  const url = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || (typeof window !== "undefined" && window.location?.origin) || "http://localhost:4000";
+  return url || "http://localhost:4000";
+}
+const API_BASE = getApiBase();
 const daysApart = (a,b) => Math.round((new Date(b)-new Date(a))/86400000);
 const fmtTs = iso => iso ? new Date(iso).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "";
 const byId = (arr,id) => arr.find(x=>x.id===id);
@@ -61,7 +67,9 @@ const labelById= id => byId(LABELS,id);
 
 // Map API work item to UI shape (id, type, title, status, priority, points, assignee, labels, criteria, etc.)
 function apiItemToUI(row) {
-  if (!row) return null;
+  if (!row || !row.id) return null;
+  const rawLabels = row.labels;
+  const labelsArr = Array.isArray(rawLabels) ? rawLabels : (typeof rawLabels === "string" ? (() => { try { return JSON.parse(rawLabels); } catch (_) { return []; } })() : []);
   return {
     id: row.id,
     type: row.type || 'task',
@@ -71,7 +79,7 @@ function apiItemToUI(row) {
     priority: row.priority || 'medium',
     points: row.points ?? 1,
     assignee: row.assignee_id || '',
-    labels: (row.labels || []).map(l => (typeof l === 'object' && l?.id) ? l.id : l),
+    labels: labelsArr.map(l => (typeof l === 'object' && l?.id) ? l.id : l),
     startDate: row.start_date || null,
     endDate: row.end_date || null,
     criteria: row.criteria || [],
@@ -153,6 +161,9 @@ export default function App() {
   const [customFieldDefinitions, setCustomFieldDefinitions] = useState([]);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
 
+  const STORAGE_PROJECT = "agileops_selected_project";
+  const STORAGE_SPRINT = "agileops_selected_sprint";
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -163,15 +174,38 @@ export default function App() {
           fetch(`${API_BASE}/api/roles`),
           fetch(`${API_BASE}/api/custom-field-definitions`),
         ]);
-        if (projRes.ok) setProjects(await projRes.json());
-        if (sprintRes.ok) setSprints(await sprintRes.json());
+        const projs = projRes.ok ? await projRes.json() : [];
+        const sprs = sprintRes.ok ? await sprintRes.json() : [];
+        setProjects(projs);
+        setSprints(sprs);
         if (membersRes.ok) setTeamMembers(await membersRes.json());
         if (rolesRes.ok) setRoles(await rolesRes.json());
         if (defsRes.ok) setCustomFieldDefinitions(await defsRes.json());
+        try {
+          const sp = localStorage.getItem(STORAGE_PROJECT);
+          const ss = localStorage.getItem(STORAGE_SPRINT);
+          if (sp && projs.some(p => p.id === sp)) {
+            setSelectedProjectId(sp);
+            if (ss && sprs.some(s => s.id === ss && s.project_id === sp)) setSelectedSprintId(ss);
+            else setSelectedSprintId(null);
+          } else {
+            setSelectedProjectId(null);
+            setSelectedSprintId(null);
+          }
+        } catch (_) {}
       } catch (_) { /* backend not running or CORS — keep empty */ }
     };
     load();
   }, []);
+
+  useEffect(() => {
+    try {
+      if (selectedProjectId) localStorage.setItem(STORAGE_PROJECT, selectedProjectId);
+      else localStorage.removeItem(STORAGE_PROJECT);
+      if (selectedSprintId) localStorage.setItem(STORAGE_SPRINT, selectedSprintId);
+      else localStorage.removeItem(STORAGE_SPRINT);
+    } catch (_) {}
+  }, [selectedProjectId, selectedSprintId]);
 
   const refreshProjects = useCallback(async () => {
     try {
@@ -213,14 +247,22 @@ export default function App() {
       return;
     }
     let cancelled = false;
+    const base = getApiBase();
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/items?sprint_id=${selectedSprintId}`);
-        if (!res.ok || cancelled) return;
-        const rows = await res.json();
+        const res = await fetch(`${base}/api/items?sprint_id=${selectedSprintId}`);
+        if (cancelled) return;
+        if (!res.ok) {
+          setItems([]);
+          return;
+        }
+        const data = await res.json();
+        const rows = Array.isArray(data) ? data : (data.items || data.rows || []);
         setItems(rows.map(apiItemToUI).filter(Boolean));
-      } catch (_) {
-        if (!cancelled) setItems([]);
+      } catch (e) {
+        if (!cancelled) {
+          setItems([]);
+        }
       }
     })();
     return () => { cancelled = true; };

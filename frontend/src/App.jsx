@@ -1169,7 +1169,7 @@ function CreateSprintModal({ projects, defaultProjectId, onClose, onCreated, not
       const msg = err.message || "Network error";
       const isFetchFailed = /failed to fetch|network error|load failed/i.test(msg);
       setError(isFetchFailed
-        ? "Cannot reach the API. Start the backend (npm start in /backend), or if deployed set VITE_API_URL to your API URL."
+        ? `Cannot reach the API at ${API_BASE}. Start the backend (see below) or set VITE_API_URL to your API URL.`
         : msg);
     } finally {
       setLoading(false);
@@ -1269,7 +1269,7 @@ function CreateProjectModal({ onClose, onCreated, notify }) {
       const msg = e.message || "Network error";
       const isFetchFailed = /failed to fetch|network error|load failed/i.test(msg);
       setError(isFetchFailed
-        ? "Cannot reach the API. Start the backend (npm start in /backend), or if deployed set VITE_API_URL to your API URL."
+        ? `Cannot reach the API at ${API_BASE}. Start the backend (see below) or set VITE_API_URL to your API URL.`
         : msg);
     } finally {
       setLoading(false);

@@ -1,0 +1,46 @@
+# DigitalOcean App Platform spec for AgileOps (monorepo: backend + frontend)
+# Set the repo below to your GitHub org/repo, or configure source in the dashboard.
+# See: https://docs.digitalocean.com/products/app-platform/how-to/deploy-from-monorepo/
+
+name: agileops
+region: nyc
+
+# Backend API (Node.js) — buildpack looks for package.json in source_dir
+services:
+  - name: api
+    github:
+      repo: digitalocean/RevOps
+      branch: main
+      deploy_on_push: true
+    source_dir: /backend
+    environment_slug: node-js
+    run_command: npm start
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    http_port: 8080
+    envs:
+      - key: NODE_ENV
+        value: production
+        scope: RUN_TIME
+        type: general
+      # Add DATABASE_URL in the dashboard (or here as secret) for your PostgreSQL DB
+
+# Frontend (Vite/React) — static site built from frontend/
+static_sites:
+  - name: web
+    github:
+      repo: digitalocean/RevOps
+      branch: main
+      deploy_on_push: true
+    source_dir: /frontend
+    environment_slug: node-js
+    build_command: npm install && npm run build
+    output_dir: dist
+    index_document: index.html
+    catchall_document: index.html
+    envs:
+      - key: VITE_API_URL
+        value: https://api-your-app.ondigitalocean.app
+        scope: BUILD_TIME
+        type: general
+    # Update VITE_API_URL in dashboard to your deployed API URL after first deploy

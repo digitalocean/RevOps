@@ -426,6 +426,12 @@ git push                              # DigitalOcean auto-deploys on push
 **DigitalOcean deploy fails**  
 → Check the build logs in the App Platform dashboard. Most common cause is a missing environment variable.
 
+**"Could not detect app files" / "Verify the repo contains supported file types"**  
+→ The repo **does** contain supported files:
+- **Root:** `package.json` at the repo root so DigitalOcean detects a Node app. If you deploy one component from root, it will build and run the **backend** (build/start scripts delegate to `backend/`).
+- **Subfolders:** Use **Source Directory** when your app isn’t at root: set `backend` for the API service, or `frontend` for the static site. Or use the included `.do/app.yaml` (Import from app spec), which sets `source_dir` for you.
+- **Repo access:** Under your GitHub (or GitLab/Bitbucket) app’s **Settings → Applications**, ensure DigitalOcean has access to this repository so the platform can read it.
+
 **Frontend shows "Network Error"**  
 → Your `VITE_API_URL` is wrong or the backend isn't running
 

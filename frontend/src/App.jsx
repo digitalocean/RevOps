@@ -254,20 +254,28 @@ export default function App() {
 
   const notify = useCallback((msg, type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),2500); }, []);
   const updateItem = useCallback(async (id, patch) => {
+    const uiPatch = { ...patch };
+    if (uiPatch.assignee !== undefined) { uiPatch.assignee_id = uiPatch.assignee; delete uiPatch.assignee; }
     setItems(p => p.map(i => i.id === id ? { ...i, ...patch } : i));
     if (selectedSprintId && typeof fetch === "function") {
       try {
-        const body = { ...patch };
+        const body = { ...uiPatch };
         if (body.criteria !== undefined) delete body.criteria;
         if (body.comments !== undefined) delete body.comments;
         if (body.approvers !== undefined) delete body.approvers;
         if (body.blockers !== undefined) delete body.blockers;
         if (body.labels !== undefined) delete body.labels;
+        if (body.assignee !== undefined) { body.assignee_id = body.assignee; delete body.assignee; }
         await fetch(`${API_BASE}/api/items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       } catch (_) {}
     }
   }, [selectedSprintId]);
-  const deleteItem = useCallback((id) => { setItems(p=>p.filter(i=>i.id!==id)); setModal(null); notify("Item deleted"); }, [notify]);
+  const deleteItem = useCallback(async (id) => {
+    setItems(p=>p.filter(i=>i.id!==id)); setModal(null); notify("Item deleted");
+    if (selectedSprintId && typeof fetch === "function") {
+      try { await fetch(`${API_BASE}/api/items/${id}`, { method: "DELETE" }); refreshItems(); } catch (_) {}
+    }
+  }, [notify, selectedSprintId, refreshItems]);
   const addItem = useCallback(async (item) => {
     if (selectedProjectId && selectedSprintId && typeof fetch === 'function') {
       try {
@@ -287,8 +295,7 @@ export default function App() {
           }),
         });
         if (res.ok) {
-          const created = await res.json();
-          setItems(p => [...p, apiItemToUI(created)]);
+          await refreshItems();
           notify("Item created");
         } else notify((await res.json()).error || "Failed to create", "error");
       } catch (e) {
@@ -298,7 +305,7 @@ export default function App() {
     }
     setItems(p=>[...p,{...item, id: item.id || 'i'+mkId()}]);
     notify("Item created");
-  }, [notify, selectedProjectId, selectedSprintId]);
+  }, [notify, selectedProjectId, selectedSprintId, refreshItems]);
 
   const filtered = items.filter(i=>(filterType==="all"||i.type===filterType)&&(!search||i.title.toLowerCase().includes(search.toLowerCase())));
   const activeItem = modal ? items.find(i=>i.id===modal) : null;
@@ -333,16 +340,14 @@ export default function App() {
             </button>
           ))}
 
-          <p className="text-[10px] font-semibold text-[#78716c] px-2 py-2 mt-4 tracking-wider uppercase flex items-center justify-between">
-            <span>Projects</span>
-            <div className="flex items-center gap-1">
-              {projects.length > 0 && (
-                <button onClick={()=>setShowCreateSprintModal(true)} className="text-indigo-600 hover:text-indigo-700 font-medium text-xs" title="New sprint">+ Sprint</button>
-              )}
-              <button onClick={()=>setShowCreateProjectModal(true)} className="text-indigo-600 hover:text-indigo-700 font-bold text-sm" title="New project">+</button>
-            </div>
-          </p>
-          {projects.length === 0 && <p className="px-2 py-1 text-xs text-[#78716c]">No projects yet. Click + to create one, then add sprints.</p>}
+          <p className="text-[10px] font-semibold text-[#78716c] px-2 py-2 mt-4 tracking-wider uppercase">Projects</p>
+          <div className="flex gap-1.5 mb-2">
+            <button onClick={()=>setShowCreateProjectModal(true)} className="flex-1 flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-semibold transition-colors" title="New project">+ New project</button>
+            {projects.length > 0 && (
+              <button onClick={()=>setShowCreateSprintModal(true)} className="flex items-center justify-center gap-1 px-2.5 py-2 rounded-lg border border-indigo-300 text-indigo-600 hover:bg-indigo-50 text-xs font-medium transition-colors" title="New sprint">+ Sprint</button>
+            )}
+          </div>
+          {projects.length === 0 && <p className="px-2 py-1 text-xs text-[#78716c]">Create a project above, then add sprints.</p>}
           {projects.map((p) => (
             <div key={p.id} className="mt-0.5">
               <button
@@ -373,6 +378,15 @@ export default function App() {
             </div>
           ))}
 
+          <p className="text-[10px] font-semibold text-[#78716c] px-2 py-2 mt-5 tracking-wider uppercase">Admin center</p>
+          <div className="space-y-0.5">
+            <button onClick={()=>setShowSettingsModal(true)} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium text-left text-[#57534e] hover:bg-[rgba(0,0,0,0.04)] hover:text-[#1c1917] transition-all">
+              <span className="text-base text-[#78716c]">⚙</span> Custom fields
+            </button>
+            <button onClick={()=>setView("team")} className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium text-left text-[#57534e] hover:bg-[rgba(0,0,0,0.04)] hover:text-[#1c1917] transition-all">
+              <span className="text-base text-[#78716c]">◉</span> Team & roles
+            </button>
+          </div>
         </nav>
 
         <div className="px-3 py-3 border-t border-[rgba(0,0,0,0.06)] bg-[#FAF8F2]">
@@ -403,7 +417,6 @@ export default function App() {
             <option value="bug">● Bug</option><option value="task">✓ Task</option>
           </select>
           <div className="flex items-center gap-2">
-            <button onClick={()=>setShowSettingsModal(true)} className="p-2 rounded-lg border border-[rgba(0,0,0,0.08)] bg-white text-[#57534e] hover:bg-[#F3F0E0] transition-colors" title="Custom fields & board settings">⚙</button>
             <div className="flex items-center bg-white border border-[rgba(0,0,0,0.08)] rounded-lg p-1 gap-0.5 shadow-sm">
               {[["board","⊞"],["list","≡"],["gantt","▤"],["metrics","◈"],["team","◉"]].map(([v,ic])=>(
                 <button key={v} onClick={()=>setView(v)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${view===v?"bg-indigo-500 text-white":"text-[#57534e] hover:bg-[rgba(0,0,0,0.04)]"}`}>{ic} {v.charAt(0).toUpperCase()+v.slice(1)}</button>
@@ -884,7 +897,13 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify,customFieldDefin
   const workItemDefs = customFieldDefinitions.filter(d=>d.entity_type==='work_item');
   const set=(k,v)=>setDraft(d=>({...d,[k]:v}));
   const setCustom=(fieldId,value)=>setDraft(d=>({...d,custom_field_values:{...(d.custom_field_values||{}),[fieldId]:value}}));
-  const saveEdit=()=>{onUpdate(draft);setEditing(false);notify("Saved");};
+  const saveEdit=()=>{
+    const payload = { ...draft };
+    if (payload.assignee !== undefined) { payload.assignee_id = payload.assignee; delete payload.assignee; }
+    onUpdate(payload);
+    setEditing(false);
+    notify("Saved");
+  };
   const toggleCrit=cid=>{onUpdate({criteria:item.criteria.map(c=>c.id===cid?{...c,done:!c.done}:c)});notify("Updated");};
   const addCrit=()=>{if(!newCrit.trim())return;onUpdate({criteria:[...item.criteria,{id:"c"+mkId(),text:newCrit.trim(),done:false}]});setNewCrit("");notify("Added");};
   const delCrit=cid=>onUpdate({criteria:item.criteria.filter(c=>c.id!==cid)});
@@ -926,6 +945,13 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify,customFieldDefin
               <button key={t.id} onClick={()=>setTab(t.id)} className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all whitespace-nowrap ${tab===t.id?"border-indigo-500 text-indigo-700":"border-transparent text-[#57534e] hover:text-[#1c1917]"}`}>{t.l}</button>
             ))}
           </div>
+          {editing && (
+            <div className="mt-3 flex items-center gap-2 py-2 px-3 rounded-lg bg-indigo-50 border border-indigo-200">
+              <span className="text-[12px] font-medium text-indigo-800 flex-1">Editing — save your changes</span>
+              <button onClick={saveEdit} className="px-4 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold rounded-lg transition-colors">Save</button>
+              <button onClick={()=>setEditing(false)} className="px-3 py-1.5 text-indigo-600 hover:bg-indigo-100 text-sm font-medium rounded-lg transition-colors">Cancel</button>
+            </div>
+          )}
         </div>
 
         {/* Body */}
@@ -1458,6 +1484,7 @@ function SettingsModal({ onClose, customFieldDefinitions, refreshCustomFieldDefi
   const [newType, setNewType] = useState("text");
   const [newOptions, setNewOptions] = useState("");
   const [projectScope, setProjectScope] = useState(selectedProjectId || "");
+  useEffect(() => { refreshCustomFieldDefinitions(); }, [refreshCustomFieldDefinitions]);
 
   const defsByType = (entityType, projectId) =>
     customFieldDefinitions.filter(d => d.entity_type === entityType && (entityType !== "work_item" || !d.project_id || d.project_id === projectId));

@@ -62,7 +62,7 @@ static_sites:
     envs:
       # With ingress above, use your single app URL (same origin: /api and /health hit revops)
       - key: VITE_API_URL
-        value: https://revops-xxxxx.ondigitalocean.app
+        value: https://revops-ntkll.ondigitalocean.app
         scope: BUILD_TIME
     github:
       branch: feature/create-sprint-ui

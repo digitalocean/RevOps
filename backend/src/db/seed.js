@@ -8,12 +8,12 @@ if (process.env.DATABASE_URL && (process.env.DATABASE_URL.includes('ondigitaloce
 const pool = require('./pool');
 
 async function seed() {
-  console.log('🌱 Seeding sample data...');
+  console.log('🌱 Running seed (no sample data by default)...');
   const sql = fs.readFileSync(path.join(__dirname, 'seed.sql'), 'utf8');
+  const trimmed = sql.replace(/--.*$/gm, '').trim();
   try {
-    await pool.query(sql);
-    console.log('✅ Sample data loaded!');
-    console.log('   You should now see Sprint 14 items in the app.');
+    if (trimmed) await pool.query(sql);
+    console.log('✅ Seed complete. Create projects, sprints, and team from the app UI.');
   } catch (err) {
     console.error('❌ Seed failed:', err.message);
     process.exit(1);

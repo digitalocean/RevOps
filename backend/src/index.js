@@ -39,12 +39,12 @@ app.get('/', (_req, res) => {
     name: 'AgileOps API',
     docs: 'Open the frontend app URL in your browser, not this API URL.',
     health: '/health',
-    routes: ['/api/team-members', '/api/projects', '/api/sprints', '/api/items', '/api/labels', '/api/activity'],
+    routes: ['/api/team-members', '/api/roles', '/api/projects', '/api/sprints', '/api/items', '/api/labels', '/api/activity'],
   });
 });
 
 app.get('/api', (_req, res) => {
-  res.json({ routes: ['/api/team-members', '/api/projects', '/api/sprints', '/api/items', '/api/labels', '/api/activity'] });
+  res.json({ routes: ['/api/team-members', '/api/roles', '/api/projects', '/api/sprints', '/api/items', '/api/labels', '/api/activity'] });
 });
 
 // ─── Admin: delete all data (optional; set RESET_SECRET in env to enable) ───
@@ -58,7 +58,7 @@ app.post('/api/admin/reset', async (req, res) => {
   const sql = fs.readFileSync(path.join(__dirname, 'db', 'reset.sql'), 'utf8');
   try {
     await pool.query(sql);
-    res.json({ ok: true, message: 'All data deleted. Run seed to load sample data.' });
+    res.json({ ok: true, message: 'All data deleted. Create projects and team from the app UI.' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -66,15 +66,37 @@ app.post('/api/admin/reset', async (req, res) => {
 });
 
 // ─── Routes ───────────────────────────────────────────────────
-app.use('/api/team-members', require('./routes/teamMembers'));
-app.use('/api/projects',     require('./routes/projects'));
-app.use('/api/sprints',      require('./routes/sprints'));
-app.use('/api/items',        require('./routes/items'));
-app.use('/api/labels',       require('./routes/labels'));
-app.use('/api/activity',     require('./routes/activity'));
+const teamMembers = require('./routes/teamMembers');
+const roles       = require('./routes/roles');
+const projects    = require('./routes/projects');
+const sprints     = require('./routes/sprints');
+const items       = require('./routes/items');
+const labels      = require('./routes/labels');
+const activity    = require('./routes/activity');
+
+app.use('/api/team-members', teamMembers);
+app.use('/api/roles',        roles);
+app.use('/api/projects',     projects);
+app.use('/api/sprints',      sprints);
+app.use('/api/items',        items);
+app.use('/api/labels',       labels);
+app.use('/api/activity',     activity);
+
+// If proxy strips /api prefix, also mount at root
+app.use('/team-members', teamMembers);
+app.use('/roles',        roles);
+app.use('/projects',     projects);
+app.use('/sprints',      sprints);
+app.use('/items',        items);
+app.use('/labels',       labels);
+app.use('/activity',     activity);
 
 // ─── 404 / Error handlers ─────────────────────────────────────
-app.use((_req, res) => res.status(404).json({ error: 'Route not found' }));
+app.use((req, res) => res.status(404).json({
+  error: 'Route not found',
+  path: req.method + ' ' + req.path,
+  hint: 'Use /api/projects, /api/sprints, /api/items etc. Or ensure VITE_API_URL points to this server.',
+}));
 app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ error: err.message || 'Internal server error' });

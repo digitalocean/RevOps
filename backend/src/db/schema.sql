@@ -6,12 +6,20 @@
 -- Enable UUID support
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
+-- ROLES (configurable via Team / Manage roles in the app)
+CREATE TABLE IF NOT EXISTS roles (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        VARCHAR(100) NOT NULL UNIQUE,
+  sort_order  INTEGER DEFAULT 0,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- TEAM MEMBERS (add/edit via the Team Members UI in the app)
 CREATE TABLE IF NOT EXISTS team_members (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name        VARCHAR(100) NOT NULL,
   email       VARCHAR(255) NOT NULL UNIQUE,
-  role        VARCHAR(100),
+  role        VARCHAR(100),             -- role name (from roles table or custom)
   avatar      VARCHAR(4),               -- initials, e.g. "RK"
   color       VARCHAR(7) DEFAULT '#6366f1',
   active      BOOLEAN DEFAULT true,

@@ -15,7 +15,7 @@ DECLARE
 BEGIN
   FOREACH t IN ARRAY ARRAY[
     'activity_log', 'item_labels', 'criteria', 'comments', 'approvers',
-    'blockers', 'work_items', 'labels', 'sprints', 'projects', 'team_members'
+    'blockers', 'work_items', 'labels', 'sprints', 'projects', 'team_members', 'roles'
   ]
   LOOP
     BEGIN

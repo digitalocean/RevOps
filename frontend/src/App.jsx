@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, createContext, useContext } from "react";
 
 // ─── DESIGN TOKENS (#EDE8D0 tone) ─────────────────────────────────────────────
 const T = {
@@ -13,20 +13,12 @@ const T = {
 };
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
-const USERS = [
-  { id:"u1", name:"Raj K.",   initials:"RK", bg:"bg-indigo-500",   hex:"#6366f1" },
-  { id:"u2", name:"Sara K.",  initials:"SK", bg:"bg-violet-500",   hex:"#8b5cf6" },
-  { id:"u3", name:"Aman M.",  initials:"AM", bg:"bg-emerald-600",  hex:"#059669" },
-  { id:"u4", name:"Priya P.", initials:"PP", bg:"bg-amber-500",    hex:"#f59e0b" },
-];
+const toDisplayUser = m => ({ id: m.id, name: m.name, initials: (m.avatar || (m.name||"").split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2)), hex: m.color || "#6366f1" });
+const UsersContext = createContext([]);
+const useUsers = () => useContext(UsersContext);
+const userByIdFromList = (users, id) => users.find(x => x.id === id);
 
-const LABELS = [
-  { id:"l1", name:"Salesforce",   style:"bg-sky-500/10 text-sky-400 border-sky-500/20"      },
-  { id:"l2", name:"LWC",          style:"bg-violet-500/10 text-violet-400 border-violet-500/20" },
-  { id:"l3", name:"Apex",         style:"bg-jade-DEFAULT/10 text-[#2dd4a0] border-[#2dd4a0]/20" },
-  { id:"l4", name:"P0 Bug",       style:"bg-rose-500/10 text-rose-400 border-rose-500/20"   },
-  { id:"l5", name:"Omni-Channel", style:"bg-amber-500/10 text-amber-400 border-amber-500/20"},
-];
+const LABELS = [];
 
 const COLS = [
   { id:"backlog",     label:"Backlog",     color:"#6b7280", glow:"",             dot:"bg-[#6b7280]",   badge:"text-[#9ca3af]"            },
@@ -57,7 +49,6 @@ const daysApart = (a,b) => Math.round((new Date(b)-new Date(a))/86400000);
 const fmtTs = iso => iso ? new Date(iso).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "";
 const byId = (arr,id) => arr.find(x=>x.id===id);
 const colById  = id => byId(COLS,id);
-const userById = id => byId(USERS,id);
 const labelById= id => byId(LABELS,id);
 
 // Map API work item to UI shape (id, type, title, status, priority, points, assignee, labels, criteria, etc.)
@@ -87,7 +78,8 @@ function apiItemToUI(row) {
 
 // ─── ATOMS ────────────────────────────────────────────────────────────────────
 function Avatar({ userId, size=6 }) {
-  const u = userById(userId); if (!u) return null;
+  const users = useUsers();
+  const u = userByIdFromList(users, userId); if (!u) return null;
   const s = `w-${size} h-${size}`;
   return <div title={u.name} style={{width:size*4,height:size*4,background:u.hex,fontSize:size*1.5}} className="rounded-full flex items-center justify-center text-white font-semibold ring-[1.5px] ring-[rgba(255,255,255,0.1)] flex-shrink-0">{u.initials}</div>;
 }
@@ -141,12 +133,8 @@ export default function App() {
   const [filterType, setFilterType] = useState("all");
   const [dragId, setDragId] = useState(null);
   const [dragOver, setDragOver] = useState(null);
-  const [teamMembers, setTeamMembers] = useState([
-    { id:"u1", name:"Raj K.",   role:"Lead Developer",  email:"raj@company.com",   avatar:"RK", color:"#6366f1", active:true },
-    { id:"u2", name:"Sara K.",  role:"Product Manager", email:"sara@company.com",  avatar:"SK", color:"#8b5cf6", active:true },
-    { id:"u3", name:"Aman M.",  role:"DevOps Engineer", email:"aman@company.com",  avatar:"AM", color:"#059669", active:true },
-    { id:"u4", name:"Priya P.", role:"Data Analyst",    email:"priya@company.com", avatar:"PP", color:"#f59e0b", active:true },
-  ]);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [projects, setProjects] = useState([]);
   const [sprints, setSprints] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
@@ -157,12 +145,16 @@ export default function App() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [projRes, sprintRes] = await Promise.all([
+        const [projRes, sprintRes, membersRes, rolesRes] = await Promise.all([
           fetch(`${API_BASE}/api/projects`),
           fetch(`${API_BASE}/api/sprints`),
+          fetch(`${API_BASE}/api/team-members`),
+          fetch(`${API_BASE}/api/roles`),
         ]);
         if (projRes.ok) setProjects(await projRes.json());
         if (sprintRes.ok) setSprints(await sprintRes.json());
+        if (membersRes.ok) setTeamMembers(await membersRes.json());
+        if (rolesRes.ok) setRoles(await rolesRes.json());
       } catch (_) { /* backend not running or CORS — keep empty */ }
     };
     load();
@@ -205,6 +197,20 @@ export default function App() {
   const selectedProject = selectedProjectId ? projects.find(p => p.id === selectedProjectId) : null;
   const selectedSprint = selectedSprintId ? sprints.find(s => s.id === selectedSprintId) : null;
   const sprintsForProject = selectedProjectId ? sprints.filter(s => s.project_id === selectedProjectId) : [];
+  const displayUsers = useMemo(() => teamMembers.map(toDisplayUser), [teamMembers]);
+
+  const refreshTeamMembers = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/team-members`);
+      if (res.ok) setTeamMembers(await res.json());
+    } catch (_) {}
+  }, []);
+  const refreshRoles = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/roles`);
+      if (res.ok) setRoles(await res.json());
+    } catch (_) {}
+  }, []);
 
   const refreshItems = useCallback(async () => {
     if (!selectedSprintId) return;
@@ -257,6 +263,7 @@ export default function App() {
   const donePts = items.filter(i=>i.status==="done").reduce((s,i)=>s+i.points,0);
 
   return (
+    <UsersContext.Provider value={displayUsers}>
     <div className="flex h-screen bg-[#EDE8D0] overflow-hidden text-[#1c1917]">
       <Toast t={toast}/>
 
@@ -283,9 +290,14 @@ export default function App() {
 
           <p className="text-[10px] font-semibold text-[#78716c] px-2 py-2 mt-4 tracking-wider uppercase flex items-center justify-between">
             <span>Projects</span>
-            <button onClick={()=>setShowCreateProjectModal(true)} className="text-indigo-600 hover:text-indigo-700 font-bold text-sm" title="New project">+</button>
+            <div className="flex items-center gap-1">
+              {projects.length > 0 && (
+                <button onClick={()=>setShowCreateSprintModal(true)} className="text-indigo-600 hover:text-indigo-700 font-medium text-xs" title="New sprint">+ Sprint</button>
+              )}
+              <button onClick={()=>setShowCreateProjectModal(true)} className="text-indigo-600 hover:text-indigo-700 font-bold text-sm" title="New project">+</button>
+            </div>
           </p>
-          {projects.length === 0 && <p className="px-2 py-1 text-xs text-[#78716c]">No projects yet. Click + to create one.</p>}
+          {projects.length === 0 && <p className="px-2 py-1 text-xs text-[#78716c]">No projects yet. Click + to create one, then add sprints.</p>}
           {projects.map((p) => (
             <div key={p.id} className="mt-0.5">
               <button
@@ -294,6 +306,7 @@ export default function App() {
               >
                 <div style={{background: p.color || "#6366f1"}} className="w-2.5 h-2.5 rounded flex-shrink-0"/>
                 <span className="truncate flex-1">{p.name}</span>
+                {p.status && p.status !== "active" && <span className="text-[9px] uppercase text-[#78716c] flex-shrink-0">{p.status}</span>}
               </button>
               {selectedProjectId === p.id && (
                 <div className="ml-3 mt-1 pl-2 border-l-2 border-[rgba(0,0,0,0.08)] space-y-0.5">
@@ -393,7 +406,7 @@ export default function App() {
           {view==="list"    && <ListView    filtered={filtered} items={items} updateItem={updateItem} addItem={addItem} setModal={setModal} notify={notify} deleteItem={deleteItem}/>}
           {view==="gantt"   && <GanttView   filtered={filtered} setModal={setModal}/>}
           {view==="metrics" && <MetricsView items={items}/>}
-          {view==="team"    && <TeamView    teamMembers={teamMembers} setTeamMembers={setTeamMembers} notify={notify}/>}
+          {view==="team"    && <TeamView    teamMembers={teamMembers} refreshTeamMembers={refreshTeamMembers} roles={roles} refreshRoles={refreshRoles} notify={notify}/>}
         </div>
       </div>
 
@@ -401,6 +414,7 @@ export default function App() {
       {showCreateSprintModal && <CreateSprintModal projects={projects} defaultProjectId={selectedProjectId} onClose={()=>setShowCreateSprintModal(false)} onCreated={()=>{ refreshSprints(); setShowCreateSprintModal(false); notify("Sprint created"); }} notify={notify}/>}
       {showCreateProjectModal && <CreateProjectModal onClose={()=>setShowCreateProjectModal(false)} onCreated={()=>{ refreshProjects(); setShowCreateProjectModal(false); notify("Project created"); }} notify={notify}/>}
     </div>
+    </UsersContext.Provider>
   );
 }
 
@@ -519,7 +533,7 @@ function ListView({filtered,items,updateItem,addItem,setModal,notify,deleteItem}
                   <td className={td}>{isEdit?<InlineSel val={buf.status} onChange={v=>setBuf(b=>({...b,status:v}))} opts={COLS.map(c=>[c.id,c.label])}/>:col&&<span style={{color:col.color}} className="text-[11px] font-semibold">{col.label}</span>}</td>
                   <td className={td}>{isEdit?<InlineSel val={buf.priority} onChange={v=>setBuf(b=>({...b,priority:v}))} opts={Object.entries(PRIO).map(([k,v])=>[k,v.label])}/>:<div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${pc.dot}`}/><span className={`text-[11px] font-medium ${pc.bg.split(' ').find(c=>c.startsWith('text-'))}`}>{pc.label}</span></div>}</td>
                   <td className={`${td} text-center tabular-nums`}>{isEdit?<Input type="number" value={buf.points} onChange={e=>setBuf(b=>({...b,points:+e.target.value}))} className="w-14 text-center text-xs py-1"/>:<span className="text-[#57534e] font-medium">{item.points}</span>}</td>
-                  <td className={td}>{isEdit?<InlineSel val={buf.assignee} onChange={v=>setBuf(b=>({...b,assignee:v}))} opts={[["","—"],...USERS.map(u=>[u.id,u.name])]}/>:item.assignee?<Avatar userId={item.assignee} size={6}/>:<span className="text-[#78716c]">—</span>}</td>
+                  <td className={td}>{isEdit?<InlineSel val={buf.assignee} onChange={v=>setBuf(b=>({...b,assignee:v}))} opts={[["","—"],...useUsers().map(u=>[u.id,u.name])]}/>:item.assignee?<Avatar userId={item.assignee} size={6}/>:<span className="text-[#78716c]">—</span>}</td>
                   <td className={`${td} w-24`}>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {isEdit?(<><PillBtn size="sm" color="jade" onClick={()=>saveEdit(item.id)}>Save</PillBtn><PillBtn size="sm" color="ghost" onClick={()=>setEditId(null)}>✕</PillBtn></>):(
@@ -537,7 +551,7 @@ function ListView({filtered,items,updateItem,addItem,setModal,notify,deleteItem}
                 <td className={td}><InlineSel val={nr.status} onChange={v=>setNr(r=>({...r,status:v}))} opts={COLS.map(c=>[c.id,c.label])}/></td>
                 <td className={td}><InlineSel val={nr.priority} onChange={v=>setNr(r=>({...r,priority:v}))} opts={Object.entries(PRIO).map(([k,v])=>[k,v.label])}/></td>
                 <td className={td}><Input type="number" value={nr.points} onChange={e=>setNr(r=>({...r,points:+e.target.value}))} className="w-14 text-center text-xs py-1"/></td>
-                <td className={td}><InlineSel val={nr.assignee} onChange={v=>setNr(r=>({...r,assignee:v}))} opts={[["","—"],...USERS.map(u=>[u.id,u.name])]}/></td>
+                <td className={td}><InlineSel val={nr.assignee} onChange={v=>setNr(r=>({...r,assignee:v}))} opts={[["","—"],...useUsers().map(u=>[u.id,u.name])]}/></td>
                 <td className={td}><div className="flex gap-1.5"><PillBtn size="sm" onClick={confirmNew}>Add</PillBtn><PillBtn size="sm" color="ghost" onClick={()=>setAddingRow(false)}>✕</PillBtn></div></td>
               </tr>
             )}
@@ -633,7 +647,8 @@ function GanttView({filtered,setModal}) {
 function MetricsView({items}) {
   const total=items.length;
   const byStatus=COLS.map(c=>({...c,count:items.filter(i=>i.status===c.id).length,pts:items.filter(i=>i.status===c.id).reduce((s,i)=>s+i.points,0)}));
-  const byUser=USERS.map(u=>({u,count:items.filter(i=>i.assignee===u.id).length,done:items.filter(i=>i.assignee===u.id&&i.status==="done").length,pts:items.filter(i=>i.assignee===u.id).reduce((s,i)=>s+i.points,0)}));
+  const users = useUsers();
+  const byUser = users.map(u=>({u,count:items.filter(i=>i.assignee===u.id).length,done:items.filter(i=>i.assignee===u.id&&i.status==="done").length,pts:items.filter(i=>i.assignee===u.id).reduce((s,i)=>s+i.points,0)}));
   const totalPts=items.reduce((s,i)=>s+i.points,0), donePts=items.filter(i=>i.status==="done").reduce((s,i)=>s+i.points,0), vel=totalPts?Math.round(donePts/totalPts*100):0;
   const byType=["epic","story","bug","task"].map(t=>({t,count:items.filter(i=>i.type===t).length}));
   const byPrio=Object.entries(PRIO).map(([p,cfg])=>({p,cfg,count:items.filter(i=>i.priority===p).length}));
@@ -789,7 +804,7 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
   const delCrit=cid=>onUpdate({criteria:item.criteria.filter(c=>c.id!==cid)});
   const postComment=()=>{if(!newComment.trim())return;onUpdate({comments:[...(item.comments||[]),{id:"cm"+mkId(),user:"u1",text:newComment.trim(),ts:new Date().toISOString()}]});setNewComment("");notify("Posted");};
   const approve=(aid,status)=>{onUpdate({approvers:item.approvers.map(a=>a.id===aid?{...a,status}:a)});notify(status==="approved"?"Approved ✓":"Rejected");};
-  const addApprover=uid=>{if(item.approvers.find(a=>a.user===uid)){notify("Already added","error");return;}onUpdate({approvers:[...item.approvers,{id:"a"+mkId(),user:uid,status:"pending"}]});notify("Approver added");};
+  const addApprover=uid=>{if(item.approvers.find(a=>(a.user||a.member_id)===uid)){notify("Already added","error");return;}onUpdate({approvers:[...item.approvers,{id:"a"+mkId(),user:uid,member_id:uid,status:"pending"}]});notify("Approver added");};
   const removeApprover=aid=>{onUpdate({approvers:item.approvers.filter(a=>a.id!==aid)});notify("Removed");};
   const clearBlockers=()=>{onUpdate({blockers:[]});notify("Blockers cleared");};
   const runAI=async action=>{
@@ -842,7 +857,7 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
                 <Row label="Status"   val={editing?<Select value={draft.status} onChange={e=>set("status",e.target.value)} className="w-full text-xs py-1.5">{COLS.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}</Select>:col&&<span style={{color:col.color}} className="text-[12px] font-semibold">{col.label}</span>}/>
                 <Row label="Priority" val={editing?<Select value={draft.priority} onChange={e=>set("priority",e.target.value)} className="w-full text-xs py-1.5">{Object.entries(PRIO).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}</Select>:<div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${pc.dot}`}/><span style={{color:pc.color}} className="text-[12px] font-semibold">{pc.label}</span></div>}/>
                 <Row label="Points"   val={editing?<Input type="number" value={draft.points} onChange={e=>set("points",+e.target.value)} className="w-full text-xs py-1.5"/>:<span className="text-[12px] font-semibold text-[#d1d5db]">{item.points} pts</span>}/>
-                <Row label="Assignee" val={editing?<Select value={draft.assignee} onChange={e=>set("assignee",e.target.value)} className="w-full text-xs py-1.5"><option value="">Unassigned</option>{USERS.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</Select>:item.assignee?<div className="flex items-center gap-2"><Avatar userId={item.assignee} size={6}/><span className="text-[12px] text-[#d1d5db]">{userById(item.assignee)?.name}</span></div>:<span className="text-[#6b7280] text-[12px]">Unassigned</span>}/>
+                <Row label="Assignee" val={editing?<Select value={draft.assignee} onChange={e=>set("assignee",e.target.value)} className="w-full text-xs py-1.5"><option value="">Unassigned</option>{useUsers().map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</Select>:item.assignee?<div className="flex items-center gap-2"><Avatar userId={item.assignee} size={6}/><span className="text-[12px] text-[#d1d5db]">{userByIdFromList(useUsers(), item.assignee)?.name}</span></div>:<span className="text-[#6b7280] text-[12px]">Unassigned</span>}/>
                 <Row label="Labels" val={<div className="flex gap-1 flex-wrap">{(item.labels||[]).map(lid=>{const l=labelById(lid);return l?<Chip key={lid} className={l.style}>{l.name}</Chip>:null;})}</div>}/>
               </div>
             </div>
@@ -879,9 +894,9 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
             <div>
               {item.approvers?.length===0&&<p className="text-sm text-[#57534e] mb-4">No approvers assigned.</p>}
               <div className="space-y-2.5 mb-5">
-                {item.approvers?.map(a=>{const u=userById(a.user);return(
+                {item.approvers?.map(a=>{const uid=a.user||a.member_id; const u=userByIdFromList(useUsers(), uid);return(
                   <div key={a.id} className="flex items-center gap-3 p-3.5 bg-[#F3F0E0] rounded-xl border border-[rgba(0,0,0,0.08)]">
-                    <Avatar userId={a.user} size={8}/>
+                    <Avatar userId={uid} size={8}/>
                     <div className="flex-1"><p className="text-[13px] font-semibold text-[#1c1917]">{u?.name}</p></div>
                     <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${a.status==="approved"?"bg-emerald-100 text-emerald-700 border-emerald-200":a.status==="rejected"?"bg-rose-100 text-rose-700 border-rose-200":"bg-[#E2DCC5] text-[#57534e] border-[rgba(0,0,0,0.08)]"}`}>{a.status.toUpperCase()}</span>
                     {a.status==="pending"&&<><PillBtn size="sm" color="jade" onClick={()=>approve(a.id,"approved")}>Approve</PillBtn><PillBtn size="sm" color="rose" onClick={()=>approve(a.id,"rejected")}>Reject</PillBtn></>}
@@ -892,12 +907,12 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
               <div>
                 <p className="text-[10px] font-semibold text-[#57534e] uppercase tracking-[0.08em] mb-2.5">Add Approver</p>
                 <div className="flex flex-wrap gap-2">
-                  {USERS.filter(u=>!item.approvers.find(a=>a.user===u.id)).map(u=>(
+                  {useUsers().filter(u=>!item.approvers.find(a=>(a.user||a.member_id)===u.id)).map(u=>(
                     <button key={u.id} onClick={()=>addApprover(u.id)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] hover:border-indigo-300 hover:bg-indigo-50 transition-all text-[12px] font-medium text-[#57534e] hover:text-indigo-700">
                       <Avatar userId={u.id} size={5}/>{u.name}
                     </button>
                   ))}
-                  {USERS.every(u=>item.approvers.find(a=>a.user===u.id))&&<p className="text-[12px] text-[#6b7280]">All team members added.</p>}
+                  {useUsers().every(u=>item.approvers.find(a=>(a.user||a.member_id)===u.id))&&<p className="text-[12px] text-[#6b7280]">All team members added.</p>}
                 </div>
               </div>
             </div>
@@ -907,12 +922,12 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
             <div>
               {item.comments?.length===0&&<p className="text-sm text-[#6b7280] mb-4">No comments yet.</p>}
               <div className="space-y-4 mb-5">
-                {item.comments?.map(c=>{const u=userById(c.user);return(
+                {item.comments?.map(c=>{const authorId=c.user||c.author_id; const u=userByIdFromList(useUsers(), authorId);return(
                   <div key={c.id} className="flex gap-3">
-                    <Avatar userId={c.user} size={7}/>
+                    <Avatar userId={authorId} size={7}/>
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1.5"><span className="text-[13px] font-semibold text-[#f3f4f6]">{u?.name}</span><span className="text-[11px] text-[#6b7280]">{fmtTs(c.ts)}</span></div>
-                      <div className="bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-xl px-4 py-3 text-[13px] text-[#1c1917] leading-relaxed">{c.text}</div>
+                      <div className="flex items-center gap-2 mb-1.5"><span className="text-[13px] font-semibold text-[#1c1917]">{u?.name}</span><span className="text-[11px] text-[#57534e]">{fmtTs(c.created_at||c.ts)}</span></div>
+                      <div className="bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-xl px-4 py-3 text-[13px] text-[#1c1917] leading-relaxed">{c.body||c.text}</div>
                     </div>
                   </div>
                 );})}
@@ -935,7 +950,7 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
                   {item.blockers?.map(bid=>{const bl=items.find(i=>i.id===bid);if(!bl)return null;const btc=TYPE[bl.type]||TYPE.task;return(
                     <div key={bid} className="flex items-center gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
                       <span className="text-rose-600 text-lg">◉</span>
-                      <div className="flex-1"><p className="text-[13px] font-semibold text-[#1c1917]">{bl.title}</p><p className="text-[11px] text-[#57534e] mt-0.5">{colById(bl.status)?.label} · {bl.assignee?userById(bl.assignee)?.name:"Unassigned"}</p></div>
+                      <div className="flex-1"><p className="text-[13px] font-semibold text-[#1c1917]">{bl.title}</p><p className="text-[11px] text-[#57534e] mt-0.5">{colById(bl.status)?.label} · {bl.assignee?userByIdFromList(useUsers(), bl.assignee)?.name:"Unassigned"}</p></div>
                       <Chip className={btc.bg}>{btc.icon} {btc.label}</Chip>
                     </div>
                   );})}
@@ -991,60 +1006,127 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
 }
 
 // ─── TEAM VIEW ────────────────────────────────────────────────────────────────
-function TeamView({ teamMembers, setTeamMembers, notify }) {
+function TeamView({ teamMembers, refreshTeamMembers, roles, refreshRoles, notify }) {
   const [showAdd, setShowAdd] = useState(false);
+  const [showRoles, setShowRoles] = useState(false);
   const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ name:"", role:"", email:"", color:"#6366f1" });
-  const mkId = () => Math.random().toString(36).slice(2,9);
+  const [newRoleName, setNewRoleName] = useState("");
 
   const COLORS = ["#6366f1","#8b5cf6","#059669","#f59e0b","#ef4444","#0ea5e9","#ec4899","#14b8a6"];
-  const ROLES  = ["Lead Developer","Senior Developer","Frontend Developer","Backend Developer","DevOps Engineer","Product Manager","QA Engineer","Data Analyst","Designer","Scrum Master"];
-
-  const initials = name => name.split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);
+  const initials = name => (name||"").split(" ").map(w=>w[0]).join("").toUpperCase().slice(0,2);
 
   const openAdd = () => { setForm({name:"",role:"",email:"",color:COLORS[teamMembers.length % COLORS.length]}); setEditId(null); setShowAdd(true); };
-  const openEdit = m  => { setForm({name:m.name,role:m.role,email:m.email,color:m.color}); setEditId(m.id); setShowAdd(true); };
-  const save = () => {
+  const openEdit = m  => { setForm({name:m.name,role:m.role||"",email:m.email,color:m.color}); setEditId(m.id); setShowAdd(true); };
+
+  const save = async () => {
     if (!form.name.trim() || !form.email.trim()) { notify("Name and email required","error"); return; }
-    if (editId) {
-      setTeamMembers(p=>p.map(m=>m.id===editId?{...m,...form,avatar:initials(form.name)}:m));
-      notify("Member updated");
-    } else {
-      setTeamMembers(p=>[...p,{id:"u"+mkId(),...form,avatar:initials(form.name),active:true}]);
-      notify("Member added");
-    }
-    setShowAdd(false);
+    const payload = { name: form.name.trim(), email: form.email.trim(), role: form.role || null, color: form.color, avatar: initials(form.name) };
+    try {
+      if (editId) {
+        const res = await fetch(`${API_BASE}/api/team-members/${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (!res.ok) { const d = await res.json().catch(()=>({})); notify(d.error || "Update failed", "error"); return; }
+        notify("Member updated");
+      } else {
+        const res = await fetch(`${API_BASE}/api/team-members`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (!res.ok) { const d = await res.json().catch(()=>({})); notify(d.error || "Add failed", "error"); return; }
+        notify("Member added");
+      }
+      setShowAdd(false);
+      refreshTeamMembers();
+    } catch (e) { notify(e.message || "Request failed", "error"); }
   };
-  const toggle = id => { setTeamMembers(p=>p.map(m=>m.id===id?{...m,active:!m.active}:m)); notify("Updated"); };
-  const remove = id => { if(window.confirm("Remove this team member?")) { setTeamMembers(p=>p.filter(m=>m.id!==id)); notify("Removed"); } };
+
+  const toggle = async (id) => {
+    const m = teamMembers.find(x=>x.id===id); if (!m) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/team-members/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ active: !m.active }) });
+      if (!res.ok) return;
+      notify("Updated");
+      refreshTeamMembers();
+    } catch (_) {}
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm("Remove this team member?")) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/team-members/${id}`, { method: "DELETE" });
+      if (!res.ok) return;
+      notify("Removed");
+      refreshTeamMembers();
+    } catch (_) {}
+  };
+
+  const addRole = async () => {
+    if (!newRoleName.trim()) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/roles`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newRoleName.trim() }) });
+      if (!res.ok) { const d = await res.json().catch(()=>({})); notify(d.error || "Add role failed", "error"); return; }
+      setNewRoleName("");
+      notify("Role added");
+      refreshRoles();
+    } catch (e) { notify(e.message || "Request failed", "error"); }
+  };
+
+  const deleteRole = async (id) => {
+    try {
+      await fetch(`${API_BASE}/api/roles/${id}`, { method: "DELETE" });
+      notify("Role removed");
+      refreshRoles();
+    } catch (_) {}
+  };
 
   return (
     <div className="p-5">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-5">
+      <div className="flex items-center gap-4 mb-5 flex-wrap">
         <div>
-          <h2 className="text-lg font-semibold text-[#f3f4f6]">Team Members</h2>
-          <p className="text-[12px] text-[#9ca3af] mt-0.5">{teamMembers.filter(m=>m.active).length} active · {teamMembers.length} total</p>
+          <h2 className="text-lg font-semibold text-[#1c1917]">Team Members</h2>
+          <p className="text-[12px] text-[#57534e] mt-0.5">{teamMembers.filter(m=>m.active).length} active · {teamMembers.length} total</p>
         </div>
-        <button onClick={openAdd} className="ml-auto flex items-center gap-2 px-4 py-2 bg-[#7c6af7] hover:bg-[#6b5ce7] text-white rounded-lg text-sm font-semibold transition-colors">
-          + Add Member
-        </button>
+        <div className="flex items-center gap-2 ml-auto">
+          <button onClick={()=>setShowRoles(!showRoles)} className="px-4 py-2 bg-[#E2DCC5] hover:bg-[#D4CEB8] text-[#1c1917] rounded-lg text-sm font-medium transition-colors">
+            Manage roles
+          </button>
+          <button onClick={openAdd} className="flex items-center gap-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-semibold transition-colors">
+            + Add Member
+          </button>
+        </div>
       </div>
+
+      {/* Manage roles panel */}
+      {showRoles && (
+        <div className="mb-5 p-4 rounded-xl bg-[#FAF8F2] border border-[rgba(0,0,0,0.08)]">
+          <p className="text-xs font-semibold text-[#57534e] uppercase tracking-wider mb-2">Roles (for team members)</p>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {roles.map(r=>(
+              <span key={r.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] text-sm text-[#1c1917]">
+                {r.name}
+                <button type="button" onClick={()=>deleteRole(r.id)} className="text-[#78716c] hover:text-rose-600 text-sm leading-none" title="Remove role">×</button>
+              </span>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <input value={newRoleName} onChange={e=>setNewRoleName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addRole()} placeholder="New role name" className="flex-1 max-w-xs bg-white border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] placeholder-[#78716c] focus:border-indigo-400 outline-none"/>
+            <button type="button" onClick={addRole} className="px-3 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium">Add role</button>
+          </div>
+        </div>
+      )}
 
       {/* Grid */}
       <div className="grid grid-cols-3 gap-3">
         {teamMembers.map(m => (
           <div key={m.id} className={`bg-[#FAF8F2] rounded-xl border border-[rgba(0,0,0,0.08)] p-4 transition-all ${m.active?"":"opacity-60"}`}>
             <div className="flex items-start gap-3 mb-3">
-              <div style={{background:m.color,width:44,height:44,fontSize:15}} className="rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0 ring-1 ring-white/10">
-                {m.avatar}
+              <div style={{background:m.color||"#6366f1",width:44,height:44,fontSize:15}} className="rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0 ring-1 ring-white/10">
+                {m.avatar || initials(m.name)}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-semibold text-[#f3f4f6] truncate">{m.name}</p>
-                <p className="text-[11px] text-[#9ca3af] truncate">{m.role}</p>
+                <p className="text-[14px] font-semibold text-[#1c1917] truncate">{m.name}</p>
+                <p className="text-[11px] text-[#57534e] truncate">{m.role || "—"}</p>
               </div>
             </div>
-            <p className="text-[11px] text-[#6b7280] mb-3 truncate">{m.email}</p>
+            <p className="text-[11px] text-[#57534e] mb-3 truncate">{m.email}</p>
             <div className="flex items-center gap-2">
               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${m.active?"bg-emerald-100 text-emerald-700 border-emerald-200":"bg-[#E2DCC5] text-[#57534e] border-[rgba(0,0,0,0.08)]"}`}>
                 {m.active ? "Active" : "Inactive"}
@@ -1076,10 +1158,10 @@ function TeamView({ teamMembers, setTeamMembers, notify }) {
                 {form.name ? initials(form.name) : "?"}
               </div>
               <div>
-                <h3 className="text-[15px] font-semibold text-[#f3f4f6]">{editId ? "Edit Member" : "Add Team Member"}</h3>
-                <p className="text-[11px] text-[#9ca3af]">Fill in the details below</p>
+                <h3 className="text-[15px] font-semibold text-[#1c1917]">{editId ? "Edit Member" : "Add Team Member"}</h3>
+                <p className="text-[11px] text-[#57534e]">Fill in the details below</p>
               </div>
-              <button onClick={()=>setShowAdd(false)} className="ml-auto text-[#6b7280] hover:text-[#f3f4f6] text-lg transition-colors">×</button>
+              <button onClick={()=>setShowAdd(false)} className="ml-auto text-[#57534e] hover:text-[#1c1917] text-lg transition-colors">×</button>
             </div>
 
             <div className="space-y-3">
@@ -1092,10 +1174,11 @@ function TeamView({ teamMembers, setTeamMembers, notify }) {
                 <input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} type="email" placeholder="john@company.com" className="w-full bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] placeholder-[#78716c] focus:border-indigo-400 outline-none transition-all"/>
               </div>
               <div>
-                <label className="block text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider mb-1.5">Role</label>
+                <label className="block text-[10px] font-semibold text-[#57534e] uppercase tracking-wider mb-1.5">Role</label>
                 <select value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} className="w-full bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] focus:border-indigo-400 outline-none">
                   <option value="">Select role…</option>
-                  {ROLES.map(r=><option key={r} value={r}>{r}</option>)}
+                  {roles.map(r=><option key={r.id} value={r.name}>{r.name}</option>)}
+                  {form.role && !roles.find(r=>r.name===form.role) && <option value={form.role}>{form.role}</option>}
                 </select>
               </div>
               <div>
@@ -1260,7 +1343,8 @@ function CreateProjectModal({ onClose, onCreated, notify }) {
       let data = {};
       try { data = text ? JSON.parse(text) : {}; } catch (_) {}
       if (!res.ok) {
-        const msg = data.error || data.message || (res.status === 404 ? "API not found. Is the backend running?" : res.status >= 500 ? "Server error. Check backend logs." : text || `Error ${res.status}`);
+        let msg = data.error || data.message || (res.status >= 500 ? "Server error. Check backend logs." : text || `Error ${res.status}`);
+        if (res.status === 404) msg = data.path ? `Route not found: ${data.path}. ${data.hint || "Set VITE_API_URL to your backend URL (no /api suffix)."}` : (msg || "API route not found.");
         setError(msg);
         return;
       }

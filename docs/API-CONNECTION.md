@@ -1,6 +1,9 @@
-# Fix: "Cannot reach the API"
+# Fix: "Cannot reach the API" or "Route not found"
 
-The frontend calls the backend at the URL from **`VITE_API_URL`** (or `http://localhost:4000` if not set). If you see **"Cannot reach the API at …"**, the browser cannot connect to that URL.
+- **"Cannot reach the API at …"** — The browser cannot connect to the API URL (backend not running or wrong `VITE_API_URL`).
+- **"Route not found"** — The request reached a server but the path was not recognized. Common causes: wrong base URL (e.g. `VITE_API_URL` includes `/api` so the app requests `/api/api/projects`), or the request is hitting the frontend host instead of the backend.
+
+The frontend calls the backend at **`VITE_API_URL`** (or `http://localhost:4000` if not set) and always adds `/api/…` (e.g. `/api/projects`). So `VITE_API_URL` must be the **origin only**, with no path: e.g. `https://your-backend.ondigitalocean.app`, not `https://your-backend.ondigitalocean.app/api`.
 
 ---
 

@@ -115,8 +115,10 @@ router.patch('/:id', async (req, res, next) => {
   const updates = [], values = [];
   fields.forEach(f => {
     if (req.body[f] !== undefined) {
+      let val = f === 'custom_field_values' ? JSON.stringify(req.body[f]) : req.body[f];
+      if (f === 'assignee_id' && (val === '' || val === null)) val = null;
       updates.push(`${f}=$${updates.length + 1}`);
-      values.push(f === 'custom_field_values' ? JSON.stringify(req.body[f]) : req.body[f]);
+      values.push(val);
     }
   });
   if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });

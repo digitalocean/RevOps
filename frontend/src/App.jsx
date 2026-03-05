@@ -255,7 +255,10 @@ export default function App() {
   const notify = useCallback((msg, type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),2500); }, []);
   const updateItem = useCallback(async (id, patch) => {
     const uiPatch = { ...patch };
-    if (uiPatch.assignee !== undefined) { uiPatch.assignee_id = uiPatch.assignee; delete uiPatch.assignee; }
+    if (uiPatch.assignee !== undefined) {
+      uiPatch.assignee_id = (uiPatch.assignee && String(uiPatch.assignee).trim()) ? uiPatch.assignee : null;
+      delete uiPatch.assignee;
+    }
     setItems(p => p.map(i => i.id === id ? { ...i, ...patch } : i));
     if (selectedSprintId && typeof fetch === "function") {
       try {
@@ -265,11 +268,21 @@ export default function App() {
         if (body.approvers !== undefined) delete body.approvers;
         if (body.blockers !== undefined) delete body.blockers;
         if (body.labels !== undefined) delete body.labels;
-        if (body.assignee !== undefined) { body.assignee_id = body.assignee; delete body.assignee; }
-        await fetch(`${API_BASE}/api/items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      } catch (_) {}
+        if (body.assignee !== undefined) { body.assignee_id = (body.assignee && String(body.assignee).trim()) ? body.assignee : null; delete body.assignee; }
+        const res = await fetch(`${API_BASE}/api/items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        if (res.ok) {
+          await refreshItems();
+        } else {
+          const err = await res.json().catch(() => ({}));
+          notify(err.error || err.message || `Save failed (${res.status})`, "error");
+          await refreshItems();
+        }
+      } catch (e) {
+        notify(e.message || "Could not reach server. Check that the backend is running.", "error");
+        await refreshItems();
+      }
     }
-  }, [selectedSprintId]);
+  }, [selectedSprintId, refreshItems, notify]);
   const deleteItem = useCallback(async (id) => {
     setItems(p=>p.filter(i=>i.id!==id)); setModal(null); notify("Item deleted");
     if (selectedSprintId && typeof fetch === "function") {
@@ -277,34 +290,37 @@ export default function App() {
     }
   }, [notify, selectedSprintId, refreshItems]);
   const addItem = useCallback(async (item) => {
-    if (selectedProjectId && selectedSprintId && typeof fetch === 'function') {
-      try {
-        const res = await fetch(`${API_BASE}/api/items`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            project_id: selectedProjectId,
-            sprint_id: selectedSprintId,
-            type: item.type || 'task',
-            title: item.title,
-            description: item.description || '',
-            status: item.status || 'backlog',
-            priority: item.priority || 'medium',
-            points: item.points ?? 1,
-            assignee_id: item.assignee || null,
-          }),
-        });
-        if (res.ok) {
-          await refreshItems();
-          notify("Item created");
-        } else notify((await res.json()).error || "Failed to create", "error");
-      } catch (e) {
-        notify(e.message || "Failed to create item", "error");
-      }
+    if (!selectedProjectId || !selectedSprintId) {
+      notify("Select a project and sprint in the sidebar first so your work is saved.", "error");
       return;
     }
-    setItems(p=>[...p,{...item, id: item.id || 'i'+mkId()}]);
-    notify("Item created");
+    if (typeof fetch !== 'function') return;
+    try {
+      const res = await fetch(`${API_BASE}/api/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          project_id: selectedProjectId,
+          sprint_id: selectedSprintId,
+          type: item.type || 'task',
+          title: item.title,
+          description: item.description || '',
+          status: item.status || 'backlog',
+          priority: item.priority || 'medium',
+          points: item.points ?? 1,
+          assignee_id: (item.assignee && String(item.assignee).trim()) ? item.assignee : null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await refreshItems();
+        notify("Item created");
+      } else {
+        notify(data.error || data.message || `Failed to create (${res.status})`, "error");
+      }
+    } catch (e) {
+      notify(e.message || "Cannot reach server. Is the backend running?", "error");
+    }
   }, [notify, selectedProjectId, selectedSprintId, refreshItems]);
 
   const filtered = items.filter(i=>(filterType==="all"||i.type===filterType)&&(!search||i.title.toLowerCase().includes(search.toLowerCase())));

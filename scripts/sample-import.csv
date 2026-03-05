@@ -1,0 +1,6 @@
+title,type,status,priority,points,assignee_email,description
+Implement OAuth login flow,story,backlog,high,8,raj@company.com,Add Google OAuth so users can sign in with their work accounts
+Fix dashboard loading spinner,bug,todo,medium,2,sara@company.com,Spinner doesn't stop when data fails to load
+Add CSV export button,task,backlog,low,3,aman@company.com,Let users download current sprint items as a spreadsheet
+Write unit tests for API,task,in_progress,medium,5,priya@company.com,Cover all routes with at least 80% test coverage
+Set up staging environment,task,todo,high,3,aman@company.com,Mirror of production for testing before releases

@@ -1,81 +1,76 @@
-// src/routes/projects.js
-const router = require('express').Router();
-const pool   = require('../db/pool');
+const express = require('express');
+const pool = require('../db/pool');
+const router = express.Router();
 
-// GET all projects (with member count and sprint count)
-router.get('/', async (_req, res, next) => {
+router.get('/:projectId/trackers', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(`
-      SELECT p.*,
-        tm.name AS owner_name,
-        (SELECT COUNT(*) FROM sprints s WHERE s.project_id = p.id) AS sprint_count,
-        (SELECT COUNT(*) FROM work_items w WHERE w.project_id = p.id) AS item_count,
-        (SELECT COUNT(*) FROM work_items w WHERE w.project_id = p.id AND w.status = 'done') AS done_count
-      FROM projects p
-      LEFT JOIN team_members tm ON tm.id = p.owner_id
-      ORDER BY p.created_at DESC
-    `);
+    const { projectId } = req.params;
+    const { rows } = await pool.query('SELECT * FROM trackers WHERE project_id = $1 ORDER BY sort_order, name', [projectId]);
     res.json(rows);
-  } catch (err) { next(err); }
+  } catch (e) { next(e); }
 });
 
-// GET single project
-router.get('/:id', async (req, res, next) => {
+router.post('/:projectId/trackers', async (req, res, next) => {
   try {
+    const { projectId } = req.params;
+    const { name, icon, columns } = req.body;
     const { rows } = await pool.query(
-      `SELECT p.*, tm.name AS owner_name
-       FROM projects p LEFT JOIN team_members tm ON tm.id = p.owner_id
-       WHERE p.id = $1`, [req.params.id]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'Not found' });
-    res.json(rows[0]);
-  } catch (err) { next(err); }
-});
-
-// POST create project
-router.post('/', async (req, res, next) => {
-  const { name, description, color, owner_id, board_column_order, custom_field_values } = req.body;
-  if (!name) return res.status(400).json({ error: 'name is required' });
-  try {
-    const { rows } = await pool.query(
-      `INSERT INTO projects (name, description, color, owner_id, board_column_order, custom_field_values)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [name, description || null, color || '#7c6af7', owner_id || null,
-        board_column_order ? JSON.stringify(board_column_order) : null,
-        custom_field_values ? JSON.stringify(custom_field_values) : null]
+      'INSERT INTO trackers (project_id, name, icon, columns) VALUES ($1, $2, $3, $4) RETURNING *',
+      [projectId, name || 'Tracker', icon || null, JSON.stringify(columns || [])]
     );
     res.status(201).json(rows[0]);
-  } catch (err) { next(err); }
+  } catch (e) { next(e); }
 });
 
-// PATCH update project
-router.patch('/:id', async (req, res, next) => {
-  const fields = ['name','description','color','status','owner_id','board_column_order','custom_field_values'];
-  const updates = [], values = [];
-  fields.forEach(f => {
-    if (req.body[f] !== undefined) {
-      updates.push(`${f} = $${updates.length + 1}`);
-      values.push((f === 'board_column_order' || f === 'custom_field_values') ? JSON.stringify(req.body[f]) : req.body[f]);
-    }
-  });
-  if (!updates.length) return res.status(400).json({ error: 'No fields to update' });
-  values.push(req.params.id);
+router.get('/:projectId/sprints', async (req, res, next) => {
   try {
+    const { projectId } = req.params;
+    const { rows } = await pool.query('SELECT * FROM sprints WHERE project_id = $1 ORDER BY start_date DESC NULLS LAST', [projectId]);
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+router.post('/:projectId/sprints', async (req, res, next) => {
+  try {
+    const { projectId } = req.params;
+    const { name, goal, status, start_date, end_date, capacity } = req.body;
     const { rows } = await pool.query(
-      `UPDATE projects SET ${updates.join(', ')} WHERE id = $${values.length} RETURNING *`, values
+      `INSERT INTO sprints (project_id, name, goal, status, start_date, end_date, capacity) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [projectId, name || 'Sprint', goal || null, status || 'planning', start_date || null, end_date || null, capacity ?? 0]
     );
-    if (!rows.length) return res.status(404).json({ error: 'Not found' });
-    res.json(rows[0]);
-  } catch (err) { next(err); }
+    res.status(201).json(rows[0]);
+  } catch (e) { next(e); }
 });
 
-// DELETE project
-router.delete('/:id', async (req, res, next) => {
+router.get('/', async (_req, res, next) => {
   try {
-    const { rowCount } = await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
-    if (!rowCount) return res.status(404).json({ error: 'Not found' });
-    res.json({ deleted: true });
-  } catch (err) { next(err); }
+    const { rows } = await pool.query('SELECT * FROM projects ORDER BY name');
+    res.json(rows);
+  } catch (e) { next(e); }
+});
+
+router.post('/', async (req, res, next) => {
+  try {
+    const { workspace_id, name, description, color, status, owner_id } = req.body;
+    const { rows } = await pool.query(
+      `INSERT INTO projects (workspace_id, name, description, color, status, owner_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      [workspace_id || null, name || '', description || null, color || null, status || 'active', owner_id || null]
+    );
+    res.status(201).json(rows[0]);
+  } catch (e) { next(e); }
+});
+
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { workspace_id, name, description, color, status, owner_id } = req.body;
+    const { rows } = await pool.query(
+      `UPDATE projects SET workspace_id = COALESCE($1, workspace_id), name = COALESCE($2, name), description = COALESCE($3, description), color = COALESCE($4, color), status = COALESCE($5, status), owner_id = COALESCE($6, owner_id), updated_at = NOW() WHERE id = $7 RETURNING *`,
+      [workspace_id, name, description, color, status, owner_id, id]
+    );
+    if (!rows[0]) return res.status(404).json({ error: 'Not found' });
+    res.json(rows[0]);
+  } catch (e) { next(e); }
 });
 
 module.exports = router;

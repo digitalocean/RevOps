@@ -3,9 +3,13 @@ import React, { createContext, useContext, useReducer, useCallback, useEffect } 
 const API = import.meta.env.VITE_API_URL || '';
 
 function getApiBase() {
+  // Dev with proxy: use same origin so /api goes to Vite proxy
   if (import.meta.env.DEV && !API) return '';
-  if (API) return API.replace(/\/$/, '');
-  return window.location.origin;
+  // Build-time env set (e.g. DigitalOcean): use it
+  if (API) return String(API).replace(/\/$/, '');
+  // Production fallback: same origin (works when app and API share one domain)
+  if (typeof window !== 'undefined') return window.location.origin;
+  return '';
 }
 
 const initialState = {

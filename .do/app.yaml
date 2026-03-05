@@ -1,9 +1,8 @@
-# Paste this entire spec in DigitalOcean: Apps → your app → App Spec → Edit
-# Ingress: / and /api and /health are explicitly assigned so path "/" is not duplicated for revops.
+# Helm — DigitalOcean App Platform
+# frontend/ and backend/ are the Helm app. Single domain: /api and /health → API; / → static site.
 
-alerts:
-  - rule: DEPLOYMENT_FAILED
-  - rule: DOMAIN_FAILED
+name: helm
+region: nyc
 
 databases:
   - engine: PG
@@ -13,16 +12,15 @@ databases:
 features:
   - buildpack-stack=ubuntu-22
 
-# Single domain: /api and /health → API; / → frontend (no duplicate path "/" for revops)
 ingress:
   rules:
     - component:
-        name: revops
+        name: api
       match:
         path:
           prefix: /api
     - component:
-        name: revops
+        name: api
       match:
         path:
           prefix: /health
@@ -32,11 +30,12 @@ ingress:
         path:
           prefix: /
 
-name: revops
-region: nyc
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
 
 services:
-  - name: revops
+  - name: api
     environment_slug: node-js
     envs:
       - key: DATABASE_URL
@@ -45,12 +44,15 @@ services:
       - key: NODE_ENV
         value: production
         scope: RUN_TIME
+      - key: PORT
+        value: "8080"
+        scope: RUN_TIME
     github:
-      branch: feature/create-sprint-ui
       deploy_on_push: true
       repo: digitalocean/RevOps
+      branch: feature/create-sprint-ui
     http_port: 8080
-    instance_count: 2
+    instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
     run_command: npm start
     source_dir: /backend
@@ -60,14 +62,13 @@ static_sites:
     build_command: npm install && npm run build
     environment_slug: node-js
     envs:
-      # With ingress above, use your single app URL (same origin: /api and /health hit revops)
       - key: VITE_API_URL
         value: https://revops-ntkll.ondigitalocean.app
         scope: BUILD_TIME
     github:
-      branch: feature/create-sprint-ui
       deploy_on_push: true
       repo: digitalocean/RevOps
+      branch: feature/create-sprint-ui
     output_dir: dist
     source_dir: /frontend
     index_document: index.html

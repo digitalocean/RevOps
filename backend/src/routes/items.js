@@ -80,18 +80,18 @@ router.get('/:id', async (req, res, next) => {
 // POST create item
 router.post('/', async (req, res, next) => {
   const { project_id, sprint_id, type, title, description, status, priority, points,
-          assignee_id, start_date, end_date, labels=[], criteria=[] } = req.body;
+          assignee_id, start_date, end_date, custom_field_values, labels=[], criteria=[] } = req.body;
   if (!project_id || !title) return res.status(400).json({ error: 'project_id and title required' });
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const { rows: [item] } = await client.query(
       `INSERT INTO work_items
-         (project_id,sprint_id,type,title,description,status,priority,points,assignee_id,start_date,end_date)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+         (project_id,sprint_id,type,title,description,status,priority,points,assignee_id,start_date,end_date,custom_field_values)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [project_id, sprint_id||null, type||'task', title, description||null,
        status||'backlog', priority||'medium', points||1, assignee_id||null,
-       start_date||null, end_date||null]
+       start_date||null, end_date||null, custom_field_values ? JSON.stringify(custom_field_values) : null]
     );
     // Labels
     for (const lid of labels) {
@@ -111,10 +111,13 @@ router.post('/', async (req, res, next) => {
 // PATCH update item fields
 router.patch('/:id', async (req, res, next) => {
   const fields = ['type','title','description','status','priority','points',
-                  'assignee_id','sprint_id','start_date','end_date'];
+                  'assignee_id','sprint_id','start_date','end_date','custom_field_values'];
   const updates = [], values = [];
   fields.forEach(f => {
-    if (req.body[f] !== undefined) { updates.push(`${f}=$${updates.length+1}`); values.push(req.body[f]); }
+    if (req.body[f] !== undefined) {
+      updates.push(`${f}=$${updates.length + 1}`);
+      values.push(f === 'custom_field_values' ? JSON.stringify(req.body[f]) : req.body[f]);
+    }
   });
   if (!updates.length) return res.status(400).json({ error: 'Nothing to update' });
   values.push(req.params.id);

@@ -29,30 +29,33 @@ CREATE TABLE IF NOT EXISTS team_members (
 
 -- PROJECTS
 CREATE TABLE IF NOT EXISTS projects (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        VARCHAR(150) NOT NULL,
-  description TEXT,
-  color       VARCHAR(7) DEFAULT '#7c6af7',
-  status      VARCHAR(20) DEFAULT 'active'
-              CHECK (status IN ('active','archived','paused')),
-  owner_id    UUID REFERENCES team_members(id) ON DELETE SET NULL,
-  created_at  TIMESTAMPTZ DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ DEFAULT NOW()
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name                 VARCHAR(150) NOT NULL,
+  description          TEXT,
+  color                VARCHAR(7) DEFAULT '#7c6af7',
+  status               VARCHAR(20) DEFAULT 'active'
+                       CHECK (status IN ('active','archived','paused')),
+  owner_id             UUID REFERENCES team_members(id) ON DELETE SET NULL,
+  board_column_order   JSONB,              -- e.g. ["backlog","todo","in_progress","in_review","done"]
+  custom_field_values   JSONB DEFAULT '{}',
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- SPRINTS
 CREATE TABLE IF NOT EXISTS sprints (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id  UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  name        VARCHAR(100) NOT NULL,
-  goal        TEXT,
-  status      VARCHAR(20) DEFAULT 'planning'
-              CHECK (status IN ('planning','active','completed','cancelled')),
-  start_date  DATE,
-  end_date    DATE,
-  capacity    INTEGER DEFAULT 0,        -- total story points budgeted
-  created_at  TIMESTAMPTZ DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ DEFAULT NOW()
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id           UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  name                 VARCHAR(100) NOT NULL,
+  goal                 TEXT,
+  status                VARCHAR(20) DEFAULT 'planning'
+                       CHECK (status IN ('planning','active','completed','cancelled')),
+  start_date           DATE,
+  end_date             DATE,
+  capacity             INTEGER DEFAULT 0,
+  custom_field_values   JSONB DEFAULT '{}',
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- LABELS (per-project tags)
@@ -66,25 +69,26 @@ CREATE TABLE IF NOT EXISTS labels (
 
 -- WORK ITEMS (epics, stories, bugs, tasks)
 CREATE TABLE IF NOT EXISTS work_items (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  project_id  UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  sprint_id   UUID REFERENCES sprints(id) ON DELETE SET NULL,
-  parent_id   UUID REFERENCES work_items(id) ON DELETE SET NULL,
-  type        VARCHAR(20) NOT NULL DEFAULT 'task'
-              CHECK (type IN ('epic','story','bug','task')),
-  title       VARCHAR(300) NOT NULL,
-  description TEXT,
-  status      VARCHAR(30) NOT NULL DEFAULT 'backlog'
-              CHECK (status IN ('backlog','todo','in_progress','in_review','done')),
-  priority    VARCHAR(20) NOT NULL DEFAULT 'medium'
-              CHECK (priority IN ('critical','high','medium','low')),
-  points      INTEGER DEFAULT 1,
-  assignee_id UUID REFERENCES team_members(id) ON DELETE SET NULL,
-  start_date  DATE,
-  end_date    DATE,
-  created_by  UUID REFERENCES team_members(id) ON DELETE SET NULL,
-  created_at  TIMESTAMPTZ DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ DEFAULT NOW()
+  id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id           UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  sprint_id            UUID REFERENCES sprints(id) ON DELETE SET NULL,
+  parent_id            UUID REFERENCES work_items(id) ON DELETE SET NULL,
+  type                 VARCHAR(20) NOT NULL DEFAULT 'task'
+                       CHECK (type IN ('epic','story','bug','task')),
+  title                VARCHAR(300) NOT NULL,
+  description          TEXT,
+  status               VARCHAR(30) NOT NULL DEFAULT 'backlog'
+                       CHECK (status IN ('backlog','todo','in_progress','in_review','done')),
+  priority             VARCHAR(20) NOT NULL DEFAULT 'medium'
+                       CHECK (priority IN ('critical','high','medium','low')),
+  points               INTEGER DEFAULT 1,
+  assignee_id          UUID REFERENCES team_members(id) ON DELETE SET NULL,
+  start_date           DATE,
+  end_date             DATE,
+  created_by           UUID REFERENCES team_members(id) ON DELETE SET NULL,
+  custom_field_values   JSONB DEFAULT '{}',
+  created_at           TIMESTAMPTZ DEFAULT NOW(),
+  updated_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ITEM LABELS (one item can have many labels)
@@ -130,6 +134,19 @@ CREATE TABLE IF NOT EXISTS blockers (
   item_id       UUID NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
   blocked_by_id UUID NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
   PRIMARY KEY (item_id, blocked_by_id)
+);
+
+-- CUSTOM FIELD DEFINITIONS (project-, sprint-, or work_item-level)
+CREATE TABLE IF NOT EXISTS custom_field_definitions (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_type VARCHAR(30) NOT NULL CHECK (entity_type IN ('project','sprint','work_item')),
+  project_id  UUID REFERENCES projects(id) ON DELETE CASCADE,  -- for work_item, scope to project; null = global
+  name        VARCHAR(100) NOT NULL,
+  field_type  VARCHAR(20) NOT NULL DEFAULT 'text'
+              CHECK (field_type IN ('text','number','date','select','checkbox')),
+  options     JSONB,       -- for select: ["Option A","Option B"]
+  sort_order  INTEGER DEFAULT 0,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- ACTIVITY LOG (full audit trail)
@@ -179,3 +196,10 @@ DO $$ BEGIN
   CREATE TRIGGER trg_work_items_updated
     BEFORE UPDATE ON work_items FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 EXCEPTION WHEN duplicate_object THEN NULL; END; $$;
+
+-- ─── Add new columns to existing tables (idempotent) ─────────────────────
+ALTER TABLE projects  ADD COLUMN IF NOT EXISTS board_column_order JSONB;
+ALTER TABLE projects  ADD COLUMN IF NOT EXISTS custom_field_values JSONB DEFAULT '{}';
+ALTER TABLE sprints   ADD COLUMN IF NOT EXISTS custom_field_values JSONB DEFAULT '{}';
+ALTER TABLE work_items ADD COLUMN IF NOT EXISTS custom_field_values JSONB DEFAULT '{}';
+CREATE INDEX IF NOT EXISTS idx_custom_field_definitions_entity ON custom_field_definitions(entity_type, project_id);

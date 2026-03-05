@@ -34,13 +34,15 @@ router.get('/:id', async (req, res, next) => {
 
 // POST create project
 router.post('/', async (req, res, next) => {
-  const { name, description, color, owner_id } = req.body;
+  const { name, description, color, owner_id, board_column_order, custom_field_values } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
   try {
     const { rows } = await pool.query(
-      `INSERT INTO projects (name, description, color, owner_id)
-       VALUES ($1,$2,$3,$4) RETURNING *`,
-      [name, description || null, color || '#7c6af7', owner_id || null]
+      `INSERT INTO projects (name, description, color, owner_id, board_column_order, custom_field_values)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [name, description || null, color || '#7c6af7', owner_id || null,
+        board_column_order ? JSON.stringify(board_column_order) : null,
+        custom_field_values ? JSON.stringify(custom_field_values) : null]
     );
     res.status(201).json(rows[0]);
   } catch (err) { next(err); }
@@ -48,10 +50,13 @@ router.post('/', async (req, res, next) => {
 
 // PATCH update project
 router.patch('/:id', async (req, res, next) => {
-  const fields = ['name','description','color','status','owner_id'];
+  const fields = ['name','description','color','status','owner_id','board_column_order','custom_field_values'];
   const updates = [], values = [];
   fields.forEach(f => {
-    if (req.body[f] !== undefined) { updates.push(`${f} = $${updates.length+1}`); values.push(req.body[f]); }
+    if (req.body[f] !== undefined) {
+      updates.push(`${f} = $${updates.length + 1}`);
+      values.push((f === 'board_column_order' || f === 'custom_field_values') ? JSON.stringify(req.body[f]) : req.body[f]);
+    }
   });
   if (!updates.length) return res.status(400).json({ error: 'No fields to update' });
   values.push(req.params.id);

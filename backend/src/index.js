@@ -60,12 +60,12 @@ app.get('/', (_req, res) => {
     name: 'AgileOps API',
     docs: 'Open the frontend app URL in your browser, not this API URL.',
     health: '/health',
-    routes: ['/api/team-members', '/api/roles', '/api/projects', '/api/sprints', '/api/items', '/api/labels', '/api/activity'],
+    routes: ['/api/team-members', '/api/roles', '/api/projects', '/api/sprints', '/api/items', '/api/labels', '/api/activity', '/api/custom-field-definitions'],
   });
 });
 
 app.get('/api', (_req, res) => {
-  res.json({ routes: ['/api/team-members', '/api/roles', '/api/projects', '/api/sprints', '/api/items', '/api/labels', '/api/activity'] });
+  res.json({ routes: ['/api/team-members', '/api/roles', '/api/projects', '/api/sprints', '/api/items', '/api/labels', '/api/activity', '/api/custom-field-definitions'] });
 });
 
 // ─── Admin: delete all data (optional; set RESET_SECRET in env to enable) ───
@@ -92,6 +92,7 @@ const sprints     = require('./routes/sprints');
 const items       = require('./routes/items');
 const labels      = require('./routes/labels');
 const activity    = require('./routes/activity');
+const customFieldDefinitions = require('./routes/customFieldDefinitions');
 
 app.use('/api/team-members', teamMembers);
 app.use('/api/roles',        roles);
@@ -100,6 +101,7 @@ app.use('/api/sprints',      sprints);
 app.use('/api/items',        items);
 app.use('/api/labels',       labels);
 app.use('/api/activity',     activity);
+app.use('/api/custom-field-definitions', customFieldDefinitions);
 
 // If proxy strips /api prefix, also mount at root
 app.use('/team-members', teamMembers);
@@ -109,6 +111,7 @@ app.use('/sprints',      sprints);
 app.use('/items',        items);
 app.use('/labels',       labels);
 app.use('/activity',     activity);
+app.use('/custom-field-definitions', customFieldDefinitions);
 
 // ─── 404 / Error handlers ─────────────────────────────────────
 app.use((req, res) => res.status(404).json({

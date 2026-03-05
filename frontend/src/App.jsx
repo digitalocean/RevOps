@@ -27,6 +27,13 @@ const COLS = [
   { id:"in_review",   label:"In Review",   color:"#f5a623", glow:"rgba(245,166,35,0.2)",  dot:"bg-[#f5a623]", badge:"text-[#f5a623]" },
   { id:"done",        label:"Done",        color:"#2dd4a0", glow:"rgba(45,212,160,0.2)",  dot:"bg-[#2dd4a0]", badge:"text-[#2dd4a0]" },
 ];
+const DEFAULT_COLUMN_ORDER = COLS.map(c => c.id);
+function getBoardColumns(project) {
+  const order = project?.board_column_order;
+  if (!order || !Array.isArray(order) || order.length === 0) return COLS;
+  const byId = Object.fromEntries(COLS.map(c => [c.id, c]));
+  return order.map(id => byId[id]).filter(Boolean).concat(COLS.filter(c => !order.includes(c.id)));
+}
 
 const TYPE = {
   epic:  { icon:"⚡", label:"EPIC",  color:"#c084fc", bg:"bg-violet-500/10 text-violet-400", border:"border-l-violet-500/60"  },
@@ -64,7 +71,7 @@ function apiItemToUI(row) {
     priority: row.priority || 'medium',
     points: row.points ?? 1,
     assignee: row.assignee_id || '',
-    labels: (row.labels || []).map(l => l.id),
+    labels: (row.labels || []).map(l => (typeof l === 'object' && l?.id) ? l.id : l),
     startDate: row.start_date || null,
     endDate: row.end_date || null,
     criteria: row.criteria || [],
@@ -74,6 +81,7 @@ function apiItemToUI(row) {
     comments: row.comments || [],
     approvers: row.approvers || [],
     blockers: row.blockers || [],
+    custom_field_values: row.custom_field_values || {},
   };
 }
 
@@ -142,20 +150,24 @@ export default function App() {
   const [selectedSprintId, setSelectedSprintId] = useState(null);
   const [showCreateSprintModal, setShowCreateSprintModal] = useState(false);
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
+  const [customFieldDefinitions, setCustomFieldDefinitions] = useState([]);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [projRes, sprintRes, membersRes, rolesRes] = await Promise.all([
+        const [projRes, sprintRes, membersRes, rolesRes, defsRes] = await Promise.all([
           fetch(`${API_BASE}/api/projects`),
           fetch(`${API_BASE}/api/sprints`),
           fetch(`${API_BASE}/api/team-members`),
           fetch(`${API_BASE}/api/roles`),
+          fetch(`${API_BASE}/api/custom-field-definitions`),
         ]);
         if (projRes.ok) setProjects(await projRes.json());
         if (sprintRes.ok) setSprints(await sprintRes.json());
         if (membersRes.ok) setTeamMembers(await membersRes.json());
         if (rolesRes.ok) setRoles(await rolesRes.json());
+        if (defsRes.ok) setCustomFieldDefinitions(await defsRes.json());
       } catch (_) { /* backend not running or CORS — keep empty */ }
     };
     load();
@@ -165,6 +177,25 @@ export default function App() {
     try {
       const res = await fetch(`${API_BASE}/api/projects`);
       if (res.ok) setProjects(await res.json());
+    } catch (_) {}
+  }, []);
+
+  const updateProject = useCallback(async (projectId, patch) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (res.ok) await refreshProjects();
+      return res.ok;
+    } catch (_) { return false; }
+  }, [refreshProjects]);
+
+  const refreshCustomFieldDefinitions = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/custom-field-definitions`);
+      if (res.ok) setCustomFieldDefinitions(await res.json());
     } catch (_) {}
   }, []);
 
@@ -222,7 +253,20 @@ export default function App() {
   }, [selectedSprintId]);
 
   const notify = useCallback((msg, type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),2500); }, []);
-  const updateItem = useCallback((id,patch) => setItems(p=>p.map(i=>i.id===id?{...i,...patch}:i)), []);
+  const updateItem = useCallback(async (id, patch) => {
+    setItems(p => p.map(i => i.id === id ? { ...i, ...patch } : i));
+    if (selectedSprintId && typeof fetch === "function") {
+      try {
+        const body = { ...patch };
+        if (body.criteria !== undefined) delete body.criteria;
+        if (body.comments !== undefined) delete body.comments;
+        if (body.approvers !== undefined) delete body.approvers;
+        if (body.blockers !== undefined) delete body.blockers;
+        if (body.labels !== undefined) delete body.labels;
+        await fetch(`${API_BASE}/api/items/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      } catch (_) {}
+    }
+  }, [selectedSprintId]);
   const deleteItem = useCallback((id) => { setItems(p=>p.filter(i=>i.id!==id)); setModal(null); notify("Item deleted"); }, [notify]);
   const addItem = useCallback(async (item) => {
     if (selectedProjectId && selectedSprintId && typeof fetch === 'function') {
@@ -358,10 +402,13 @@ export default function App() {
             <option value="epic">⚡ Epic</option><option value="story">◆ Story</option>
             <option value="bug">● Bug</option><option value="task">✓ Task</option>
           </select>
-          <div className="flex items-center bg-white border border-[rgba(0,0,0,0.08)] rounded-lg p-1 gap-0.5 shadow-sm">
-            {[["board","⊞"],["list","≡"],["gantt","▤"],["metrics","◈"],["team","◉"]].map(([v,ic])=>(
-              <button key={v} onClick={()=>setView(v)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${view===v?"bg-indigo-500 text-white":"text-[#57534e] hover:bg-[rgba(0,0,0,0.04)]"}`}>{ic} {v.charAt(0).toUpperCase()+v.slice(1)}</button>
-            ))}
+          <div className="flex items-center gap-2">
+            <button onClick={()=>setShowSettingsModal(true)} className="p-2 rounded-lg border border-[rgba(0,0,0,0.08)] bg-white text-[#57534e] hover:bg-[#F3F0E0] transition-colors" title="Custom fields & board settings">⚙</button>
+            <div className="flex items-center bg-white border border-[rgba(0,0,0,0.08)] rounded-lg p-1 gap-0.5 shadow-sm">
+              {[["board","⊞"],["list","≡"],["gantt","▤"],["metrics","◈"],["team","◉"]].map(([v,ic])=>(
+                <button key={v} onClick={()=>setView(v)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${view===v?"bg-indigo-500 text-white":"text-[#57534e] hover:bg-[rgba(0,0,0,0.04)]"}`}>{ic} {v.charAt(0).toUpperCase()+v.slice(1)}</button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -403,7 +450,7 @@ export default function App() {
 
         {/* Content */}
         <div className="flex-1 overflow-auto">
-          {view==="board"   && <BoardView   filtered={filtered} items={items} updateItem={updateItem} addItem={addItem} setModal={setModal} dragId={dragId} dragOver={dragOver} onDragStart={setDragId} onDragOver={setDragOver} onDrop={colId=>{if(dragId){updateItem(dragId,{status:colId});notify(`→ ${colById(colId)?.label}`);}setDragId(null);setDragOver(null);}} notify={notify}/>}
+          {view==="board"   && <BoardView   filtered={filtered} items={items} boardColumns={getBoardColumns(selectedProject)} selectedProject={selectedProject} updateProject={updateProject} updateItem={updateItem} addItem={addItem} setModal={setModal} dragId={dragId} dragOver={dragOver} onDragStart={setDragId} onDragOver={setDragOver} onDrop={colId=>{if(dragId){updateItem(dragId,{status:colId});notify(`→ ${colById(colId)?.label}`);}setDragId(null);setDragOver(null);}} notify={notify}/>}
           {view==="list"    && <ListView    filtered={filtered} items={items} updateItem={updateItem} addItem={addItem} setModal={setModal} notify={notify} deleteItem={deleteItem}/>}
           {view==="gantt"   && <GanttView   filtered={filtered} setModal={setModal}/>}
           {view==="metrics" && <MetricsView items={items}/>}
@@ -411,39 +458,75 @@ export default function App() {
         </div>
       </div>
 
-      {activeItem && <ItemModal item={activeItem} items={items} onClose={()=>setModal(null)} onUpdate={p=>updateItem(activeItem.id,p)} onDelete={()=>deleteItem(activeItem.id)} notify={notify}/>}
-      {showCreateSprintModal && <CreateSprintModal projects={projects} defaultProjectId={selectedProjectId} onClose={()=>setShowCreateSprintModal(false)} onCreated={()=>{ refreshSprints(); setShowCreateSprintModal(false); notify("Sprint created"); }} notify={notify}/>}
-      {showCreateProjectModal && <CreateProjectModal onClose={()=>setShowCreateProjectModal(false)} onCreated={()=>{ refreshProjects(); setShowCreateProjectModal(false); notify("Project created"); }} notify={notify}/>}
+      {activeItem && <ItemModal item={activeItem} items={items} onClose={()=>setModal(null)} onUpdate={p=>updateItem(activeItem.id,p)} onDelete={()=>deleteItem(activeItem.id)} notify={notify} customFieldDefinitions={customFieldDefinitions.filter(d=>d.entity_type==='work_item'&&(!d.project_id||d.project_id===selectedProjectId))} selectedProjectId={selectedProjectId}/>}
+      {showCreateSprintModal && <CreateSprintModal projects={projects} defaultProjectId={selectedProjectId} onClose={()=>setShowCreateSprintModal(false)} onCreated={()=>{ refreshSprints(); setShowCreateSprintModal(false); notify("Sprint created"); }} notify={notify} customFieldDefinitions={customFieldDefinitions.filter(d=>d.entity_type==='sprint')} API_BASE={API_BASE}/>}
+      {showCreateProjectModal && <CreateProjectModal onClose={()=>setShowCreateProjectModal(false)} onCreated={()=>{ refreshProjects(); setShowCreateProjectModal(false); notify("Project created"); }} notify={notify} customFieldDefinitions={customFieldDefinitions.filter(d=>d.entity_type==='project')}/>}
+      {showSettingsModal && <SettingsModal onClose={()=>setShowSettingsModal(false)} customFieldDefinitions={customFieldDefinitions} refreshCustomFieldDefinitions={refreshCustomFieldDefinitions} projects={projects} selectedProjectId={selectedProjectId} notify={notify} API_BASE={API_BASE}/>}
     </div>
     </UsersContext.Provider>
   );
 }
 
 // ─── BOARD ────────────────────────────────────────────────────────────────────
-function BoardView({filtered,items,updateItem,addItem,setModal,dragId,dragOver,onDragStart,onDragOver,onDrop,notify}) {
+const BOARD_COL_DRAG = "board-col";
+function BoardView({filtered,items,boardColumns,selectedProject,updateProject,updateItem,addItem,setModal,dragId,dragOver,onDragStart,onDragOver,onDrop,notify}) {
+  const cols = boardColumns && boardColumns.length ? boardColumns : COLS;
+  const [colDragId, setColDragId] = useState(null);
+
+  const handleColumnReorder = useCallback((fromId, toId) => {
+    if (!selectedProject?.id || fromId === toId) return;
+    const order = selectedProject.board_column_order && Array.isArray(selectedProject.board_column_order) ? [...selectedProject.board_column_order] : DEFAULT_COLUMN_ORDER;
+    const fromIdx = order.indexOf(fromId);
+    const toIdx = order.indexOf(toId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const next = [...order];
+    next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, fromId);
+    updateProject(selectedProject.id, { board_column_order: next }).then(ok => { if (ok) notify("Column order saved"); });
+  }, [selectedProject, updateProject, notify]);
+
   return (
     <div className="flex gap-4 p-5 min-w-max items-start min-h-full bg-[#EDE8D0]">
-      {COLS.map(col=>(
-        <Column key={col.id} col={col} items={filtered.filter(i=>i.status===col.id)} dragId={dragId} dragOver={dragOver} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onCardClick={setModal} addItem={addItem}/>
+      {cols.map(col=>(
+        <Column key={col.id} col={col} items={filtered.filter(i=>i.status===col.id)} dragId={dragId} dragOver={dragOver} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onCardClick={setModal} addItem={addItem}
+          canReorder={!!selectedProject} colDragId={colDragId} onColDragStart={()=>setColDragId(col.id)} onColDrop={()=>setColDragId(null)} onColumnReorder={handleColumnReorder}/>
       ))}
     </div>
   );
 }
 
-function Column({col,items,dragId,dragOver,onDragStart,onDragOver,onDrop,onCardClick,addItem}) {
+function Column({col,items,dragId,dragOver,onDragStart,onDragOver,onDrop,onCardClick,addItem,canReorder,colDragId,onColDragStart,onColDrop,onColumnReorder}) {
   const [adding,setAdding]=useState(false);
   const [title,setTitle]=useState("");
   const ref=useRef();
   const isOver=dragOver===col.id;
+  const isColDragging = colDragId === col.id;
+  const handleDrop = e => {
+    e.preventDefault();
+    if (e.dataTransfer.getData("text/plain") === BOARD_COL_DRAG && colDragId && onColumnReorder) {
+      onColumnReorder(colDragId, col.id);
+      onColDrop?.();
+    } else if (dragId) {
+      onDrop(col.id);
+    }
+  };
   const confirm=()=>{
     if(!title.trim()){setAdding(false);return;}
     addItem({id:"i"+mkId(),type:"task",title:title.trim(),status:col.id,priority:"medium",points:1,assignee:"u1",labels:[],startDate:"2026-03-04",endDate:"2026-03-10",description:"",criteria:[],comments:[],approvers:[],blockers:[]});
     setTitle("");setAdding(false);
   };
   return (
-    <div className={`w-[272px] flex-shrink-0 flex flex-col rounded-xl bg-[#FAF8F2] border border-[rgba(0,0,0,0.06)] shadow-sm transition-all duration-200 ${isOver?"ring-2 ring-indigo-300 bg-indigo-50/50":""}`}
-      onDragOver={e=>{e.preventDefault();onDragOver(col.id);}} onDrop={e=>{e.preventDefault();onDrop(col.id);}}>
-      <div className="flex items-center gap-2 px-3 pb-3 pt-2">
+    <div className={`w-[272px] flex-shrink-0 flex flex-col rounded-xl bg-[#FAF8F2] border border-[rgba(0,0,0,0.06)] shadow-sm transition-all duration-200 ${isOver?"ring-2 ring-indigo-300 bg-indigo-50/50":""} ${isColDragging?"opacity-70":""}`}
+      onDragOver={e=>{e.preventDefault();onDragOver(col.id);}}
+      onDrop={handleDrop}>
+      <div
+        draggable={canReorder}
+        onDragStart={canReorder ? e=>{ e.dataTransfer.setData("text/plain", BOARD_COL_DRAG); onColDragStart?.(); } : undefined}
+        onDragEnd={canReorder ? onColDrop : undefined}
+        onDragOver={e=>e.preventDefault()}
+        className="flex items-center gap-2 px-3 pb-3 pt-2 cursor-grab active:cursor-grabbing"
+      >
+        {canReorder && <span className="text-[#78716c] text-xs">⋮⋮</span>}
         <div style={{background:col.color}} className="w-2.5 h-2.5 rounded-full"/>
         <span className="text-[13px] font-semibold text-[#57534e]">{col.label}</span>
         <span style={{color:col.color}} className="ml-auto text-xs font-bold tabular-nums">{items.length}</span>
@@ -789,16 +872,18 @@ function MetricsView({items}) {
 }
 
 // ─── MODAL ────────────────────────────────────────────────────────────────────
-function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
+function ItemModal({item,items,onClose,onUpdate,onDelete,notify,customFieldDefinitions=[],selectedProjectId}) {
   const [tab,setTab]=useState("overview");
   const [editing,setEditing]=useState(false);
-  const [draft,setDraft]=useState({title:item.title,description:item.description||"",status:item.status,priority:item.priority,points:item.points,assignee:item.assignee||""});
+  const [draft,setDraft]=useState({title:item.title,description:item.description||"",status:item.status,priority:item.priority,points:item.points,assignee:item.assignee||"",custom_field_values:item.custom_field_values||{}});
   const [newComment,setNewComment]=useState("");
   const [newCrit,setNewCrit]=useState("");
   const [aiLoading,setAiLoading]=useState(false);
   const [aiResult,setAiResult]=useState(null);
   const tc=TYPE[item.type]||TYPE.task, pc=PRIO[item.priority]||PRIO.medium, col=colById(item.status);
+  const workItemDefs = customFieldDefinitions.filter(d=>d.entity_type==='work_item');
   const set=(k,v)=>setDraft(d=>({...d,[k]:v}));
+  const setCustom=(fieldId,value)=>setDraft(d=>({...d,custom_field_values:{...(d.custom_field_values||{}),[fieldId]:value}}));
   const saveEdit=()=>{onUpdate(draft);setEditing(false);notify("Saved");};
   const toggleCrit=cid=>{onUpdate({criteria:item.criteria.map(c=>c.id===cid?{...c,done:!c.done}:c)});notify("Updated");};
   const addCrit=()=>{if(!newCrit.trim())return;onUpdate({criteria:[...item.criteria,{id:"c"+mkId(),text:newCrit.trim(),done:false}]});setNewCrit("");notify("Added");};
@@ -860,6 +945,22 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
                 <Row label="Points"   val={editing?<Input type="number" value={draft.points} onChange={e=>set("points",+e.target.value)} className="w-full text-xs py-1.5"/>:<span className="text-[12px] font-semibold text-[#d1d5db]">{item.points} pts</span>}/>
                 <Row label="Assignee" val={editing?<Select value={draft.assignee} onChange={e=>set("assignee",e.target.value)} className="w-full text-xs py-1.5"><option value="">Unassigned</option>{useUsers().map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</Select>:item.assignee?<div className="flex items-center gap-2"><Avatar userId={item.assignee} size={6}/><span className="text-[12px] text-[#d1d5db]">{userByIdFromList(useUsers(), item.assignee)?.name}</span></div>:<span className="text-[#6b7280] text-[12px]">Unassigned</span>}/>
                 <Row label="Labels" val={<div className="flex gap-1 flex-wrap">{(item.labels||[]).map(lid=>{const l=labelById(lid);return l?<Chip key={lid} className={l.style}>{l.name}</Chip>:null;})}</div>}/>
+                {workItemDefs.length > 0 && (
+                  <div className="pt-3 border-t border-[rgba(0,0,0,0.06)]">
+                    <p className="text-[10px] font-semibold text-[#57534e] uppercase tracking-[0.08em] mb-2">Custom fields</p>
+                    <div className="space-y-2">
+                      {workItemDefs.map(def=>(
+                        <div key={def.id}>
+                          {def.field_type==="text"&&<input value={draft.custom_field_values?.[def.id]??""} onChange={e=>setCustom(def.id,e.target.value)} placeholder={def.name} className="w-full bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-lg px-2.5 py-1.5 text-xs"/>}
+                          {def.field_type==="number"&&<input type="number" value={draft.custom_field_values?.[def.id]??""} onChange={e=>setCustom(def.id,e.target.value)} placeholder={def.name} className="w-full bg-[#F3F0E0] border rounded-lg px-2.5 py-1.5 text-xs"/>}
+                          {def.field_type==="date"&&<input type="date" value={draft.custom_field_values?.[def.id]??""} onChange={e=>setCustom(def.id,e.target.value)} className="w-full bg-[#F3F0E0] border rounded-lg px-2.5 py-1.5 text-xs"/>}
+                          {def.field_type==="checkbox"&&<label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={!!draft.custom_field_values?.[def.id]} onChange={e=>setCustom(def.id,e.target.checked)}/>{def.name}</label>}
+                          {def.field_type==="select"&&<select value={draft.custom_field_values?.[def.id]??""} onChange={e=>setCustom(def.id,e.target.value)} className="w-full bg-[#F3F0E0] border rounded-lg px-2.5 py-1.5 text-xs"><option value="">—</option>{(def.options||[]).map(o=><option key={o} value={o}>{o}</option>)}</select>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1217,7 +1318,7 @@ function TeamView({ teamMembers, refreshTeamMembers, roles, refreshRoles, notify
 }
 
 // ─── CREATE SPRINT MODAL ─────────────────────────────────────────────────────
-function CreateSprintModal({ projects, defaultProjectId, onClose, onCreated, notify }) {
+function CreateSprintModal({ projects, defaultProjectId, onClose, onCreated, notify, customFieldDefinitions = [], API_BASE }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [form, setForm] = useState({
@@ -1227,8 +1328,11 @@ function CreateSprintModal({ projects, defaultProjectId, onClose, onCreated, not
     start_date: "",
     end_date: "",
     capacity: "",
+    custom_field_values: {},
   });
   useEffect(() => { if (defaultProjectId) setForm(f => ({ ...f, project_id: defaultProjectId })); }, [defaultProjectId]);
+  const sprintDefs = customFieldDefinitions.filter(d => d.entity_type === "sprint");
+  const setCustom = (fieldId, value) => setForm(f => ({ ...f, custom_field_values: { ...(f.custom_field_values || {}), [fieldId]: value } }));
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -1250,6 +1354,7 @@ function CreateSprintModal({ projects, defaultProjectId, onClose, onCreated, not
           start_date: form.start_date || null,
           end_date: form.end_date || null,
           capacity: form.capacity ? parseInt(form.capacity, 10) : 0,
+          custom_field_values: form.custom_field_values || {},
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -1317,6 +1422,20 @@ function CreateSprintModal({ projects, defaultProjectId, onClose, onCreated, not
             <label className="block text-[10px] font-semibold text-[#57534e] uppercase tracking-wider mb-1.5">Capacity (story points)</label>
             <input type="number" min={0} value={form.capacity} onChange={e => set("capacity", e.target.value)} placeholder="0" className="w-full bg-[#faf8f5] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] placeholder-[#78716c] focus:border-indigo-400 outline-none" />
           </div>
+          {sprintDefs.length > 0 && (
+            <div className="pt-2 border-t border-[rgba(0,0,0,0.06)]">
+              <label className="block text-[10px] font-semibold text-[#57534e] uppercase tracking-wider mb-2">Custom fields</label>
+              {sprintDefs.map(def => (
+                <div key={def.id} className="mb-2">
+                  {def.field_type === "text" && <input value={form.custom_field_values?.[def.id] ?? ""} onChange={e=>setCustom(def.id, e.target.value)} placeholder={def.name} className="w-full bg-[#F3F0E0] border rounded-lg px-3 py-2 text-sm" />}
+                  {def.field_type === "number" && <input type="number" value={form.custom_field_values?.[def.id] ?? ""} onChange={e=>setCustom(def.id, e.target.value)} placeholder={def.name} className="w-full bg-[#F3F0E0] border rounded-lg px-3 py-2 text-sm" />}
+                  {def.field_type === "date" && <input type="date" value={form.custom_field_values?.[def.id] ?? ""} onChange={e=>setCustom(def.id, e.target.value)} className="w-full bg-[#F3F0E0] border rounded-lg px-3 py-2 text-sm" />}
+                  {def.field_type === "checkbox" && <label className="flex items-center gap-2"><input type="checkbox" checked={!!form.custom_field_values?.[def.id]} onChange={e=>setCustom(def.id, e.target.checked)} /> <span className="text-sm">{def.name}</span></label>}
+                  {def.field_type === "select" && <select value={form.custom_field_values?.[def.id] ?? ""} onChange={e=>setCustom(def.id, e.target.value)} className="w-full bg-[#F3F0E0] border rounded-lg px-3 py-2 text-sm"><option value="">—</option>{(def.options || []).map(o=> <option key={o} value={o}>{o}</option>)}</select>}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
@@ -1332,12 +1451,101 @@ function CreateSprintModal({ projects, defaultProjectId, onClose, onCreated, not
   );
 }
 
+// ─── SETTINGS MODAL (Custom field definitions) ───────────────────────────────────
+function SettingsModal({ onClose, customFieldDefinitions, refreshCustomFieldDefinitions, projects, selectedProjectId, notify, API_BASE }) {
+  const [tab, setTab] = useState("project");
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState("text");
+  const [newOptions, setNewOptions] = useState("");
+  const [projectScope, setProjectScope] = useState(selectedProjectId || "");
+
+  const defsByType = (entityType, projectId) =>
+    customFieldDefinitions.filter(d => d.entity_type === entityType && (entityType !== "work_item" || !d.project_id || d.project_id === projectId));
+
+  const addDef = async () => {
+    if (!newName.trim()) return;
+    const entity_type = tab;
+    const project_id = tab === "work_item" ? (projectScope || null) : null;
+    try {
+      const res = await fetch(`${API_BASE}/api/custom-field-definitions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ entity_type, project_id, name: newName.trim(), field_type: newType, options: newType === "select" && newOptions.trim() ? newOptions.split(",").map(s => s.trim()) : null }),
+      });
+      if (res.ok) { refreshCustomFieldDefinitions(); setNewName(""); setNewOptions(""); notify("Custom field added"); }
+      else notify((await res.json()).error || "Failed", "error");
+    } catch (e) { notify(e.message || "Failed", "error"); }
+  };
+
+  const deleteDef = async (id) => {
+    try {
+      const res = await fetch(`${API_BASE}/api/custom-field-definitions/${id}`, { method: "DELETE" });
+      if (res.ok) { refreshCustomFieldDefinitions(); notify("Removed"); }
+    } catch (_) {}
+  };
+
+  const labels = { project: "Project", sprint: "Sprint", work_item: "Story / Task" };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/20 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl border border-[rgba(0,0,0,0.08)] shadow-xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-[rgba(0,0,0,0.08)]">
+          <h3 className="text-lg font-semibold text-[#1c1917]">Custom fields & board</h3>
+          <button onClick={onClose} className="text-[#78716c] hover:text-[#1c1917] text-xl">×</button>
+        </div>
+        <div className="flex border-b border-[rgba(0,0,0,0.06)]">
+          {["project", "sprint", "work_item"].map(t => (
+            <button key={t} onClick={() => setTab(t)} className={`px-4 py-2.5 text-sm font-medium ${tab === t ? "text-indigo-600 border-b-2 border-indigo-500" : "text-[#57534e]"}`}>{labels[t]}</button>
+          ))}
+        </div>
+        <div className="p-4 overflow-auto flex-1">
+          {tab === "work_item" && (
+            <div className="mb-3">
+              <label className="block text-[10px] font-semibold text-[#57534e] uppercase mb-1">Scope to project (optional)</label>
+              <select value={projectScope} onChange={e => setProjectScope(e.target.value)} className="w-full bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm">
+                <option value="">All projects</option>
+                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="flex gap-2 mb-3">
+            <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Field name" className="flex-1 bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm" />
+            <select value={newType} onChange={e => setNewType(e.target.value)} className="bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm">
+              <option value="text">Text</option>
+              <option value="number">Number</option>
+              <option value="date">Date</option>
+              <option value="select">Select</option>
+              <option value="checkbox">Checkbox</option>
+            </select>
+            {newType === "select" && <input value={newOptions} onChange={e => setNewOptions(e.target.value)} placeholder="Opt1, Opt2" className="w-32 bg-[#F3F0E0] border rounded-lg px-2 py-2 text-sm" />}
+            <button onClick={addDef} className="px-3 py-2 bg-indigo-500 text-white rounded-lg text-sm font-medium">Add</button>
+          </div>
+          <p className="text-[12px] text-[#78716c] mb-2">Defined fields for <strong>{labels[tab]}</strong>:</p>
+          <ul className="space-y-1.5">
+            {defsByType(tab, projectScope || null).map(d => (
+              <li key={d.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-[#FAF8F2] border border-[rgba(0,0,0,0.06)]">
+                <span className="text-sm font-medium text-[#1c1917]">{d.name}</span>
+                <span className="text-[11px] text-[#78716c]">{d.field_type}</span>
+                <button onClick={() => deleteDef(d.id)} className="text-rose-500 hover:text-rose-700 text-xs">Delete</button>
+              </li>
+            ))}
+            {defsByType(tab, projectScope || null).length === 0 && <li className="text-[12px] text-[#78716c]">No custom fields yet. Add one above.</li>}
+          </ul>
+          <p className="text-[12px] text-[#78716c] mt-4">Board columns can be reordered by dragging the ⋮⋮ handle on each column header when a project is selected.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── CREATE PROJECT MODAL ─────────────────────────────────────────────────────
-function CreateProjectModal({ onClose, onCreated, notify }) {
+function CreateProjectModal({ onClose, onCreated, notify, customFieldDefinitions = [] }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState({ name: "", description: "", color: "#6366f1" });
+  const [form, setForm] = useState({ name: "", description: "", color: "#6366f1", custom_field_values: {} });
   const PROJECT_COLORS = ["#6366f1","#8b5cf6","#059669","#f59e0b","#ef4444","#0ea5e9"];
+  const projectDefs = customFieldDefinitions.filter(d => d.entity_type === "project");
+
+  const setCustom = (fieldId, value) => setForm(f => ({ ...f, custom_field_values: { ...(f.custom_field_values || {}), [fieldId]: value } }));
 
   const submit = async () => {
     if (!form.name?.trim()) { notify("Project name is required", "error"); return; }
@@ -1347,7 +1555,7 @@ function CreateProjectModal({ onClose, onCreated, notify }) {
       const res = await fetch(`${API_BASE}/api/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: form.name.trim(), description: form.description?.trim() || null, color: form.color }),
+        body: JSON.stringify({ name: form.name.trim(), description: form.description?.trim() || null, color: form.color, custom_field_values: form.custom_field_values || {} }),
       });
       const text = await res.text();
       let data = {};
@@ -1402,6 +1610,21 @@ function CreateProjectModal({ onClose, onCreated, notify }) {
               ))}
             </div>
           </div>
+          {projectDefs.length > 0 && (
+            <div className="pt-2 border-t border-[rgba(0,0,0,0.06)]">
+              <label className="block text-[10px] font-semibold text-[#57534e] uppercase tracking-wider mb-2">Custom fields</label>
+              {projectDefs.map(def => (
+                <div key={def.id} className="mb-2">
+                  {def.field_type === "text" && <input value={form.custom_field_values?.[def.id] ?? ""} onChange={e=>setCustom(def.id, e.target.value)} placeholder={def.name} className="w-full bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm" />}
+                  {def.field_type === "number" && <input type="number" value={form.custom_field_values?.[def.id] ?? ""} onChange={e=>setCustom(def.id, e.target.value)} placeholder={def.name} className="w-full bg-[#F3F0E0] border rounded-lg px-3 py-2 text-sm" />}
+                  {def.field_type === "date" && <input type="date" value={form.custom_field_values?.[def.id] ?? ""} onChange={e=>setCustom(def.id, e.target.value)} className="w-full bg-[#F3F0E0] border rounded-lg px-3 py-2 text-sm" />}
+                  {def.field_type === "checkbox" && <label className="flex items-center gap-2"><input type="checkbox" checked={!!form.custom_field_values?.[def.id]} onChange={e=>setCustom(def.id, e.target.checked)} /> <span className="text-sm">{def.name}</span></label>}
+                  {def.field_type === "select" && <select value={form.custom_field_values?.[def.id] ?? ""} onChange={e=>setCustom(def.id, e.target.value)} className="w-full bg-[#F3F0E0] border rounded-lg px-3 py-2 text-sm"><option value="">—</option>{(def.options || []).map(o=> <option key={o} value={o}>{o}</option>)}</select>}
+                  {!["text","number","date","checkbox","select"].includes(def.field_type) && <input value={form.custom_field_values?.[def.id] ?? ""} onChange={e=>setCustom(def.id, e.target.value)} placeholder={def.name} className="w-full bg-[#F3F0E0] border rounded-lg px-3 py-2 text-sm" />}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
         <div className="flex gap-2 mt-5">

@@ -17,6 +17,7 @@ export default defineConfig({
       '/items': { target: apiTarget, changeOrigin: true, secure: false },
       '/labels': { target: apiTarget, changeOrigin: true, secure: false },
       '/activity': { target: apiTarget, changeOrigin: true, secure: false },
+      '/custom-field-definitions': { target: apiTarget, changeOrigin: true, secure: false },
     },
   },
 })

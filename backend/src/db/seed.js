@@ -2,6 +2,9 @@
 // Usage: npm run db:seed
 const fs   = require('fs');
 const path = require('path');
+if (process.env.DATABASE_URL && (process.env.DATABASE_URL.includes('ondigitalocean.com') || process.env.DATABASE_URL.includes('sslmode=require'))) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
 const pool = require('./pool');
 
 async function seed() {

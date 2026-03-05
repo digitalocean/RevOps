@@ -1,46 +1,74 @@
-# DigitalOcean App Platform spec for AgileOps (monorepo: backend + frontend)
-# Set the repo below to your GitHub org/repo, or configure source in the dashboard.
-# See: https://docs.digitalocean.com/products/app-platform/how-to/deploy-from-monorepo/
+# Paste this entire spec in DigitalOcean: Apps → your app → App Spec → Edit
+# Ingress: / and /api and /health are explicitly assigned so path "/" is not duplicated for revops.
 
-name: agileops
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+
+databases:
+  - engine: PG
+    name: db
+    version: "17"
+
+features:
+  - buildpack-stack=ubuntu-22
+
+# Single domain: /api and /health → API; / → frontend (no duplicate path "/" for revops)
+ingress:
+  rules:
+    - component:
+        name: revops
+      match:
+        path:
+          prefix: /api
+    - component:
+        name: revops
+      match:
+        path:
+          prefix: /health
+    - component:
+        name: web
+      match:
+        path:
+          prefix: /
+
+name: revops
 region: nyc
 
-# Backend API (Node.js) — buildpack looks for package.json in source_dir
 services:
-  - name: api
-    github:
-      repo: digitalocean/RevOps
-      branch: main
-      deploy_on_push: true
-    source_dir: /backend
+  - name: revops
     environment_slug: node-js
-    run_command: npm start
-    instance_size_slug: basic-xxs
-    instance_count: 1
-    http_port: 8080
     envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}
       - key: NODE_ENV
         value: production
         scope: RUN_TIME
-        type: general
-      # Add DATABASE_URL in the dashboard (or here as secret) for your PostgreSQL DB
+    github:
+      branch: feature/create-sprint-ui
+      deploy_on_push: true
+      repo: digitalocean/RevOps
+    http_port: 8080
+    instance_count: 2
+    instance_size_slug: apps-s-1vcpu-1gb
+    run_command: npm start
+    source_dir: /backend
 
-# Frontend (Vite/React) — static site built from frontend/
 static_sites:
   - name: web
-    github:
-      repo: digitalocean/RevOps
-      branch: main
-      deploy_on_push: true
-    source_dir: /frontend
-    environment_slug: node-js
     build_command: npm install && npm run build
+    environment_slug: node-js
+    envs:
+      # With ingress above, use your single app URL (same origin: /api and /health hit revops)
+      - key: VITE_API_URL
+        value: https://revops-xxxxx.ondigitalocean.app
+        scope: BUILD_TIME
+    github:
+      branch: feature/create-sprint-ui
+      deploy_on_push: true
+      repo: digitalocean/RevOps
     output_dir: dist
+    source_dir: /frontend
     index_document: index.html
     catchall_document: index.html
-    envs:
-      - key: VITE_API_URL
-        value: https://api-your-app.ondigitalocean.app
-        scope: BUILD_TIME
-        type: general
-    # Update VITE_API_URL in dashboard to your deployed API URL after first deploy

@@ -1,15 +1,15 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 
-// ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
+// ─── DESIGN TOKENS (#EDE8D0 tone) ─────────────────────────────────────────────
 const T = {
-  surface:  "bg-[#111318]",
-  raised:   "bg-[#16181f]",
-  overlay:  "bg-[#1a1d27]",
-  border:   "border-[rgba(255,255,255,0.07)]",
-  borderSt: "border-[rgba(255,255,255,0.12)]",
-  text:     "text-[#f3f4f6]",
-  muted:    "text-[#9ca3af]",
-  dim:      "text-[#6b7280]",
+  surface:  "bg-[#F3F0E0]",
+  raised:   "bg-[#FAF8F2]",
+  overlay:  "bg-white",
+  border:   "border-[rgba(0,0,0,0.08)]",
+  borderSt: "border-[rgba(0,0,0,0.12)]",
+  text:     "text-[#1c1917]",
+  muted:    "text-[#57534e]",
+  dim:      "text-[#78716c]",
 };
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
@@ -60,15 +60,30 @@ const colById  = id => byId(COLS,id);
 const userById = id => byId(USERS,id);
 const labelById= id => byId(LABELS,id);
 
-const SEED = [
-  { id:"i1", type:"epic",  title:"Messaging for Web v2",             status:"in_progress", priority:"high",     points:13, assignee:"u1", labels:["l1"],      startDate:"2026-03-01", endDate:"2026-03-12", description:"Full migration from legacy Embedded Service Chat to Messaging for Web — agent detection, pre-chat LWC forms, Omni-Channel routing, and branded launcher.", criteria:[{id:"c1",text:"Pre-chat LWC captures all required fields",done:true},{id:"c2",text:"Omni-Channel routing configured for all queues",done:true},{id:"c3",text:"Agent availability detection < 30s latency",done:false}], comments:[{id:"cm1",user:"u2",text:"The routing setup looks solid. Tested with Tier 2 agents yet?",ts:"2026-03-02T10:00:00Z"}], approvers:[{id:"a1",user:"u2",status:"approved"}], blockers:[] },
-  { id:"i2", type:"story", title:"Agent availability detection LWC",  status:"in_progress", priority:"high",     points:8,  assignee:"u1", labels:["l1","l2"], startDate:"2026-03-01", endDate:"2026-03-07", description:"LWC bridge component polling Apex every 30s to detect online agents. DOM observer hides/shows the chat launcher with zero layout shift.", criteria:[{id:"c4",text:"Apex endpoint exposes agent availability",done:true},{id:"c5",text:"30s polling with proper cleanup on disconnect",done:true},{id:"c6",text:"Button hidden when 0 agents online",done:false},{id:"c7",text:"Unit test coverage ≥ 85%",done:false}], comments:[{id:"cm2",user:"u2",text:"DOM observer looks great! What about disconnectedCallback cleanup?",ts:"2026-03-03T14:22:00Z"},{id:"cm3",user:"u1",text:"Cleanup added. Pushed to feature/agent-avail branch.",ts:"2026-03-03T14:45:00Z"}], approvers:[{id:"a2",user:"u2",status:"approved"},{id:"a3",user:"u3",status:"pending"}], blockers:[] },
-  { id:"i3", type:"bug",   title:"Omni-Channel routing fails Tier 2", status:"todo",        priority:"critical", points:3,  assignee:"u2", labels:["l4","l5"], startDate:"2026-03-03", endDate:"2026-03-06", description:"Cases from Tier 2 accounts route to the wrong queue. Root cause: SMTP keywords from deprecated flow never ported to active flow.", criteria:[{id:"c8",text:"Reproduced consistently in sandbox",done:true},{id:"c9",text:"Root cause documented",done:false},{id:"c10",text:"Fix verified in UAT",done:false}], comments:[], approvers:[], blockers:["i2"] },
-  { id:"i4", type:"task",  title:"PostgreSQL cluster setup on DO",    status:"todo",        priority:"medium",   points:2,  assignee:"u3", labels:[],           startDate:"2026-03-04", endDate:"2026-03-05", description:"Provision Managed PostgreSQL 15 on DigitalOcean nyc3. Run schema migrations and verify connectivity from app layer.", criteria:[], comments:[], approvers:[], blockers:[] },
-  { id:"i5", type:"story", title:"Custom pre-chat LWC form",          status:"in_review",   priority:"medium",   points:5,  assignee:"u1", labels:["l1","l2"], startDate:"2026-03-01", endDate:"2026-03-08", description:"Branded pre-chat form capturing Name, Email, Subject and Account Type. Authenticated users have fields auto-populated.", criteria:[{id:"c11",text:"Fields saved to MessagingSession record",done:true},{id:"c12",text:"Auth user fields auto-populated",done:true},{id:"c13",text:"Responsive across mobile breakpoints",done:true}], comments:[{id:"cm4",user:"u4",text:"Looks great on mobile. Minor CSS issue on Firefox — filing a follow-up.",ts:"2026-03-02T09:10:00Z"}], approvers:[{id:"a4",user:"u2",status:"approved"}], blockers:[] },
-  { id:"i6", type:"story", title:"SNS topic migration to QA",         status:"done",        priority:"low",      points:3,  assignee:"u2", labels:[],           startDate:"2026-03-01", endDate:"2026-03-03", description:"Migrate auto-panda SNS topics from prod to QA account. Update bogiefile configs with new account IDs and proxy settings.", criteria:[{id:"c14",text:"All topics migrated",done:true},{id:"c15",text:"IAM policies updated via Avenue CLI",done:true},{id:"c16",text:"Smoke tests passed in QA",done:true}], comments:[], approvers:[], blockers:[] },
-  { id:"i7", type:"story", title:"RevOps opportunity rollup system",  status:"done",        priority:"medium",   points:8,  assignee:"u4", labels:["l1","l3"], startDate:"2026-03-01", endDate:"2026-03-05", description:"Batch Apex architecture for opportunity hierarchy rollup with Needs_Count_Recalc__c flagging. Supports up to 5-level traversal.", criteria:[{id:"c17",text:"5-level hierarchy traversal working",done:true},{id:"c18",text:"Batch scheduled and monitored",done:true}], comments:[], approvers:[], blockers:[] },
-];
+// Map API work item to UI shape (id, type, title, status, priority, points, assignee, labels, criteria, etc.)
+function apiItemToUI(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    type: row.type || 'task',
+    title: row.title,
+    description: row.description || '',
+    status: row.status || 'backlog',
+    priority: row.priority || 'medium',
+    points: row.points ?? 1,
+    assignee: row.assignee_id || '',
+    labels: (row.labels || []).map(l => l.id),
+    startDate: row.start_date || null,
+    endDate: row.end_date || null,
+    criteria: row.criteria || [],
+    criteria_total: row.criteria_total,
+    criteria_done: row.criteria_done,
+    comment_count: row.comment_count,
+    comments: row.comments || [],
+    approvers: row.approvers || [],
+    blockers: row.blockers || [],
+  };
+}
 
 // ─── ATOMS ────────────────────────────────────────────────────────────────────
 function Avatar({ userId, size=6 }) {
@@ -83,13 +98,13 @@ function Chip({ children, className="" }) {
 
 function PillBtn({ children, onClick, color="accent", size="md", disabled=false, className="" }) {
   const colors = {
-    accent:  "bg-[#7c6af7] hover:bg-[#6b5ce7] text-white border-[#7c6af7]/40",
-    ghost:   "bg-transparent hover:bg-white/5 text-[#9ca3af] hover:text-[#f3f4f6] border-transparent",
-    surface: "bg-[#16181f] hover:bg-[#1a1d27] text-[#d1d5db] border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.14)]",
-    jade:    "bg-[#2dd4a0]/10 hover:bg-[#2dd4a0]/20 text-[#2dd4a0] border-[#2dd4a0]/20",
-    amber:   "bg-[#f5a623]/10 hover:bg-[#f5a623]/20 text-[#f5a623] border-[#f5a623]/20",
-    rose:    "bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border-rose-500/20",
-    danger:  "bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 border-rose-500/20",
+    accent:  "bg-indigo-500 hover:bg-indigo-600 text-white border-indigo-500/40",
+    ghost:   "bg-transparent hover:bg-black/5 text-[#57534e] hover:text-[#1c1917] border-transparent",
+    surface: "bg-[#e7e2db] hover:bg-[#d6d0c4] text-[#1c1917] border-[rgba(0,0,0,0.08)]",
+    jade:    "bg-emerald-100 hover:bg-emerald-200 text-emerald-800 border-emerald-200",
+    amber:   "bg-amber-100 hover:bg-amber-200 text-amber-800 border-amber-200",
+    rose:    "bg-rose-100 hover:bg-rose-200 text-rose-700 border-rose-200",
+    danger:  "bg-rose-100 hover:bg-rose-500 hover:text-white text-rose-700 border-rose-200",
   };
   const sizes = { sm:"px-2.5 py-1 text-xs", md:"px-3.5 py-1.5 text-sm", lg:"px-4 py-2 text-sm" };
   return (
@@ -101,24 +116,24 @@ function Toast({ t }) {
   if (!t) return null;
   const isErr = t.type === "error";
   return (
-    <div style={{animation:"toast-in 0.3s cubic-bezier(0.16,1,0.3,1)"}} className={`fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 rounded-xl border shadow-modal text-sm font-medium ${isErr ? "bg-rose-500/10 border-rose-500/30 text-rose-300" : "bg-[#1a1d27] border-[rgba(255,255,255,0.1)] text-[#f3f4f6]"}`}>
-      <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${isErr ? "bg-rose-500/20 text-rose-400" : "bg-[#2dd4a0]/20 text-[#2dd4a0]"}`}>{isErr ? "!" : "✓"}</span>
+    <div style={{animation:"toast-in 0.3s cubic-bezier(0.16,1,0.3,1)"}} className={`fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 rounded-xl border shadow-lg text-sm font-medium ${isErr ? "bg-rose-50 border-rose-200 text-rose-800" : "bg-white border-[rgba(0,0,0,0.08)] text-[#1c1917] shadow-lg"}`}>
+      <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs flex-shrink-0 ${isErr ? "bg-rose-200 text-rose-600" : "bg-emerald-100 text-emerald-700"}`}>{isErr ? "!" : "✓"}</span>
       {t.msg}
     </div>
   );
 }
 
 function Input({ value, onChange, placeholder, className="", onKeyDown, autoFocus=false, type="text" }) {
-  return <input type={type} value={value} onChange={onChange} onKeyDown={onKeyDown} autoFocus={autoFocus} placeholder={placeholder} className={`bg-[#111318] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-sm text-[#f3f4f6] placeholder-[#6b7280] focus:border-[#7c6af7] focus:ring-1 focus:ring-[#7c6af7]/30 transition-all outline-none ${className}`}/>;
+  return <input type={type} value={value} onChange={onChange} onKeyDown={onKeyDown} autoFocus={autoFocus} placeholder={placeholder} className={`bg-white border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] placeholder-[#78716c] focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 transition-all outline-none ${className}`}/>;
 }
 
 function Select({ value, onChange, children, className="" }) {
-  return <select value={value} onChange={onChange} className={`bg-[#111318] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-sm text-[#f3f4f6] focus:border-[#7c6af7] outline-none ${className}`}>{children}</select>;
+  return <select value={value} onChange={onChange} className={`bg-white border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] focus:border-indigo-400 outline-none ${className}`}>{children}</select>;
 }
 
 // ─── APP ─────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [items, setItems] = useState(SEED);
+  const [items, setItems] = useState([]);
   const [view, setView] = useState("board");
   const [modal, setModal] = useState(null);
   const [toast, setToast] = useState(null);
@@ -134,7 +149,10 @@ export default function App() {
   ]);
   const [projects, setProjects] = useState([]);
   const [sprints, setSprints] = useState([]);
+  const [selectedProjectId, setSelectedProjectId] = useState(null);
+  const [selectedSprintId, setSelectedSprintId] = useState(null);
   const [showCreateSprintModal, setShowCreateSprintModal] = useState(false);
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -150,6 +168,13 @@ export default function App() {
     load();
   }, []);
 
+  const refreshProjects = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/projects`);
+      if (res.ok) setProjects(await res.json());
+    } catch (_) {}
+  }, []);
+
   const refreshSprints = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/api/sprints`);
@@ -157,10 +182,72 @@ export default function App() {
     } catch (_) {}
   }, []);
 
+  // Load items when a sprint is selected
+  useEffect(() => {
+    if (!selectedSprintId) {
+      setItems([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/items?sprint_id=${selectedSprintId}`);
+        if (!res.ok || cancelled) return;
+        const rows = await res.json();
+        setItems(rows.map(apiItemToUI).filter(Boolean));
+      } catch (_) {
+        if (!cancelled) setItems([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedSprintId]);
+
+  const selectedProject = selectedProjectId ? projects.find(p => p.id === selectedProjectId) : null;
+  const selectedSprint = selectedSprintId ? sprints.find(s => s.id === selectedSprintId) : null;
+  const sprintsForProject = selectedProjectId ? sprints.filter(s => s.project_id === selectedProjectId) : [];
+
+  const refreshItems = useCallback(async () => {
+    if (!selectedSprintId) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/items?sprint_id=${selectedSprintId}`);
+      if (res.ok) setItems((await res.json()).map(apiItemToUI).filter(Boolean));
+    } catch (_) {}
+  }, [selectedSprintId]);
+
   const notify = useCallback((msg, type="success") => { setToast({msg,type}); setTimeout(()=>setToast(null),2500); }, []);
   const updateItem = useCallback((id,patch) => setItems(p=>p.map(i=>i.id===id?{...i,...patch}:i)), []);
   const deleteItem = useCallback((id) => { setItems(p=>p.filter(i=>i.id!==id)); setModal(null); notify("Item deleted"); }, [notify]);
-  const addItem = useCallback((item) => { setItems(p=>[...p,item]); notify("Item created"); }, [notify]);
+  const addItem = useCallback(async (item) => {
+    if (selectedProjectId && selectedSprintId && typeof fetch === 'function') {
+      try {
+        const res = await fetch(`${API_BASE}/api/items`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            project_id: selectedProjectId,
+            sprint_id: selectedSprintId,
+            type: item.type || 'task',
+            title: item.title,
+            description: item.description || '',
+            status: item.status || 'backlog',
+            priority: item.priority || 'medium',
+            points: item.points ?? 1,
+            assignee_id: item.assignee || null,
+          }),
+        });
+        if (res.ok) {
+          const created = await res.json();
+          setItems(p => [...p, apiItemToUI(created)]);
+          notify("Item created");
+        } else notify((await res.json()).error || "Failed to create", "error");
+      } catch (e) {
+        notify(e.message || "Failed to create item", "error");
+      }
+      return;
+    }
+    setItems(p=>[...p,{...item, id: item.id || 'i'+mkId()}]);
+    notify("Item created");
+  }, [notify, selectedProjectId, selectedSprintId]);
 
   const filtered = items.filter(i=>(filterType==="all"||i.type===filterType)&&(!search||i.title.toLowerCase().includes(search.toLowerCase())));
   const activeItem = modal ? items.find(i=>i.id===modal) : null;
@@ -170,105 +257,131 @@ export default function App() {
   const donePts = items.filter(i=>i.status==="done").reduce((s,i)=>s+i.points,0);
 
   return (
-    <div className="flex h-screen bg-[#0d0e14] overflow-hidden text-[#f3f4f6]">
+    <div className="flex h-screen bg-[#EDE8D0] overflow-hidden text-[#1c1917]">
       <Toast t={toast}/>
 
       {/* Sidebar */}
-      <aside className="w-[220px] flex-shrink-0 flex flex-col border-r border-[rgba(255,255,255,0.06)] bg-[#0d0e14]">
-        <div className="px-4 py-4 border-b border-[rgba(255,255,255,0.06)]">
+      <aside className="w-[240px] flex-shrink-0 flex flex-col border-r border-[rgba(0,0,0,0.08)] bg-[#F3F0E0] shadow-sm">
+        <div className="px-4 py-4 border-b border-[rgba(0,0,0,0.06)]">
           <div className="flex items-center gap-2.5 mb-3.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#7c6af7] to-[#9f7aea] flex items-center justify-center shadow-glow-sm">
-              <span className="text-white text-xs font-bold">A</span>
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center shadow-md">
+              <span className="text-white text-sm font-bold">A</span>
             </div>
-            <span className="text-sm font-semibold text-[#f3f4f6]">AgileOps</span>
-            <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#2dd4a0] animate-pulse"/>
-          </div>
-          <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-[#111318] border border-[rgba(255,255,255,0.06)]">
-            <div className="w-4 h-4 rounded bg-[#7c6af7]/20 flex items-center justify-center">
-              <span className="text-[#7c6af7] text-[9px] font-bold">D</span>
-            </div>
-            <span className="text-[#9ca3af] text-xs font-medium">DigitalOcean</span>
+            <span className="text-base font-semibold text-[#1c1917]">AgileOps</span>
           </div>
         </div>
 
         <nav className="flex-1 px-3 py-3 space-y-0.5 overflow-y-auto">
-          <p className="text-[9px] font-semibold text-[#6b7280] px-2 py-1.5 tracking-[0.1em] uppercase">Workspace</p>
+          <p className="text-[10px] font-semibold text-[#78716c] px-2 py-2 tracking-wider uppercase">Workspace</p>
           {[["board","⊞","Board"],["list","≡","List"],["gantt","▤","Gantt"],["metrics","◈","Metrics"],["team","◉","Team"]].map(([v,ic,lb])=>(
-            <button key={v} onClick={()=>setView(v)} className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 group ${view===v ? "bg-[#7c6af7]/12 text-[#a89cf7]" : "text-[#6b7280] hover:text-[#d1d5db] hover:bg-white/[0.03]"}`}>
-              <span className={`text-sm transition-colors ${view===v ? "text-[#7c6af7]" : "text-[#6b7280] group-hover:text-[#9ca3af]"}`}>{ic}</span>
+            <button key={v} onClick={()=>setView(v)} className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all duration-150 group ${view===v ? "bg-indigo-500/12 text-indigo-700" : "text-[#57534e] hover:text-[#1c1917] hover:bg-[rgba(0,0,0,0.04)]"}`}>
+              <span className={`text-base ${view===v ? "text-indigo-600" : "text-[#78716c] group-hover:text-[#57534e]"}`}>{ic}</span>
               {lb}
-              {view===v && <span className="ml-auto w-1 h-4 rounded-full bg-[#7c6af7]"/>}
+              {view===v && <span className="ml-auto w-1 h-4 rounded-full bg-indigo-500"/>}
             </button>
           ))}
 
-          <p className="text-[9px] font-semibold text-[#6b7280] px-2 py-1.5 mt-3 tracking-[0.1em] uppercase">Projects</p>
-          {[["RevOps Initiative","#7c6af7","active"],["Experience Cloud","#8b5cf6","idle"],["Infrastructure","#059669","idle"]].map(([name,hex,st])=>(
-            <div key={name} className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-[12px] cursor-pointer transition-all ${st==="active"?"text-[#d1d5db] bg-white/[0.02]":"text-[#6b7280] hover:text-[#9ca3af]"}`}>
-              <div style={{background:hex}} className="w-2 h-2 rounded-sm flex-shrink-0 opacity-80"/>
-              <span className="truncate">{name}</span>
-              {st==="active"&&<span className="ml-auto text-[#2dd4a0] text-[9px] font-semibold">●</span>}
+          <p className="text-[10px] font-semibold text-[#78716c] px-2 py-2 mt-4 tracking-wider uppercase flex items-center justify-between">
+            <span>Projects</span>
+            <button onClick={()=>setShowCreateProjectModal(true)} className="text-indigo-600 hover:text-indigo-700 font-bold text-sm" title="New project">+</button>
+          </p>
+          {projects.length === 0 && <p className="px-2 py-1 text-xs text-[#78716c]">No projects yet. Click + to create one.</p>}
+          {projects.map((p) => (
+            <div key={p.id} className="mt-0.5">
+              <button
+                onClick={() => { setSelectedProjectId(p.id); setSelectedSprintId(null); }}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-left transition-all ${selectedProjectId === p.id ? "bg-[#E2DCC5] text-[#1c1917]" : "text-[#57534e] hover:bg-[rgba(0,0,0,0.04)] hover:text-[#1c1917]"}`}
+              >
+                <div style={{background: p.color || "#6366f1"}} className="w-2.5 h-2.5 rounded flex-shrink-0"/>
+                <span className="truncate flex-1">{p.name}</span>
+              </button>
+              {selectedProjectId === p.id && (
+                <div className="ml-3 mt-1 pl-2 border-l-2 border-[rgba(0,0,0,0.08)] space-y-0.5">
+                  {sprintsForProject.length === 0 && <p className="text-[11px] text-[#78716c] py-1">No sprints. Add one below.</p>}
+                  {sprintsForProject.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setSelectedSprintId(s.id)}
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] text-left transition-all ${selectedSprintId === s.id ? "bg-indigo-500/15 text-indigo-800 font-medium" : "text-[#57534e] hover:bg-[rgba(0,0,0,0.04)]"}`}
+                    >
+                      <span className="truncate">{s.name}</span>
+                    </button>
+                  ))}
+                  <button onClick={()=>setShowCreateSprintModal(true)} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-[12px] text-indigo-600 hover:bg-indigo-500/10 font-medium">
+                    + New sprint
+                  </button>
+                </div>
+              )}
             </div>
           ))}
+
         </nav>
 
-        <div className="px-3 py-3 border-t border-[rgba(255,255,255,0.06)]">
+        <div className="px-3 py-3 border-t border-[rgba(0,0,0,0.06)] bg-[#FAF8F2]">
           <div className="flex items-center gap-2.5 px-2 py-2">
             <Avatar userId="u1" size={7}/>
-            <div><p className="text-[12px] font-semibold text-[#f3f4f6]">Raj K.</p><p className="text-[10px] text-[#6b7280]">Admin</p></div>
-            <button className="ml-auto text-[#6b7280] hover:text-[#9ca3af] text-sm transition-colors">⚙</button>
+            <div><p className="text-[12px] font-semibold text-[#1c1917]">You</p><p className="text-[10px] text-[#78716c]">Admin</p></div>
           </div>
         </div>
       </aside>
 
       {/* Main */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden bg-[#F3F0E0]">
         {/* Topbar */}
-        <div className="flex items-center gap-3 px-5 py-3 border-b border-[rgba(255,255,255,0.06)] bg-[#0d0e14] flex-shrink-0">
-          <div className="flex items-center gap-1.5 text-xs text-[#6b7280]">
-            <span>DigitalOcean</span><span className="opacity-30">/</span>
-            <span className="text-[#9ca3af]">RevOps</span><span className="opacity-30">/</span>
-            <span className="text-[#a89cf7] font-semibold">Sprint 14</span>
+        <div className="flex items-center gap-3 px-5 py-3 border-b border-[rgba(0,0,0,0.08)] bg-[#FAF8F2] flex-shrink-0 shadow-sm">
+          <div className="flex items-center gap-2 text-sm text-[#57534e]">
+            {selectedProject ? <span className="font-medium text-[#1c1917]">{selectedProject.name}</span> : <span>Select a project</span>}
+            {selectedProject && <span className="text-[#c4bdb2]">/</span>}
+            {selectedSprint ? <span className="font-semibold text-indigo-600">{selectedSprint.name}</span> : selectedProject && <span className="text-[#78716c]">Select a sprint</span>}
           </div>
           <div className="flex-1"/>
-          {/* Search */}
           <div className="relative">
-            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#6b7280]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" className="pl-8 pr-3 py-1.5 text-[12px] bg-[#111318] border border-[rgba(255,255,255,0.07)] rounded-lg outline-none focus:border-[#7c6af7]/50 text-[#f3f4f6] placeholder-[#6b7280] w-44 transition-all"/>
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#78716c]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search…" className="pl-9 pr-3 py-2 text-[13px] bg-white border border-[rgba(0,0,0,0.08)] rounded-lg outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 text-[#1c1917] placeholder-[#78716c] w-48 transition-all"/>
           </div>
-          <select value={filterType} onChange={e=>setFilterType(e.target.value)} className="bg-[#111318] border border-[rgba(255,255,255,0.07)] rounded-lg px-2.5 py-1.5 text-[12px] text-[#9ca3af] outline-none focus:border-[#7c6af7]/50">
+          <select value={filterType} onChange={e=>setFilterType(e.target.value)} className="bg-white border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#57534e] outline-none focus:border-indigo-400">
             <option value="all">All types</option>
             <option value="epic">⚡ Epic</option><option value="story">◆ Story</option>
             <option value="bug">● Bug</option><option value="task">✓ Task</option>
           </select>
-          {/* View switcher */}
-          <div className="flex items-center bg-[#111318] border border-[rgba(255,255,255,0.07)] rounded-lg p-1 gap-0.5">
+          <div className="flex items-center bg-white border border-[rgba(0,0,0,0.08)] rounded-lg p-1 gap-0.5 shadow-sm">
             {[["board","⊞"],["list","≡"],["gantt","▤"],["metrics","◈"],["team","◉"]].map(([v,ic])=>(
-              <button key={v} onClick={()=>setView(v)} className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${view===v?"bg-[#7c6af7] text-white shadow-glow-sm":"text-[#6b7280] hover:text-[#9ca3af]"}`}>{ic} {v.charAt(0).toUpperCase()+v.slice(1)}</button>
+              <button key={v} onClick={()=>setView(v)} className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${view===v?"bg-indigo-500 text-white":"text-[#57534e] hover:bg-[rgba(0,0,0,0.04)]"}`}>{ic} {v.charAt(0).toUpperCase()+v.slice(1)}</button>
             ))}
           </div>
         </div>
 
         {/* Sprint header */}
-        <div className="flex items-center gap-4 px-5 py-3 border-b border-[rgba(255,255,255,0.06)] bg-[#111318]/60 flex-shrink-0">
+        <div className="flex items-center gap-4 px-5 py-3 border-b border-[rgba(0,0,0,0.06)] bg-[#EDE8D0] flex-shrink-0">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#7c6af7] animate-pulse"/>
-            <span className="text-sm font-semibold text-[#f3f4f6]">Sprint 14</span>
-            <span className="text-[11px] text-[#6b7280] font-medium">Q1 2026 · Mar 1–14</span>
+            {selectedSprint ? (
+              <>
+                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 animate-pulse"/>
+                <span className="text-sm font-semibold text-[#1c1917]">{selectedSprint.name}</span>
+                <span className="text-[12px] text-[#78716c]">
+                  {selectedSprint.start_date && selectedSprint.end_date ? `${new Date(selectedSprint.start_date).toLocaleDateString('en-US',{month:'short'})} ${new Date(selectedSprint.start_date).getDate()}–${new Date(selectedSprint.end_date).getDate()}` : ''}
+                </span>
+              </>
+            ) : (
+              <span className="text-sm text-[#78716c]">Select a project and sprint in the sidebar</span>
+            )}
           </div>
-          <span className="text-[#374151] text-sm">|</span>
-          <span className="text-[12px] text-[#6b7280]">Ship Messaging for Web v2 + fix P0 routing bug</span>
+          {selectedSprint?.goal && <span className="text-[#57534e] text-sm">|</span>}
+          {selectedSprint?.goal && <span className="text-[13px] text-[#57534e] truncate max-w-md">{selectedSprint.goal}</span>}
           <div className="ml-auto flex items-center gap-2">
-            <button onClick={()=>setShowCreateSprintModal(true)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[#7c6af7]/40 bg-[#7c6af7]/10 text-[#a89cf7] text-[12px] font-medium hover:bg-[#7c6af7]/20 transition-colors">
-              + New sprint
-            </button>
+            {selectedProject && (
+              <button onClick={()=>setShowCreateSprintModal(true)} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-indigo-300 bg-indigo-50 text-indigo-700 text-[13px] font-medium hover:bg-indigo-100 transition-colors">
+                + New sprint
+              </button>
+            )}
             {[
-              [`${doneCt}/${items.length}`,"items", "#7c6af7"],
-              [`${donePts}/${totalPts}`,"pts", "#2dd4a0"],
-              [`${items.length ? Math.round(doneCt/items.length*100) : 0}%`,"velocity", "#f5a623"],
+              [`${doneCt}/${items.length}`,"items", "#6366f1"],
+              [`${donePts}/${totalPts}`,"pts", "#059669"],
+              [`${items.length ? Math.round(doneCt/items.length*100) : 0}%`,"done", "#d97706"],
             ].map(([val,lbl,col])=>(
-              <div key={lbl} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#16181f] border border-[rgba(255,255,255,0.06)]">
+              <div key={lbl} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[rgba(0,0,0,0.08)] shadow-sm">
                 <span style={{color:col}} className="text-xs font-bold tabular-nums">{val}</span>
-                <span className="text-[10px] text-[#6b7280]">{lbl}</span>
+                <span className="text-[11px] text-[#78716c]">{lbl}</span>
               </div>
             ))}
           </div>
@@ -285,7 +398,8 @@ export default function App() {
       </div>
 
       {activeItem && <ItemModal item={activeItem} items={items} onClose={()=>setModal(null)} onUpdate={p=>updateItem(activeItem.id,p)} onDelete={()=>deleteItem(activeItem.id)} notify={notify}/>}
-      {showCreateSprintModal && <CreateSprintModal projects={projects} onClose={()=>setShowCreateSprintModal(false)} onCreated={()=>{ refreshSprints(); setShowCreateSprintModal(false); notify("Sprint created"); }} notify={notify}/>}
+      {showCreateSprintModal && <CreateSprintModal projects={projects} defaultProjectId={selectedProjectId} onClose={()=>setShowCreateSprintModal(false)} onCreated={()=>{ refreshSprints(); setShowCreateSprintModal(false); notify("Sprint created"); }} notify={notify}/>}
+      {showCreateProjectModal && <CreateProjectModal onClose={()=>setShowCreateProjectModal(false)} onCreated={()=>{ refreshProjects(); setShowCreateProjectModal(false); notify("Project created"); }} notify={notify}/>}
     </div>
   );
 }
@@ -293,7 +407,7 @@ export default function App() {
 // ─── BOARD ────────────────────────────────────────────────────────────────────
 function BoardView({filtered,items,updateItem,addItem,setModal,dragId,dragOver,onDragStart,onDragOver,onDrop,notify}) {
   return (
-    <div className="flex gap-3 p-5 min-w-max items-start min-h-full">
+    <div className="flex gap-4 p-5 min-w-max items-start min-h-full bg-[#EDE8D0]">
       {COLS.map(col=>(
         <Column key={col.id} col={col} items={filtered.filter(i=>i.status===col.id)} dragId={dragId} dragOver={dragOver} onDragStart={onDragStart} onDragOver={onDragOver} onDrop={onDrop} onCardClick={setModal} addItem={addItem}/>
       ))}
@@ -312,25 +426,25 @@ function Column({col,items,dragId,dragOver,onDragStart,onDragOver,onDrop,onCardC
     setTitle("");setAdding(false);
   };
   return (
-    <div className={`w-[272px] flex-shrink-0 flex flex-col rounded-xl transition-all duration-200 ${isOver?"ring-1 ring-[#7c6af7]/50 bg-[#7c6af7]/[0.03]":""}`}
+    <div className={`w-[272px] flex-shrink-0 flex flex-col rounded-xl bg-[#FAF8F2] border border-[rgba(0,0,0,0.06)] shadow-sm transition-all duration-200 ${isOver?"ring-2 ring-indigo-300 bg-indigo-50/50":""}`}
       onDragOver={e=>{e.preventDefault();onDragOver(col.id);}} onDrop={e=>{e.preventDefault();onDrop(col.id);}}>
-      <div className="flex items-center gap-2 px-1 pb-3">
-        <div style={{background:col.color}} className="w-2 h-2 rounded-full"/>
-        <span className="text-[12px] font-semibold text-[#9ca3af]">{col.label}</span>
-        <span style={{color:col.color}} className="ml-auto text-[11px] font-bold tabular-nums opacity-70">{items.length}</span>
+      <div className="flex items-center gap-2 px-3 pb-3 pt-2">
+        <div style={{background:col.color}} className="w-2.5 h-2.5 rounded-full"/>
+        <span className="text-[13px] font-semibold text-[#57534e]">{col.label}</span>
+        <span style={{color:col.color}} className="ml-auto text-xs font-bold tabular-nums">{items.length}</span>
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 px-2 pb-2">
         {items.map(item=><Card key={item.id} item={item} isDragging={dragId===item.id} onDragStart={()=>onDragStart(item.id)} onClick={()=>onCardClick(item.id)}/>)}
         {adding ? (
-          <div className="bg-[#16181f] rounded-xl border border-[rgba(255,255,255,0.1)] p-3">
-            <input ref={ref} value={title} onChange={e=>setTitle(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")confirm();if(e.key==="Escape"){setAdding(false);setTitle("");}}} autoFocus placeholder="Item title… Enter to save" className="w-full bg-transparent text-sm text-[#f3f4f6] placeholder-[#6b7280] outline-none"/>
+          <div className="bg-[#F3F0E0] rounded-xl border border-[rgba(0,0,0,0.08)] p-3">
+            <input ref={ref} value={title} onChange={e=>setTitle(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")confirm();if(e.key==="Escape"){setAdding(false);setTitle("");}}} autoFocus placeholder="Item title… Enter to save" className="w-full bg-white border border-[rgba(0,0,0,0.08)] rounded-lg px-2.5 py-2 text-sm text-[#1c1917] placeholder-[#78716c] outline-none focus:border-indigo-400"/>
             <div className="flex gap-2 mt-2.5">
               <PillBtn size="sm" onClick={confirm}>Save</PillBtn>
               <PillBtn size="sm" color="ghost" onClick={()=>{setAdding(false);setTitle("");}}>Cancel</PillBtn>
             </div>
           </div>
         ) : (
-          <button onClick={()=>{setAdding(true);setTimeout(()=>ref.current?.focus(),40);}} className="w-full text-left px-3 py-2.5 rounded-xl border border-dashed border-[rgba(255,255,255,0.06)] text-[12px] text-[#6b7280] hover:text-[#7c6af7] hover:border-[#7c6af7]/30 hover:bg-[#7c6af7]/[0.04] transition-all duration-150">
+          <button onClick={()=>{setAdding(true);setTimeout(()=>ref.current?.focus(),40);}} className="w-full text-left px-3 py-2.5 rounded-xl border border-dashed border-[rgba(0,0,0,0.12)] text-[13px] text-[#78716c] hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all duration-150">
             + Add item
           </button>
         )}
@@ -341,18 +455,19 @@ function Column({col,items,dragId,dragOver,onDragStart,onDragOver,onDrop,onCardC
 
 function Card({item,isDragging,onDragStart,onClick}) {
   const tc=TYPE[item.type]||TYPE.task, pc=PRIO[item.priority]||PRIO.medium;
-  const doneCrit=item.criteria.filter(c=>c.done).length, totCrit=item.criteria.length;
+  const totCrit = item.criteria_total ?? (item.criteria || []).length;
+  const doneCrit = item.criteria_done ?? (item.criteria || []).filter(c=>c.done).length;
   const isBlocked=item.blockers?.length>0;
   const pct=totCrit>0?doneCrit/totCrit*100:0;
   return (
     <div draggable onDragStart={onDragStart} onClick={onClick}
-      className={`card-item group cursor-pointer bg-[#111318] rounded-xl border border-l-2 ${tc.border} border-y-[rgba(255,255,255,0.07)] border-r-[rgba(255,255,255,0.07)] p-3.5 shadow-card select-none ${isDragging?"opacity-30 scale-95":""} ${isBlocked?"border-l-rose-500/60":""}`}>
+      className={`card-item group cursor-pointer bg-white rounded-xl border border-l-4 ${tc.border} border-[rgba(0,0,0,0.08)] p-3.5 shadow-sm select-none ${isDragging?"opacity-30 scale-95":""} ${isBlocked?"border-l-rose-500":""}`}>
       {isBlocked && <div className="flex items-center gap-1.5 mb-2.5 text-[10px] font-semibold text-rose-400"><span>◉</span>BLOCKED</div>}
       <div className="flex items-center gap-2 mb-2.5">
         <Chip className={tc.bg}>{tc.icon} {tc.label}</Chip>
         <div className="ml-auto flex items-center gap-1"><div className={`w-1.5 h-1.5 rounded-full ${pc.dot}`}/><span className={`text-[10px] font-medium ${pc.bg.split(' ').find(c=>c.startsWith('text-'))}`}>{pc.label}</span></div>
       </div>
-      <p className={`text-[13px] font-medium leading-snug mb-3 text-[#f3f4f6] group-hover:text-white transition-colors ${item.status==="done"?"line-through opacity-40":""}`}>{item.title}</p>
+      <p className={`text-[13px] font-medium leading-snug mb-3 text-[#1c1917] group-hover:text-[#292524] transition-colors ${item.status==="done"?"line-through opacity-50":""}`}>{item.title}</p>
       {item.labels?.length>0 && (
         <div className="flex gap-1 flex-wrap mb-2.5">
           {item.labels.slice(0,3).map(lid=>{const l=labelById(lid);return l?<Chip key={lid} className={l.style}>{l.name}</Chip>:null;})}
@@ -360,15 +475,15 @@ function Card({item,isDragging,onDragStart,onClick}) {
       )}
       {totCrit>0 && (
         <div className="mb-2.5">
-          <div className="h-[3px] bg-[#16181f] rounded-full overflow-hidden">
+          <div className="h-[3px] bg-[#E2DCC5] rounded-full overflow-hidden">
             <div style={{width:`${pct}%`,background:tc.color}} className="h-full rounded-full transition-all duration-500"/>
           </div>
-          <p className="text-[10px] text-[#6b7280] mt-1 tabular-nums">{doneCrit}/{totCrit} criteria</p>
+          <p className="text-[10px] text-[#78716c] mt-1 tabular-nums">{doneCrit}/{totCrit} criteria</p>
         </div>
       )}
       <div className="flex items-center gap-2">
-        <span className="text-[11px] text-[#6b7280] font-medium tabular-nums">{item.points}pt</span>
-        {item.comments?.length>0 && <span className="text-[11px] text-[#6b7280]">💬 {item.comments.length}</span>}
+        <span className="text-[11px] text-[#78716c] font-medium tabular-nums">{item.points}pt</span>
+        {(item.comment_count > 0 || (item.comments?.length ?? 0) > 0) && <span className="text-[11px] text-[#78716c]">💬 {item.comment_count ?? item.comments?.length ?? 0}</span>}
         {item.approvers?.length>0 && <span className={`text-[11px] font-medium ${item.approvers.every(a=>a.status==="approved")?"text-[#2dd4a0]":"text-[#f5a623]"}`}>✓ {item.approvers.filter(a=>a.status==="approved").length}/{item.approvers.length}</span>}
         <div className="ml-auto">{item.assignee && <Avatar userId={item.assignee} size={5}/>}</div>
       </div>
@@ -386,29 +501,29 @@ function ListView({filtered,items,updateItem,addItem,setModal,notify,deleteItem}
   const startEdit=item=>{setEditId(item.id);setBuf({title:item.title,status:item.status,priority:item.priority,points:item.points,assignee:item.assignee||"",type:item.type});};
   const saveEdit=id=>{updateItem(id,buf);setEditId(null);notify("Saved");};
   const confirmNew=()=>{if(!nr.title.trim()){setAddingRow(false);return;}addItem({id:"i"+mkId(),...nr,labels:[],description:"",criteria:[],comments:[],approvers:[],blockers:[],startDate:"2026-03-04",endDate:"2026-03-10"});setNr({type:"task",title:"",status:"backlog",priority:"medium",points:1,assignee:"u1"});setAddingRow(false);};
-  const th="px-4 py-2.5 text-left text-[10px] font-semibold text-[#9ca3af] tracking-[0.08em] uppercase bg-[#111318] border-b border-[rgba(255,255,255,0.06)]";
-  const td="px-4 py-3 text-[13px] align-middle border-b border-[rgba(255,255,255,0.04)]";
+  const th="px-4 py-2.5 text-left text-[10px] font-semibold text-[#57534e] tracking-[0.08em] uppercase bg-[#E2DCC5] border-b border-[rgba(0,0,0,0.08)]";
+  const td="px-4 py-3 text-[13px] align-middle border-b border-[rgba(0,0,0,0.06)]";
   const InlineSel=({val,onChange,opts})=><Select value={val} onChange={e=>onChange(e.target.value)} className="text-xs py-1 px-2 w-full">{opts.map(([v,l])=><option key={v} value={v}>{l}</option>)}</Select>;
   return (
     <div className="p-5">
-      <div className="bg-[#111318] rounded-xl border border-[rgba(255,255,255,0.07)] overflow-hidden shadow-card">
+      <div className="bg-[#FAF8F2] rounded-xl border border-[rgba(0,0,0,0.08)] overflow-hidden shadow-md">
         <table className="w-full border-collapse">
           <thead><tr>{["Type","Title","Status","Priority","Pts","Assignee",""].map(h=><th key={h} className={th}>{h}</th>)}</tr></thead>
           <tbody>
             {filtered.map((item,idx)=>{
               const isEdit=editId===item.id, tc=TYPE[item.type]||TYPE.task, pc=PRIO[item.priority]||PRIO.medium, col=colById(item.status);
               return (
-                <tr key={item.id} className={`group transition-colors ${isEdit?"bg-[#7c6af7]/[0.05]":idx%2===0?"bg-transparent":"bg-white/[0.01]"} hover:bg-white/[0.02]`}>
+                <tr key={item.id} className={`group transition-colors ${isEdit?"bg-indigo-50":idx%2===0?"bg-transparent":"bg-[#F3F0E0]/60"} hover:bg-[#EDE8D0]/80`}>
                   <td className={td}>{isEdit?<InlineSel val={buf.type} onChange={v=>setBuf(b=>({...b,type:v}))} opts={[["epic","⚡ Epic"],["story","◆ Story"],["bug","● Bug"],["task","✓ Task"]]}/>:<Chip className={tc.bg}>{tc.icon} {tc.label}</Chip>}</td>
-                  <td className={`${td} max-w-[240px]`}>{isEdit?<Input value={buf.title} onChange={e=>setBuf(b=>({...b,title:e.target.value}))} className="w-full text-xs py-1"/>:<button onClick={()=>setModal(item.id)} className={`text-left font-medium hover:text-[#a89cf7] transition-colors text-[13px] ${item.status==="done"?"line-through opacity-40":"text-[#f3f4f6]"}`}>{item.title}</button>}</td>
+                  <td className={`${td} max-w-[240px]`}>{isEdit?<Input value={buf.title} onChange={e=>setBuf(b=>({...b,title:e.target.value}))} className="w-full text-xs py-1"/>:<button onClick={()=>setModal(item.id)} className={`text-left font-medium hover:text-indigo-600 transition-colors text-[13px] ${item.status==="done"?"line-through opacity-50":"text-[#1c1917]"}`}>{item.title}</button>}</td>
                   <td className={td}>{isEdit?<InlineSel val={buf.status} onChange={v=>setBuf(b=>({...b,status:v}))} opts={COLS.map(c=>[c.id,c.label])}/>:col&&<span style={{color:col.color}} className="text-[11px] font-semibold">{col.label}</span>}</td>
                   <td className={td}>{isEdit?<InlineSel val={buf.priority} onChange={v=>setBuf(b=>({...b,priority:v}))} opts={Object.entries(PRIO).map(([k,v])=>[k,v.label])}/>:<div className="flex items-center gap-1.5"><div className={`w-1.5 h-1.5 rounded-full ${pc.dot}`}/><span className={`text-[11px] font-medium ${pc.bg.split(' ').find(c=>c.startsWith('text-'))}`}>{pc.label}</span></div>}</td>
-                  <td className={`${td} text-center tabular-nums`}>{isEdit?<Input type="number" value={buf.points} onChange={e=>setBuf(b=>({...b,points:+e.target.value}))} className="w-14 text-center text-xs py-1"/>:<span className="text-[#9ca3af] font-medium">{item.points}</span>}</td>
-                  <td className={td}>{isEdit?<InlineSel val={buf.assignee} onChange={v=>setBuf(b=>({...b,assignee:v}))} opts={[["","—"],...USERS.map(u=>[u.id,u.name])]}/>:item.assignee?<Avatar userId={item.assignee} size={6}/>:<span className="text-[#6b7280]">—</span>}</td>
+                  <td className={`${td} text-center tabular-nums`}>{isEdit?<Input type="number" value={buf.points} onChange={e=>setBuf(b=>({...b,points:+e.target.value}))} className="w-14 text-center text-xs py-1"/>:<span className="text-[#57534e] font-medium">{item.points}</span>}</td>
+                  <td className={td}>{isEdit?<InlineSel val={buf.assignee} onChange={v=>setBuf(b=>({...b,assignee:v}))} opts={[["","—"],...USERS.map(u=>[u.id,u.name])]}/>:item.assignee?<Avatar userId={item.assignee} size={6}/>:<span className="text-[#78716c]">—</span>}</td>
                   <td className={`${td} w-24`}>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {isEdit?(<><PillBtn size="sm" color="jade" onClick={()=>saveEdit(item.id)}>Save</PillBtn><PillBtn size="sm" color="ghost" onClick={()=>setEditId(null)}>✕</PillBtn></>):(
-                        <><button onClick={()=>startEdit(item)} className="p-1.5 rounded-lg text-[#6b7280] hover:text-[#a89cf7] hover:bg-[#7c6af7]/10 transition-all" title="Edit">✏</button><button onClick={()=>setModal(item.id)} className="p-1.5 rounded-lg text-[#6b7280] hover:text-[#52b8f5] hover:bg-[#52b8f5]/10 transition-all" title="Details">⊙</button><button onClick={()=>{if(window.confirm("Delete?"))deleteItem(item.id);}} className="p-1.5 rounded-lg text-[#6b7280] hover:text-rose-400 hover:bg-rose-500/10 transition-all" title="Delete">✕</button></>
+                        <><button onClick={()=>startEdit(item)} className="p-1.5 rounded-lg text-[#57534e] hover:text-indigo-600 hover:bg-indigo-100 transition-all" title="Edit">✏</button><button onClick={()=>setModal(item.id)} className="p-1.5 rounded-lg text-[#57534e] hover:text-blue-600 hover:bg-blue-100 transition-all" title="Details">⊙</button><button onClick={()=>{if(window.confirm("Delete?"))deleteItem(item.id);}} className="p-1.5 rounded-lg text-[#57534e] hover:text-rose-600 hover:bg-rose-100 transition-all" title="Delete">✕</button></>
                       )}
                     </div>
                   </td>
@@ -416,7 +531,7 @@ function ListView({filtered,items,updateItem,addItem,setModal,notify,deleteItem}
               );
             })}
             {addingRow&&(
-              <tr className="bg-[#7c6af7]/[0.06] border-t border-[#7c6af7]/20">
+              <tr className="bg-indigo-50 border-t border-indigo-200">
                 <td className={td}><InlineSel val={nr.type} onChange={v=>setNr(r=>({...r,type:v}))} opts={[["epic","⚡ Epic"],["story","◆ Story"],["bug","● Bug"],["task","✓ Task"]]}/></td>
                 <td className={td}><Input ref={addRef} value={nr.title} onChange={e=>setNr(r=>({...r,title:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter")confirmNew();if(e.key==="Escape")setAddingRow(false);}} autoFocus placeholder="Item title…" className="w-full text-xs py-1"/></td>
                 <td className={td}><InlineSel val={nr.status} onChange={v=>setNr(r=>({...r,status:v}))} opts={COLS.map(c=>[c.id,c.label])}/></td>
@@ -429,7 +544,7 @@ function ListView({filtered,items,updateItem,addItem,setModal,notify,deleteItem}
           </tbody>
         </table>
         <div className="px-4 py-2.5">
-          <button onClick={()=>{setAddingRow(true);setTimeout(()=>addRef.current?.focus(),50);}} className="flex items-center gap-2 text-[12px] text-[#6b7280] hover:text-[#7c6af7] px-2 py-1.5 rounded-lg hover:bg-[#7c6af7]/[0.06] transition-all">
+          <button onClick={()=>{setAddingRow(true);setTimeout(()=>addRef.current?.focus(),50);}} className="flex items-center gap-2 text-[12px] text-[#57534e] hover:text-indigo-600 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-all">
             <span className="text-base font-light leading-none">+</span> Add a row
           </button>
         </div>
@@ -446,13 +561,13 @@ function GanttView({filtered,setModal}) {
   const toBar=item=>{const s=item.startDate?Math.max(0,daysApart(SPRINT_START,new Date(item.startDate))):0;const e=item.endDate?Math.min(DAYS,daysApart(SPRINT_START,new Date(item.endDate))+1):s+2;return{s:Math.max(0,s),w:Math.max(1,e-s)};};
   return (
     <div className="p-5">
-      <div className="bg-[#111318] rounded-xl border border-[rgba(255,255,255,0.07)] overflow-hidden shadow-card">
-        <div className="px-5 py-3.5 border-b border-[rgba(255,255,255,0.06)] flex items-center gap-4">
-          <span className="text-sm font-semibold text-[#f3f4f6]">Sprint Timeline</span>
-          <span className="text-[11px] text-[#6b7280]">Mar 1–14, 2026</span>
+      <div className="bg-[#FAF8F2] rounded-xl border border-[rgba(0,0,0,0.08)] overflow-hidden shadow-md">
+        <div className="px-5 py-3.5 border-b border-[rgba(0,0,0,0.08)] flex items-center gap-4">
+          <span className="text-sm font-semibold text-[#1c1917]">Sprint Timeline</span>
+          <span className="text-[11px] text-[#57534e]">Mar 1–14, 2026</span>
           <div className="flex items-center gap-4 ml-auto">
             {COLS.filter(c=>c.id!=="backlog").map(c=>(
-              <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-[#6b7280]">
+              <div key={c.id} className="flex items-center gap-1.5 text-[11px] text-[#57534e]">
                 <div style={{background:c.color}} className="w-2 h-2 rounded-sm opacity-80"/>{c.label}
               </div>
             ))}
@@ -462,15 +577,15 @@ function GanttView({filtered,setModal}) {
           <div className="flex" style={{minWidth:LW+DAYS*DW}}>
             {/* Labels */}
             <div style={{width:LW}} className="flex-shrink-0 border-r border-[rgba(255,255,255,0.06)]">
-              <div style={{height:36}} className="flex items-center px-4 border-b border-[rgba(255,255,255,0.06)] bg-[#0d0e14]/50">
-                <span className="text-[10px] font-semibold text-[#6b7280] uppercase tracking-widest">Item</span>
+              <div style={{height:36}} className="flex items-center px-4 border-b border-[rgba(0,0,0,0.08)] bg-[#E2DCC5]">
+                <span className="text-[10px] font-semibold text-[#57534e] uppercase tracking-widest">Item</span>
               </div>
               {filtered.map(item=>{
                 const tc=TYPE[item.type]||TYPE.task;
                 return (
                   <div key={item.id} onClick={()=>setModal(item.id)} style={{height:RH}} className="flex items-center gap-2.5 px-4 border-b border-[rgba(255,255,255,0.04)] cursor-pointer hover:bg-white/[0.02] transition-colors group">
                     <Chip className={`${tc.bg} flex-shrink-0`}>{tc.icon}</Chip>
-                    <span className="text-[12px] font-medium text-[#9ca3af] group-hover:text-[#f3f4f6] transition-colors truncate flex-1">{item.title}</span>
+                    <span className="text-[12px] font-medium text-[#57534e] group-hover:text-[#1c1917] transition-colors truncate flex-1">{item.title}</span>
                     {item.assignee&&<Avatar userId={item.assignee} size={5}/>}
                   </div>
                 );
@@ -481,7 +596,7 @@ function GanttView({filtered,setModal}) {
               {/* Day headers */}
               <div className="flex" style={{height:36}}>
                 {days.map((d,i)=>(
-                  <div key={i} style={{width:DW}} className={`flex-shrink-0 flex items-center justify-center border-b border-r border-[rgba(255,255,255,0.04)] text-[10px] ${i===todayOff?"text-[#7c6af7] font-bold bg-[#7c6af7]/[0.08]":d.getDay()===0||d.getDay()===6?"text-[#4b5563]":"text-[#6b7280] font-medium"}`}>
+                  <div key={i} style={{width:DW}} className={`flex-shrink-0 flex items-center justify-center border-b border-r border-[rgba(0,0,0,0.06)] text-[10px] ${i===todayOff?"text-indigo-600 font-bold bg-indigo-100":d.getDay()===0||d.getDay()===6?"text-[#78716c]":"text-[#57534e] font-medium"}`}>
                     {d.getDate()===1||i===0?d.toLocaleDateString("en-US",{month:"short",day:"numeric"}):d.getDate()}
                   </div>
                 ))}
@@ -493,7 +608,7 @@ function GanttView({filtered,setModal}) {
                 const isBlocked=item.blockers?.length>0;
                 return (
                   <div key={item.id} style={{height:RH}} className={`flex relative border-b border-[rgba(255,255,255,0.04)] ${ri%2===0?"bg-transparent":"bg-white/[0.01]"}`}>
-                    {days.map((_,i)=><div key={i} style={{width:DW}} className={`flex-shrink-0 border-r border-[rgba(255,255,255,0.03)] h-full ${i===todayOff?"bg-[#7c6af7]/[0.04]":""}`}/>)}
+                    {days.map((_,i)=><div key={i} style={{width:DW}} className={`flex-shrink-0 border-r border-[rgba(0,0,0,0.06)] h-full ${i===todayOff?"bg-indigo-50":""}`}/>)}
                     <div onClick={()=>setModal(item.id)} style={{position:"absolute",left:s*DW+4,width:w*DW-8,top:10,height:24,background:isBlocked?"rgba(242,95,92,0.12)":col.glow||"rgba(124,106,247,0.1)",border:`1px solid ${isBlocked?"rgba(242,95,92,0.3)":col.color+"50"}`}} className="rounded-lg cursor-pointer overflow-hidden transition-all hover:scale-y-105 z-[1] group">
                       <div style={{width:`${pct*100}%`,background:isBlocked?"rgba(242,95,92,0.4)":col.color+"60"}} className="absolute inset-y-0 left-0 rounded-l-lg transition-all"/>
                       {w>=3&&<span style={{color:col.color}} className="relative px-2 text-[10px] font-semibold whitespace-nowrap block truncate leading-6 opacity-90">{item.title}</span>}
@@ -527,10 +642,10 @@ function MetricsView({items}) {
   const xs=i=>pl+i*(W-pl-pr)/13, ys=v=>H-pb-(v/(totalPts||1))*(H-pt-pb);
 
   const KCard=({label,value,sub,col="#7c6af7"})=>(
-    <div className="bg-[#111318] rounded-xl border border-[rgba(255,255,255,0.07)] p-5 shadow-card">
-      <p className="text-[10px] font-semibold text-[#6b7280] uppercase tracking-[0.08em] mb-2">{label}</p>
+    <div className="bg-[#FAF8F2] rounded-xl border border-[rgba(0,0,0,0.08)] p-5 shadow-md">
+      <p className="text-[10px] font-semibold text-[#57534e] uppercase tracking-[0.08em] mb-2">{label}</p>
       <p style={{color:col}} className="text-3xl font-bold tabular-nums">{value}</p>
-      {sub&&<p className="text-[11px] text-[#6b7280] mt-1.5">{sub}</p>}
+      {sub&&<p className="text-[11px] text-[#57534e] mt-1.5">{sub}</p>}
     </div>
   );
 
@@ -545,11 +660,11 @@ function MetricsView({items}) {
 
       <div className="grid grid-cols-2 gap-4">
         {/* Burndown */}
-        <div className="bg-[#111318] rounded-xl border border-[rgba(255,255,255,0.07)] p-5 shadow-card">
+        <div className="bg-[#FAF8F2] rounded-xl border border-[rgba(0,0,0,0.08)] p-5 shadow-md">
           <div className="flex items-center gap-3 mb-4">
-            <span className="text-sm font-semibold text-[#f3f4f6]">Sprint Burndown</span>
-            <div className="flex gap-4 ml-auto text-[10px] text-[#6b7280]">
-              <span className="flex items-center gap-1.5"><span style={{width:16,height:1,borderTop:"1.5px dashed #6b7280",display:"inline-block"}}/> Ideal</span>
+            <span className="text-sm font-semibold text-[#1c1917]">Sprint Burndown</span>
+            <div className="flex gap-4 ml-auto text-[10px] text-[#57534e]">
+              <span className="flex items-center gap-1.5"><span style={{width:16,height:1,borderTop:"1.5px dashed #78716c",display:"inline-block"}}/> Ideal</span>
               <span className="flex items-center gap-1.5"><span style={{width:16,height:2,background:"#7c6af7",display:"inline-block",borderRadius:2}}/> Actual</span>
             </div>
           </div>
@@ -563,32 +678,32 @@ function MetricsView({items}) {
             {[0,25,50,75,100].map(p=>(
               <g key={p}>
                 <line x1={pl} y1={ys(totalPts*p/100)} x2={W-pr} y2={ys(totalPts*p/100)} stroke="rgba(255,255,255,0.04)" strokeWidth="1"/>
-                <text x={pl-4} y={ys(totalPts*p/100)+4} textAnchor="end" fontSize="9" fill="#6b7280">{Math.round(totalPts*(1-p/100))}</text>
+                <text x={pl-4} y={ys(totalPts*p/100)+4} textAnchor="end" fontSize="9" fill="#57534e">{Math.round(totalPts*(1-p/100))}</text>
               </g>
             ))}
-            <polyline points={burn.map((d,i)=>`${xs(i)},${ys(d.ideal)}`).join(" ")} fill="none" stroke="#6b7280" strokeWidth="1" strokeDasharray="4,3"/>
+            <polyline points={burn.map((d,i)=>`${xs(i)},${ys(d.ideal)}`).join(" ")} fill="none" stroke="#78716c" strokeWidth="1" strokeDasharray="4,3"/>
             {burn.filter(d=>d.actual!=null).length>1&&(
               <polygon points={[...burn.filter(d=>d.actual!=null).map((d,i)=>`${xs(i)},${ys(d.actual)}`),`${xs(burn.filter(d=>d.actual!=null).length-1)},${H-pb}`,`${xs(0)},${H-pb}`].join(" ")} fill="url(#burnGrad)"/>
             )}
             <polyline points={burn.filter(d=>d.actual!=null).map((d,i)=>`${xs(i)},${ys(d.actual)}`).join(" ")} fill="none" stroke="#7c6af7" strokeWidth="2"/>
-            {burn.filter(d=>d.actual!=null).map((d,i)=><circle key={i} cx={xs(i)} cy={ys(d.actual)} r="3" fill="#7c6af7" stroke="#111318" strokeWidth="1.5"/>)}
-            {burn.filter((_,i)=>i%2===0).map((d,i)=><text key={i} x={xs(i*2)} y={H-6} textAnchor="middle" fontSize="8.5" fill="#6b7280">Mar {d.d+1}</text>)}
+            {burn.filter(d=>d.actual!=null).map((d,i)=><circle key={i} cx={xs(i)} cy={ys(d.actual)} r="3" fill="#6366f1" stroke="#FAF8F2" strokeWidth="1.5"/>)}
+            {burn.filter((_,i)=>i%2===0).map((d,i)=><text key={i} x={xs(i*2)} y={H-6} textAnchor="middle" fontSize="8.5" fill="#57534e">Mar {d.d+1}</text>)}
           </svg>
         </div>
 
         {/* Team workload */}
-        <div className="bg-[#111318] rounded-xl border border-[rgba(255,255,255,0.07)] p-5 shadow-card">
-          <p className="text-sm font-semibold text-[#f3f4f6] mb-4">Team Workload</p>
+        <div className="bg-[#FAF8F2] rounded-xl border border-[rgba(0,0,0,0.08)] p-5 shadow-md">
+          <p className="text-sm font-semibold text-[#1c1917] mb-4">Team Workload</p>
           <div className="space-y-4">
             {byUser.map(({u,count,done,pts})=>(
               <div key={u.id} className="flex items-center gap-3">
                 <Avatar userId={u.id} size={7}/>
                 <div className="flex-1">
                   <div className="flex justify-between mb-1.5">
-                    <span className="text-[12px] font-semibold text-[#d1d5db]">{u.name}</span>
-                    <span className="text-[10px] text-[#6b7280] tabular-nums">{done}/{count} · {pts}pts</span>
+                    <span className="text-[12px] font-semibold text-[#1c1917]">{u.name}</span>
+                    <span className="text-[10px] text-[#57534e] tabular-nums">{done}/{count} · {pts}pts</span>
                   </div>
-                  <div className="h-1.5 bg-[#16181f] rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-[#E2DCC5] rounded-full overflow-hidden">
                     <div style={{width:`${count?done/count*100:0}%`,background:u.hex}} className="h-full rounded-full transition-all duration-700"/>
                   </div>
                 </div>
@@ -598,16 +713,16 @@ function MetricsView({items}) {
         </div>
 
         {/* Status bars */}
-        <div className="bg-[#111318] rounded-xl border border-[rgba(255,255,255,0.07)] p-5 shadow-card">
-          <p className="text-sm font-semibold text-[#f3f4f6] mb-4">Status Breakdown</p>
+        <div className="bg-[#FAF8F2] rounded-xl border border-[rgba(0,0,0,0.08)] p-5 shadow-md">
+          <p className="text-sm font-semibold text-[#1c1917] mb-4">Status Breakdown</p>
           <div className="space-y-3.5">
             {byStatus.map(s=>(
               <div key={s.id}>
                 <div className="flex justify-between mb-1.5">
                   <span style={{color:s.color}} className="text-[12px] font-semibold">{s.label}</span>
-                  <span className="text-[10px] text-[#6b7280] tabular-nums">{s.count} items · {s.pts}pts</span>
+                  <span className="text-[10px] text-[#57534e] tabular-nums">{s.count} items · {s.pts}pts</span>
                 </div>
-                <div className="h-2 bg-[#16181f] rounded-full overflow-hidden">
+                <div className="h-2 bg-[#E2DCC5] rounded-full overflow-hidden">
                   <div style={{width:`${total?s.count/total*100:0}%`,background:s.color+"90"}} className="h-full rounded-full transition-all duration-700"/>
                 </div>
               </div>
@@ -616,19 +731,19 @@ function MetricsView({items}) {
         </div>
 
         {/* Type + Priority */}
-        <div className="bg-[#111318] rounded-xl border border-[rgba(255,255,255,0.07)] p-5 shadow-card">
-          <p className="text-sm font-semibold text-[#f3f4f6] mb-4">Distribution</p>
+        <div className="bg-[#FAF8F2] rounded-xl border border-[rgba(0,0,0,0.08)] p-5 shadow-md">
+          <p className="text-sm font-semibold text-[#1c1917] mb-4">Distribution</p>
           <div className="grid grid-cols-2 gap-5">
             <div>
-              <p className="text-[10px] font-semibold text-[#6b7280] uppercase tracking-widest mb-3">By Type</p>
+              <p className="text-[10px] font-semibold text-[#57534e] uppercase tracking-widest mb-3">By Type</p>
               {byType.map(({t,count})=>{
                 const tc=TYPE[t]||TYPE.task;
                 return (
                   <div key={t} className="flex items-center gap-2 mb-2">
                     <Chip className={tc.bg}>{tc.icon}</Chip>
-                    <span className="text-[12px] text-[#9ca3af] capitalize flex-1">{t}</span>
-                    <span className="text-[12px] font-semibold text-[#d1d5db] tabular-nums">{count}</span>
-                    <div className="w-16 h-1.5 bg-[#16181f] rounded-full overflow-hidden">
+                    <span className="text-[12px] text-[#57534e] capitalize flex-1">{t}</span>
+                    <span className="text-[12px] font-semibold text-[#1c1917] tabular-nums">{count}</span>
+                    <div className="w-16 h-1.5 bg-[#E2DCC5] rounded-full overflow-hidden">
                       <div style={{width:`${total?count/total*100:0}%`,background:tc.color}} className="h-full rounded-full"/>
                     </div>
                   </div>
@@ -636,7 +751,7 @@ function MetricsView({items}) {
               })}
             </div>
             <div>
-              <p className="text-[10px] font-semibold text-[#6b7280] uppercase tracking-widest mb-3">By Priority</p>
+              <p className="text-[10px] font-semibold text-[#57534e] uppercase tracking-widest mb-3">By Priority</p>
               <div className="flex items-end gap-2.5 h-20">
                 {byPrio.map(({p,cfg,count})=>{
                   const maxC=Math.max(...byPrio.map(b=>b.count),1);
@@ -644,7 +759,7 @@ function MetricsView({items}) {
                     <div key={p} className="flex-1 flex flex-col items-center gap-1.5">
                       <span className="text-[10px] font-bold" style={{color:cfg.color}}>{count}</span>
                       <div style={{height:`${Math.max(count?count/maxC*60:0,3)}px`,background:cfg.color+"30",borderTop:`2px solid ${cfg.color}60`}} className="w-full rounded-t-md transition-all duration-700"/>
-                      <span className="text-[8px] text-[#6b7280] font-semibold uppercase">{p.slice(0,3)}</span>
+                      <span className="text-[8px] text-[#57534e] font-semibold uppercase">{p.slice(0,3)}</span>
                     </div>
                   );
                 })}
@@ -684,11 +799,11 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
   };
   const TABS=[{id:"overview",l:"Overview"},{id:"criteria",l:`Criteria (${item.criteria?.length||0})`},{id:"approvers",l:`Approvers (${item.approvers?.length||0})`},{id:"comments",l:`Comments (${item.comments?.length||0})`},{id:"blockers",l:`Blockers (${item.blockers?.length||0})`},{id:"ai",l:"✦ AI"}];
   const Row=({label,val})=>(
-    <div><p className="text-[10px] font-semibold text-[#6b7280] uppercase tracking-[0.08em] mb-1.5">{label}</p>{val}</div>
+    <div><p className="text-[10px] font-semibold text-[#57534e] uppercase tracking-[0.08em] mb-1.5">{label}</p>{val}</div>
   );
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-[#070809]/80 backdrop-blur-sm anim-fade-in" onClick={e=>e.target===e.currentTarget&&onClose()}>
-      <div className="bg-[#111318] rounded-2xl border border-[rgba(255,255,255,0.09)] shadow-modal w-full max-w-3xl max-h-[90vh] flex flex-col anim-scale-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/25 backdrop-blur-sm anim-fade-in" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="bg-[#FAF8F2] rounded-2xl border border-[rgba(0,0,0,0.08)] shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col anim-scale-in">
 
         {/* Modal header */}
         <div className="px-6 pt-5 pb-0 border-b border-[rgba(255,255,255,0.07)] flex-shrink-0">
@@ -696,18 +811,18 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
             <Chip className={tc.bg}>{tc.icon} {tc.label}</Chip>
             <Chip className={pc.bg}>{pc.label}</Chip>
             {col&&<Chip style={{color:col.color,borderColor:col.color+"40",background:col.color+"12"}}>{col.label}</Chip>}
-            <code className="ml-auto text-[10px] text-[#6b7280] font-mono">#{item.id}</code>
-            <button onClick={onClose} className="p-1.5 rounded-lg text-[#6b7280] hover:text-[#f3f4f6] hover:bg-white/[0.06] transition-all">
+            <code className="ml-auto text-[10px] text-[#78716c] font-mono">#{item.id}</code>
+            <button onClick={onClose} className="p-1.5 rounded-lg text-[#57534e] hover:text-[#1c1917] hover:bg-[#E2DCC5] transition-all">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12"/></svg>
             </button>
           </div>
           {editing
-            ?<input value={draft.title} onChange={e=>set("title",e.target.value)} className="text-lg font-semibold w-full bg-transparent border-b border-[#7c6af7] outline-none pb-2 mb-3 text-[#f3f4f6]"/>
-            :<h2 onClick={()=>setEditing(true)} className="text-[17px] font-semibold text-[#f3f4f6] mb-3 cursor-text hover:text-white transition-colors">{item.title}</h2>
+            ?<input value={draft.title} onChange={e=>set("title",e.target.value)} className="text-lg font-semibold w-full bg-transparent border-b border-indigo-500 outline-none pb-2 mb-3 text-[#1c1917]"/>
+            :<h2 onClick={()=>setEditing(true)} className="text-[17px] font-semibold text-[#1c1917] mb-3 cursor-text hover:text-[#292524] transition-colors">{item.title}</h2>
           }
           <div className="flex gap-0">
             {TABS.map(t=>(
-              <button key={t.id} onClick={()=>setTab(t.id)} className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all whitespace-nowrap ${tab===t.id?"border-[#7c6af7] text-[#a89cf7]":"border-transparent text-[#6b7280] hover:text-[#9ca3af]"}`}>{t.l}</button>
+              <button key={t.id} onClick={()=>setTab(t.id)} className={`px-4 py-2.5 text-[12px] font-medium border-b-2 transition-all whitespace-nowrap ${tab===t.id?"border-indigo-500 text-indigo-700":"border-transparent text-[#57534e] hover:text-[#1c1917]"}`}>{t.l}</button>
             ))}
           </div>
         </div>
@@ -717,9 +832,9 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
           {tab==="overview"&&(
             <div className="flex gap-6">
               <div className="flex-1">
-                <p className="text-[10px] font-semibold text-[#6b7280] uppercase tracking-[0.08em] mb-2">Description</p>
+                <p className="text-[10px] font-semibold text-[#57534e] uppercase tracking-[0.08em] mb-2">Description</p>
                 {editing
-                  ?<textarea value={draft.description} onChange={e=>set("description",e.target.value)} rows={5} className="w-full bg-[#0d0e14] border border-[rgba(255,255,255,0.08)] rounded-xl px-3.5 py-3 text-sm text-[#f3f4f6] focus:border-[#7c6af7]/50 outline-none resize-none leading-relaxed"/>
+                  ?<textarea value={draft.description} onChange={e=>set("description",e.target.value)} rows={5} className="w-full bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-xl px-3.5 py-3 text-sm text-[#1c1917] focus:border-indigo-400 outline-none resize-none leading-relaxed"/>
                   :<p className="text-[13px] text-[#9ca3af] leading-relaxed">{item.description||<em className="text-[#6b7280]">No description yet.</em>}</p>
                 }
               </div>
@@ -738,8 +853,8 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
               {item.criteria?.length===0&&<p className="text-sm text-[#6b7280] mb-4">No criteria yet.</p>}
               <div className="space-y-2 mb-4">
                 {item.criteria?.map(c=>(
-                  <div key={c.id} className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${c.done?"bg-[#2dd4a0]/[0.05] border-[#2dd4a0]/20":"bg-[#16181f] border-[rgba(255,255,255,0.06)]"}`}>
-                    <button onClick={()=>toggleCrit(c.id)} className={`w-4.5 h-4.5 rounded flex-shrink-0 mt-0.5 flex items-center justify-center border transition-all flex-none ${c.done?"bg-[#2dd4a0] border-[#2dd4a0] text-[#0d0e14]":"border-[rgba(255,255,255,0.12)] hover:border-[#2dd4a0]/50"}`} style={{width:18,height:18}}>
+                  <div key={c.id} className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${c.done?"bg-emerald-50 border-emerald-200":"bg-[#F3F0E0] border-[rgba(0,0,0,0.08)]"}`}>
+                    <button onClick={()=>toggleCrit(c.id)} className={`w-4.5 h-4.5 rounded flex-shrink-0 mt-0.5 flex items-center justify-center border transition-all flex-none ${c.done?"bg-emerald-500 border-emerald-500 text-white":"border-[rgba(0,0,0,0.15)] hover:border-emerald-400"}`} style={{width:18,height:18}}>
                       {c.done&&<svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/></svg>}
                     </button>
                     <span className={`flex-1 text-[13px] leading-relaxed ${c.done?"line-through text-[#6b7280]":"text-[#d1d5db]"}`}>{c.text}</span>
@@ -752,9 +867,9 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
                 <PillBtn onClick={addCrit}>Add</PillBtn>
               </div>
               {item.criteria?.length>0&&(
-                <div className="mt-4 p-3.5 bg-[#7c6af7]/[0.06] border border-[#7c6af7]/20 rounded-xl">
-                  <div className="flex justify-between mb-2 text-[12px]"><span className="font-semibold text-[#a89cf7]">Progress</span><span className="text-[#7c6af7] font-bold tabular-nums">{item.criteria.filter(c=>c.done).length}/{item.criteria.length} · {Math.round(item.criteria.filter(c=>c.done).length/item.criteria.length*100)}%</span></div>
-                  <div className="h-1.5 bg-[#16181f] rounded-full overflow-hidden"><div className="h-full bg-[#7c6af7] rounded-full transition-all" style={{width:`${item.criteria.filter(c=>c.done).length/item.criteria.length*100}%`}}/></div>
+                <div className="mt-4 p-3.5 bg-indigo-50 border border-indigo-200 rounded-xl">
+                  <div className="flex justify-between mb-2 text-[12px]"><span className="font-semibold text-indigo-700">Progress</span><span className="text-indigo-600 font-bold tabular-nums">{item.criteria.filter(c=>c.done).length}/{item.criteria.length} · {Math.round(item.criteria.filter(c=>c.done).length/item.criteria.length*100)}%</span></div>
+                  <div className="h-1.5 bg-[#E2DCC5] rounded-full overflow-hidden"><div className="h-full bg-indigo-500 rounded-full transition-all" style={{width:`${item.criteria.filter(c=>c.done).length/item.criteria.length*100}%`}}/></div>
                 </div>
               )}
             </div>
@@ -762,23 +877,23 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
 
           {tab==="approvers"&&(
             <div>
-              {item.approvers?.length===0&&<p className="text-sm text-[#6b7280] mb-4">No approvers assigned.</p>}
+              {item.approvers?.length===0&&<p className="text-sm text-[#57534e] mb-4">No approvers assigned.</p>}
               <div className="space-y-2.5 mb-5">
                 {item.approvers?.map(a=>{const u=userById(a.user);return(
-                  <div key={a.id} className="flex items-center gap-3 p-3.5 bg-[#16181f] rounded-xl border border-[rgba(255,255,255,0.07)]">
+                  <div key={a.id} className="flex items-center gap-3 p-3.5 bg-[#F3F0E0] rounded-xl border border-[rgba(0,0,0,0.08)]">
                     <Avatar userId={a.user} size={8}/>
-                    <div className="flex-1"><p className="text-[13px] font-semibold text-[#f3f4f6]">{u?.name}</p></div>
-                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${a.status==="approved"?"bg-[#2dd4a0]/10 text-[#2dd4a0] border-[#2dd4a0]/25":a.status==="rejected"?"bg-rose-500/10 text-rose-400 border-rose-500/25":"bg-white/5 text-[#9ca3af] border-[rgba(255,255,255,0.08)]"}`}>{a.status.toUpperCase()}</span>
+                    <div className="flex-1"><p className="text-[13px] font-semibold text-[#1c1917]">{u?.name}</p></div>
+                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${a.status==="approved"?"bg-emerald-100 text-emerald-700 border-emerald-200":a.status==="rejected"?"bg-rose-100 text-rose-700 border-rose-200":"bg-[#E2DCC5] text-[#57534e] border-[rgba(0,0,0,0.08)]"}`}>{a.status.toUpperCase()}</span>
                     {a.status==="pending"&&<><PillBtn size="sm" color="jade" onClick={()=>approve(a.id,"approved")}>Approve</PillBtn><PillBtn size="sm" color="rose" onClick={()=>approve(a.id,"rejected")}>Reject</PillBtn></>}
-                    <button onClick={()=>removeApprover(a.id)} className="text-[#6b7280] hover:text-rose-400 text-lg leading-none transition-colors">×</button>
+                    <button onClick={()=>removeApprover(a.id)} className="text-[#57534e] hover:text-rose-600 text-lg leading-none transition-colors">×</button>
                   </div>
                 );})}
               </div>
               <div>
-                <p className="text-[10px] font-semibold text-[#6b7280] uppercase tracking-[0.08em] mb-2.5">Add Approver</p>
+                <p className="text-[10px] font-semibold text-[#57534e] uppercase tracking-[0.08em] mb-2.5">Add Approver</p>
                 <div className="flex flex-wrap gap-2">
                   {USERS.filter(u=>!item.approvers.find(a=>a.user===u.id)).map(u=>(
-                    <button key={u.id} onClick={()=>addApprover(u.id)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#16181f] border border-[rgba(255,255,255,0.07)] hover:border-[#7c6af7]/40 hover:bg-[#7c6af7]/[0.06] transition-all text-[12px] font-medium text-[#9ca3af] hover:text-[#a89cf7]">
+                    <button key={u.id} onClick={()=>addApprover(u.id)} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] hover:border-indigo-300 hover:bg-indigo-50 transition-all text-[12px] font-medium text-[#57534e] hover:text-indigo-700">
                       <Avatar userId={u.id} size={5}/>{u.name}
                     </button>
                   ))}
@@ -797,7 +912,7 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
                     <Avatar userId={c.user} size={7}/>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1.5"><span className="text-[13px] font-semibold text-[#f3f4f6]">{u?.name}</span><span className="text-[11px] text-[#6b7280]">{fmtTs(c.ts)}</span></div>
-                      <div className="bg-[#16181f] border border-[rgba(255,255,255,0.07)] rounded-xl px-4 py-3 text-[13px] text-[#d1d5db] leading-relaxed">{c.text}</div>
+                      <div className="bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-xl px-4 py-3 text-[13px] text-[#1c1917] leading-relaxed">{c.text}</div>
                     </div>
                   </div>
                 );})}
@@ -805,7 +920,7 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
               <div className="flex gap-3">
                 <Avatar userId="u1" size={7}/>
                 <div className="flex-1">
-                  <textarea value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();postComment();}}} rows={3} placeholder="Leave a comment… Enter to post" className="w-full bg-[#0d0e14] border border-[rgba(255,255,255,0.08)] rounded-xl px-3.5 py-3 text-[13px] text-[#f3f4f6] focus:border-[#7c6af7]/50 outline-none resize-none placeholder-[#6b7280]"/>
+                  <textarea value={newComment} onChange={e=>setNewComment(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();postComment();}}} rows={3} placeholder="Leave a comment… Enter to post" className="w-full bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-xl px-3.5 py-3 text-[13px] text-[#1c1917] focus:border-indigo-400 outline-none resize-none placeholder-[#78716c]"/>
                   <PillBtn className="mt-2" onClick={postComment}>Post</PillBtn>
                 </div>
               </div>
@@ -815,12 +930,12 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
           {tab==="blockers"&&(
             <div>
               {item.blockers?.length===0
-                ?<div className="flex items-center gap-3 p-4 bg-[#2dd4a0]/[0.06] border border-[#2dd4a0]/20 rounded-xl text-[#2dd4a0] text-[13px] font-medium"><span>✓</span>No blockers — this item can proceed!</div>
+                ?<div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-[13px] font-medium"><span>✓</span>No blockers — this item can proceed!</div>
                 :<div className="space-y-2.5">
                   {item.blockers?.map(bid=>{const bl=items.find(i=>i.id===bid);if(!bl)return null;const btc=TYPE[bl.type]||TYPE.task;return(
-                    <div key={bid} className="flex items-center gap-3 p-4 bg-rose-500/[0.06] border border-rose-500/20 rounded-xl">
-                      <span className="text-rose-400 text-lg">◉</span>
-                      <div className="flex-1"><p className="text-[13px] font-semibold text-[#f3f4f6]">{bl.title}</p><p className="text-[11px] text-[#6b7280] mt-0.5">{colById(bl.status)?.label} · {bl.assignee?userById(bl.assignee)?.name:"Unassigned"}</p></div>
+                    <div key={bid} className="flex items-center gap-3 p-4 bg-rose-50 border border-rose-200 rounded-xl">
+                      <span className="text-rose-600 text-lg">◉</span>
+                      <div className="flex-1"><p className="text-[13px] font-semibold text-[#1c1917]">{bl.title}</p><p className="text-[11px] text-[#57534e] mt-0.5">{colById(bl.status)?.label} · {bl.assignee?userById(bl.assignee)?.name:"Unassigned"}</p></div>
                       <Chip className={btc.bg}>{btc.icon} {btc.label}</Chip>
                     </div>
                   );})}
@@ -832,14 +947,14 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
 
           {tab==="ai"&&(
             <div>
-              <div className="rounded-xl border border-[rgba(255,255,255,0.07)] overflow-hidden mb-5" style={{background:"linear-gradient(135deg,#0d0e14 0%,#111320 100%)"}}>
-                <div className="px-5 py-4 border-b border-[rgba(255,255,255,0.06)]">
-                  <div className="flex items-center gap-2 mb-1"><span className="text-[#a89cf7]">✦</span><span className="text-sm font-semibold text-[#f3f4f6]">AI Assistant</span></div>
-                  <p className="text-[11px] text-[#6b7280]">Generate intelligent insights for this work item.</p>
+              <div className="rounded-xl border border-[rgba(0,0,0,0.08)] overflow-hidden mb-5 bg-[#E2DCC5]">
+                <div className="px-5 py-4 border-b border-[rgba(0,0,0,0.08)]">
+                  <div className="flex items-center gap-2 mb-1"><span className="text-indigo-600">✦</span><span className="text-sm font-semibold text-[#1c1917]">AI Assistant</span></div>
+                  <p className="text-[11px] text-[#57534e]">Generate intelligent insights for this work item.</p>
                 </div>
                 <div className="p-5 flex gap-2.5 flex-wrap">
                   {[["generate_criteria","📋 Criteria"],["estimate_points","◆ Estimate"],["identify_blockers","⚠ Risks"]].map(([a,l])=>(
-                    <button key={a} onClick={()=>runAI(a)} disabled={aiLoading} className="px-4 py-2 bg-[#7c6af7]/10 border border-[#7c6af7]/25 text-[#a89cf7] rounded-lg text-[12px] font-semibold hover:bg-[#7c6af7]/20 transition-colors disabled:opacity-40">{l}</button>
+                    <button key={a} onClick={()=>runAI(a)} disabled={aiLoading} className="px-4 py-2 bg-indigo-100 border border-indigo-200 text-indigo-700 rounded-lg text-[12px] font-semibold hover:bg-indigo-200 transition-colors disabled:opacity-40">{l}</button>
                   ))}
                 </div>
               </div>
@@ -850,7 +965,7 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
                 </div>
               )}
               {aiResult&&!aiLoading&&(
-                <div className="bg-[#16181f] border border-[rgba(255,255,255,0.07)] rounded-xl p-5 anim-fade-up">
+                <div className="bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-xl p-5 anim-fade-up">
                   <p className="text-[11px] font-bold text-[#7c6af7] uppercase tracking-[0.08em] mb-3">{aiResult.label}</p>
                   {aiResult.type==="list"?<ul className="space-y-2">{aiResult.items.map((t,i)=><li key={i} className="flex items-start gap-2.5 text-[13px] text-[#d1d5db]"><span className="text-[#7c6af7] mt-1 flex-shrink-0 text-[8px]">◆</span>{t}</li>)}</ul>:<pre className="text-[13px] text-[#d1d5db] whitespace-pre-wrap font-sans leading-relaxed">{aiResult.content}</pre>}
                 </div>
@@ -860,7 +975,7 @@ function ItemModal({item,items,onClose,onUpdate,onDelete,notify}) {
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3.5 border-t border-[rgba(255,255,255,0.07)] bg-[#0d0e14]/40 rounded-b-2xl flex items-center gap-2 flex-shrink-0">
+        <div className="px-6 py-3.5 border-t border-[rgba(0,0,0,0.08)] bg-[#E2DCC5] rounded-b-2xl flex items-center gap-2 flex-shrink-0">
           {editing?(
             <><PillBtn onClick={saveEdit}>Save Changes</PillBtn><PillBtn color="ghost" onClick={()=>setEditing(false)}>Cancel</PillBtn></>
           ):(
@@ -919,7 +1034,7 @@ function TeamView({ teamMembers, setTeamMembers, notify }) {
       {/* Grid */}
       <div className="grid grid-cols-3 gap-3">
         {teamMembers.map(m => (
-          <div key={m.id} className={`bg-[#111318] rounded-xl border p-4 transition-all ${m.active?"border-[rgba(255,255,255,0.09)]":"border-[rgba(255,255,255,0.04)] opacity-50"}`}>
+          <div key={m.id} className={`bg-[#FAF8F2] rounded-xl border border-[rgba(0,0,0,0.08)] p-4 transition-all ${m.active?"":"opacity-60"}`}>
             <div className="flex items-start gap-3 mb-3">
               <div style={{background:m.color,width:44,height:44,fontSize:15}} className="rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0 ring-1 ring-white/10">
                 {m.avatar}
@@ -931,7 +1046,7 @@ function TeamView({ teamMembers, setTeamMembers, notify }) {
             </div>
             <p className="text-[11px] text-[#6b7280] mb-3 truncate">{m.email}</p>
             <div className="flex items-center gap-2">
-              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${m.active?"bg-[#2dd4a0]/10 text-[#2dd4a0] border-[#2dd4a0]/25":"bg-white/5 text-[#6b7280] border-white/10"}`}>
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${m.active?"bg-emerald-100 text-emerald-700 border-emerald-200":"bg-[#E2DCC5] text-[#57534e] border-[rgba(0,0,0,0.08)]"}`}>
                 {m.active ? "Active" : "Inactive"}
               </span>
               <div className="ml-auto flex gap-1">
@@ -946,7 +1061,7 @@ function TeamView({ teamMembers, setTeamMembers, notify }) {
         ))}
 
         {/* Add card placeholder */}
-        <button onClick={openAdd} className="bg-[#111318] rounded-xl border border-dashed border-[rgba(255,255,255,0.08)] p-4 flex flex-col items-center justify-center gap-2 text-[#6b7280] hover:text-[#7c6af7] hover:border-[#7c6af7]/30 hover:bg-[#7c6af7]/[0.03] transition-all min-h-[140px]">
+        <button onClick={openAdd} className="bg-[#FAF8F2] rounded-xl border border-dashed border-[rgba(0,0,0,0.12)] p-4 flex flex-col items-center justify-center gap-2 text-[#57534e] hover:text-indigo-600 hover:border-indigo-300 hover:bg-indigo-50/50 transition-all min-h-[140px]">
           <span className="text-3xl font-light">+</span>
           <span className="text-[12px] font-medium">Add team member</span>
         </button>
@@ -954,8 +1069,8 @@ function TeamView({ teamMembers, setTeamMembers, notify }) {
 
       {/* Add/Edit Modal */}
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-[#070809]/80 backdrop-blur-sm" onClick={e=>e.target===e.currentTarget&&setShowAdd(false)}>
-          <div className="bg-[#111318] rounded-2xl border border-[rgba(255,255,255,0.09)] shadow-modal w-full max-w-md p-6" style={{animation:"scaleIn 0.25s cubic-bezier(0.16,1,0.3,1)"}}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/25 backdrop-blur-sm" onClick={e=>e.target===e.currentTarget&&setShowAdd(false)}>
+          <div className="bg-[#FAF8F2] rounded-2xl border border-[rgba(0,0,0,0.08)] shadow-xl w-full max-w-md p-6" style={{animation:"scaleIn 0.25s cubic-bezier(0.16,1,0.3,1)"}}>
             <div className="flex items-center gap-3 mb-5">
               <div style={{background:form.color,width:40,height:40,fontSize:14}} className="rounded-xl flex items-center justify-center text-white font-bold flex-shrink-0">
                 {form.name ? initials(form.name) : "?"}
@@ -970,15 +1085,15 @@ function TeamView({ teamMembers, setTeamMembers, notify }) {
             <div className="space-y-3">
               <div>
                 <label className="block text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider mb-1.5">Full Name *</label>
-                <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. John Smith" className="w-full bg-[#0d0e14] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-sm text-[#f3f4f6] placeholder-[#6b7280] focus:border-[#7c6af7]/60 outline-none transition-all"/>
+                <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. John Smith" className="w-full bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] placeholder-[#78716c] focus:border-indigo-400 outline-none transition-all"/>
               </div>
               <div>
                 <label className="block text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider mb-1.5">Email *</label>
-                <input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} type="email" placeholder="john@company.com" className="w-full bg-[#0d0e14] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-sm text-[#f3f4f6] placeholder-[#6b7280] focus:border-[#7c6af7]/60 outline-none transition-all"/>
+                <input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} type="email" placeholder="john@company.com" className="w-full bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] placeholder-[#78716c] focus:border-indigo-400 outline-none transition-all"/>
               </div>
               <div>
                 <label className="block text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider mb-1.5">Role</label>
-                <select value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} className="w-full bg-[#0d0e14] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-sm text-[#f3f4f6] focus:border-[#7c6af7]/60 outline-none">
+                <select value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} className="w-full bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] focus:border-indigo-400 outline-none">
                   <option value="">Select role…</option>
                   {ROLES.map(r=><option key={r} value={r}>{r}</option>)}
                 </select>
@@ -994,10 +1109,10 @@ function TeamView({ teamMembers, setTeamMembers, notify }) {
             </div>
 
             <div className="flex gap-2 mt-5">
-              <button onClick={save} className="flex-1 bg-[#7c6af7] hover:bg-[#6b5ce7] text-white rounded-lg py-2 text-sm font-semibold transition-colors">
+              <button onClick={save} className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg py-2 text-sm font-semibold transition-colors">
                 {editId ? "Save Changes" : "Add Member"}
               </button>
-              <button onClick={()=>setShowAdd(false)} className="px-4 py-2 bg-[#16181f] hover:bg-[#1a1d27] border border-[rgba(255,255,255,0.08)] text-[#9ca3af] rounded-lg text-sm font-medium transition-colors">
+              <button onClick={()=>setShowAdd(false)} className="px-4 py-2 bg-[#E2DCC5] hover:bg-[#D4CEB8] border border-[rgba(0,0,0,0.08)] text-[#57534e] rounded-lg text-sm font-medium transition-colors">
                 Cancel
               </button>
             </div>
@@ -1009,17 +1124,18 @@ function TeamView({ teamMembers, setTeamMembers, notify }) {
 }
 
 // ─── CREATE SPRINT MODAL ─────────────────────────────────────────────────────
-function CreateSprintModal({ projects, onClose, onCreated, notify }) {
+function CreateSprintModal({ projects, defaultProjectId, onClose, onCreated, notify }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [form, setForm] = useState({
-    project_id: "",
+    project_id: defaultProjectId || "",
     name: "",
     goal: "",
     start_date: "",
     end_date: "",
     capacity: "",
   });
+  useEffect(() => { if (defaultProjectId) setForm(f => ({ ...f, project_id: defaultProjectId })); }, [defaultProjectId]);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -1050,69 +1166,149 @@ function CreateSprintModal({ projects, onClose, onCreated, notify }) {
       }
       onCreated();
     } catch (err) {
-      setError(err.message || "Network error. Is the backend running?");
+      const msg = err.message || "Network error";
+      const isFetchFailed = /failed to fetch|network error|load failed/i.test(msg);
+      setError(isFetchFailed
+        ? "Cannot reach the API. Start the backend (npm start in /backend), or if deployed set VITE_API_URL to your API URL."
+        : msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-[#070809]/80 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="bg-[#111318] rounded-2xl border border-[rgba(255,255,255,0.09)] shadow-modal w-full max-w-md p-6" style={{ animation: "scaleIn 0.25s cubic-bezier(0.16,1,0.3,1)" }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/20 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="bg-white rounded-2xl border border-[rgba(0,0,0,0.08)] shadow-xl w-full max-w-md p-6" style={{ animation: "scaleIn 0.25s cubic-bezier(0.16,1,0.3,1)" }}>
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-[#7c6af7]/20 flex items-center justify-center text-[#a89cf7] text-lg font-bold">▤</div>
+          <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 text-lg font-bold">▤</div>
           <div>
-            <h3 className="text-[15px] font-semibold text-[#f3f4f6]">Create Sprint</h3>
-            <p className="text-[11px] text-[#9ca3af]">Add a new time-boxed sprint to a project</p>
+            <h3 className="text-base font-semibold text-[#1c1917]">Create Sprint</h3>
+            <p className="text-xs text-[#78716c]">Add a new time-boxed sprint to a project</p>
           </div>
-          <button onClick={onClose} className="ml-auto text-[#6b7280] hover:text-[#f3f4f6] text-lg transition-colors">×</button>
+          <button onClick={onClose} className="ml-auto text-[#78716c] hover:text-[#1c1917] text-xl leading-none">×</button>
         </div>
 
         {projects.length === 0 && (
-          <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[12px] text-amber-200">
-            No projects loaded. Start the backend and run <code className="opacity-90">npm run db:seed</code> to create sample projects, or create a project via the API.
+          <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 text-[12px] text-amber-800">
+            Create a project first using the + button next to &quot;Projects&quot; in the sidebar.
           </div>
         )}
 
         <div className="space-y-3">
           <div>
-            <label className="block text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider mb-1.5">Project *</label>
-            <select value={form.project_id} onChange={e => set("project_id", e.target.value)} className="w-full bg-[#0d0e14] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-sm text-[#f3f4f6] focus:border-[#7c6af7]/60 outline-none" disabled={projects.length === 0}>
+            <label className="block text-[10px] font-semibold text-[#57534e] uppercase tracking-wider mb-1.5">Project *</label>
+            <select value={form.project_id} onChange={e => set("project_id", e.target.value)} className="w-full bg-[#faf8f5] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 outline-none" disabled={projects.length === 0}>
               <option value="">Select project…</option>
               {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider mb-1.5">Sprint name *</label>
-            <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="e.g. Sprint 15" className="w-full bg-[#0d0e14] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-sm text-[#f3f4f6] placeholder-[#6b7280] focus:border-[#7c6af7]/60 outline-none" />
+            <label className="block text-[10px] font-semibold text-[#57534e] uppercase tracking-wider mb-1.5">Sprint name *</label>
+            <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="e.g. Sprint 15" className="w-full bg-[#faf8f5] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] placeholder-[#78716c] focus:border-indigo-400 outline-none" />
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider mb-1.5">Goal (optional)</label>
-            <textarea value={form.goal} onChange={e => set("goal", e.target.value)} placeholder="What should this sprint achieve?" rows={2} className="w-full bg-[#0d0e14] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-sm text-[#f3f4f6] placeholder-[#6b7280] focus:border-[#7c6af7]/60 outline-none resize-none" />
+            <label className="block text-[10px] font-semibold text-[#57534e] uppercase tracking-wider mb-1.5">Goal (optional)</label>
+            <textarea value={form.goal} onChange={e => set("goal", e.target.value)} placeholder="What should this sprint achieve?" rows={2} className="w-full bg-[#faf8f5] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] placeholder-[#78716c] focus:border-indigo-400 outline-none resize-none" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider mb-1.5">Start date</label>
-              <input type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)} className="w-full bg-[#0d0e14] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-sm text-[#f3f4f6] focus:border-[#7c6af7]/60 outline-none" />
+              <label className="block text-[10px] font-semibold text-[#57534e] uppercase tracking-wider mb-1.5">Start date</label>
+              <input type="date" value={form.start_date} onChange={e => set("start_date", e.target.value)} className="w-full bg-[#faf8f5] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] focus:border-indigo-400 outline-none" />
             </div>
             <div>
-              <label className="block text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider mb-1.5">End date</label>
-              <input type="date" value={form.end_date} onChange={e => set("end_date", e.target.value)} className="w-full bg-[#0d0e14] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-sm text-[#f3f4f6] focus:border-[#7c6af7]/60 outline-none" />
+              <label className="block text-[10px] font-semibold text-[#57534e] uppercase tracking-wider mb-1.5">End date</label>
+              <input type="date" value={form.end_date} onChange={e => set("end_date", e.target.value)} className="w-full bg-[#faf8f5] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] focus:border-indigo-400 outline-none" />
             </div>
           </div>
           <div>
-            <label className="block text-[10px] font-semibold text-[#9ca3af] uppercase tracking-wider mb-1.5">Capacity (story points)</label>
-            <input type="number" min={0} value={form.capacity} onChange={e => set("capacity", e.target.value)} placeholder="0" className="w-full bg-[#0d0e14] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-sm text-[#f3f4f6] placeholder-[#6b7280] focus:border-[#7c6af7]/60 outline-none" />
+            <label className="block text-[10px] font-semibold text-[#57534e] uppercase tracking-wider mb-1.5">Capacity (story points)</label>
+            <input type="number" min={0} value={form.capacity} onChange={e => set("capacity", e.target.value)} placeholder="0" className="w-full bg-[#faf8f5] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] placeholder-[#78716c] focus:border-indigo-400 outline-none" />
           </div>
         </div>
 
-        {error && <p className="mt-3 text-[12px] text-rose-400">{error}</p>}
+        {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
 
         <div className="flex gap-2 mt-5">
-          <button onClick={submit} disabled={loading || projects.length === 0} className="flex-1 bg-[#7c6af7] hover:bg-[#6b5ce7] disabled:opacity-50 text-white rounded-lg py-2 text-sm font-semibold transition-colors">
+          <button onClick={submit} disabled={loading || projects.length === 0} className="flex-1 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white rounded-lg py-2 text-sm font-semibold transition-colors">
             {loading ? "Creating…" : "Create Sprint"}
           </button>
-          <button onClick={onClose} className="px-4 py-2 bg-[#16181f] hover:bg-[#1a1d27] border border-[rgba(255,255,255,0.08)] text-[#9ca3af] rounded-lg text-sm font-medium transition-colors">Cancel</button>
+          <button onClick={onClose} className="px-4 py-2 bg-[#e7e2db] hover:bg-[#d6d0c4] border border-[rgba(0,0,0,0.08)] text-[#57534e] rounded-lg text-sm font-medium transition-colors">Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CREATE PROJECT MODAL ─────────────────────────────────────────────────────
+function CreateProjectModal({ onClose, onCreated, notify }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [form, setForm] = useState({ name: "", description: "", color: "#6366f1" });
+  const PROJECT_COLORS = ["#6366f1","#8b5cf6","#059669","#f59e0b","#ef4444","#0ea5e9"];
+
+  const submit = async () => {
+    if (!form.name?.trim()) { notify("Project name is required", "error"); return; }
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/projects`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: form.name.trim(), description: form.description?.trim() || null, color: form.color }),
+      });
+      const text = await res.text();
+      let data = {};
+      try { data = text ? JSON.parse(text) : {}; } catch (_) {}
+      if (!res.ok) {
+        const msg = data.error || data.message || (res.status === 404 ? "API not found. Is the backend running?" : res.status >= 500 ? "Server error. Check backend logs." : text || `Error ${res.status}`);
+        setError(msg);
+        return;
+      }
+      onCreated();
+    } catch (e) {
+      const msg = e.message || "Network error";
+      const isFetchFailed = /failed to fetch|network error|load failed/i.test(msg);
+      setError(isFetchFailed
+        ? "Cannot reach the API. Start the backend (npm start in /backend), or if deployed set VITE_API_URL to your API URL."
+        : msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-5 bg-black/20 backdrop-blur-sm" onClick={e=>e.target===e.currentTarget&&onClose()}>
+      <div className="bg-white rounded-2xl border border-[rgba(0,0,0,0.08)] shadow-xl w-full max-w-md p-6">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 text-lg font-bold">◇</div>
+          <div>
+            <h3 className="text-base font-semibold text-[#1c1917]">New Project</h3>
+            <p className="text-xs text-[#78716c]">Add a project to organize sprints and work</p>
+          </div>
+          <button onClick={onClose} className="ml-auto text-[#78716c] hover:text-[#1c1917] text-xl leading-none">×</button>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-[10px] font-semibold text-[#57534e] uppercase tracking-wider mb-1.5">Project name *</label>
+            <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. RevOps Initiative" className="w-full bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2.5 text-sm text-[#1c1917] placeholder-[#78716c] focus:border-indigo-400 focus:ring-2 focus:ring-indigo-400/20 outline-none" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-[#57534e] uppercase tracking-wider mb-1.5">Description (optional)</label>
+            <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Short description" rows={2} className="w-full bg-[#F3F0E0] border border-[rgba(0,0,0,0.08)] rounded-lg px-3 py-2 text-sm text-[#1c1917] placeholder-[#78716c] focus:border-indigo-400 outline-none resize-none" />
+          </div>
+          <div>
+            <label className="block text-[10px] font-semibold text-[#57534e] uppercase tracking-wider mb-1.5">Color</label>
+            <div className="flex gap-2 flex-wrap">
+              {PROJECT_COLORS.map(c=>(
+                <button key={c} onClick={()=>setForm(f=>({...f,color:c}))} style={{background:c,width:32,height:32,outline:form.color===c?"2px solid #1c1917":"none",outlineOffset:2}} className="rounded-lg transition-transform hover:scale-110" />
+              ))}
+            </div>
+          </div>
+        </div>
+        {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
+        <div className="flex gap-2 mt-5">
+          <button onClick={submit} disabled={loading} className="flex-1 bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 text-white rounded-lg py-2.5 text-sm font-semibold transition-colors">{loading ? "Creating…" : "Create Project"}</button>
+          <button onClick={onClose} className="px-4 py-2.5 bg-[#E2DCC5] hover:bg-[#D4CEB8] text-[#57534e] rounded-lg text-sm font-medium transition-colors">Cancel</button>
         </div>
       </div>
     </div>

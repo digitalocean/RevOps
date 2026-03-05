@@ -47,6 +47,24 @@ app.get('/api', (_req, res) => {
   res.json({ routes: ['/api/team-members', '/api/projects', '/api/sprints', '/api/items', '/api/labels', '/api/activity'] });
 });
 
+// ─── Admin: delete all data (optional; set RESET_SECRET in env to enable) ───
+app.post('/api/admin/reset', async (req, res) => {
+  const secret = process.env.RESET_SECRET;
+  if (!secret || req.headers['x-reset-secret'] !== secret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const fs = require('fs');
+  const path = require('path');
+  const sql = fs.readFileSync(path.join(__dirname, 'db', 'reset.sql'), 'utf8');
+  try {
+    await pool.query(sql);
+    res.json({ ok: true, message: 'All data deleted. Run seed to load sample data.' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── Routes ───────────────────────────────────────────────────
 app.use('/api/team-members', require('./routes/teamMembers'));
 app.use('/api/projects',     require('./routes/projects'));

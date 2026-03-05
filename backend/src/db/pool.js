@@ -3,13 +3,13 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
+const connUrl = process.env.DATABASE_URL || '';
+const useSSL = connUrl.includes('ondigitalocean.com') || /sslmode=require/.test(connUrl);
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  // DigitalOcean Managed PostgreSQL requires SSL
-  ssl: process.env.DATABASE_URL?.includes('ondigitalocean.com')
-    ? { rejectUnauthorized: false }
-    : false,
-  max: 10,               // maximum simultaneous connections
+  connectionString: connUrl || undefined,
+  // Managed DBs (e.g. DigitalOcean) use certs Node may reject; skip strict verify for CLI/remote
+  ssl: useSSL ? { rejectUnauthorized: false } : false,
+  max: 10,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });

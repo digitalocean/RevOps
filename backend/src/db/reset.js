@@ -1,24 +1,25 @@
-// src/db/init.js — Run this once to create all tables
-// Usage: npm run db:init
+// src/db/reset.js — Delete all data (tables stay). Run before re-seeding.
+// Usage: npm run db:reset
 const fs   = require('fs');
 const path = require('path');
+// Allow self-signed certs when connecting to managed DB (e.g. DigitalOcean) from CLI
 if (process.env.DATABASE_URL && (process.env.DATABASE_URL.includes('ondigitalocean.com') || process.env.DATABASE_URL.includes('sslmode=require'))) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 }
 const pool = require('./pool');
 
-async function init() {
+async function reset() {
   console.log('🔧 Connecting to database...');
-  const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+  const sql = fs.readFileSync(path.join(__dirname, 'reset.sql'), 'utf8');
   try {
     await pool.query(sql);
-    console.log('✅ Schema created successfully!');
+    console.log('✅ All data deleted. Tables are empty. Run npm run db:seed to load sample data.');
   } catch (err) {
-    console.error('❌ Schema creation failed:', err.message);
+    console.error('❌ Reset failed:', err.message);
     process.exit(1);
   } finally {
     await pool.end();
   }
 }
 
-init();
+reset();

@@ -15,7 +15,7 @@ export default function Compass() {
       <div className="grid grid-cols-4 gap-3.5 mb-5">
         {[
           { label: 'Total Points', value: totalPoints, delta: null },
-          { label: 'Points Done', value: donePoints, delta: totalPoints ? `${Math.round((donePoints / totalPoints) * 100)}%` },
+          { label: 'Points Done', value: donePoints, delta: totalPoints ? String(Math.round((donePoints / totalPoints) * 100)) + '%' : null },
           { label: 'Blockers', value: blockers, delta: blockers > 0 ? '↑' : null },
           { label: 'Days Remaining', value: daysLeft, delta: null },
         ].map((m) => (

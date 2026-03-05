@@ -71,20 +71,20 @@ function Layout() {
   };
 
   return (
-    <div className="flex flex-col h-full" style={{ background: 'var(--ink)' }}>
+    <div className="flex flex-col min-h-screen w-full" style={{ background: 'var(--ink)', minHeight: '100vh' }}>
       <Topbar onVoiceClick={() => setVoiceOpen(true)} onColumnsClick={() => setColumnOpen(true)} />
       <div className="flex flex-1 min-h-0">
         <Sidebar
           onNewProject={() => {}}
           onNewSprint={() => {}}
         />
-        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <main className="flex-1 flex flex-col min-w-0 overflow-hidden min-h-0">
           <PageHeader />
           <ViewTabs
             onColumnsClick={() => setColumnOpen(true)}
             onAddItem={() => openAddItem()}
           />
-          <div className="flex-1 overflow-hidden flex flex-col">{renderView()}</div>
+          <div className="flex-1 overflow-auto flex flex-col min-h-0">{renderView()}</div>
         </main>
         {captainsLogOpen && (
           <CaptainLog

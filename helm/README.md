@@ -12,15 +12,26 @@ Premium dark-themed sprint and work management for engineering and product teams
 
 ## Quick start
 
-```bash
-# Backend
-cd backend && npm install && cp .env.example .env && npm run db:init && npm run dev
+**Important:** Run these commands from the `helm/` directory (or use full paths). The Helm app is in `helm/`, not the repo root.
 
-# Frontend (new terminal)
-cd frontend && npm install && npm run dev
+```bash
+# 1. Backend (from repo root: helm/backend)
+cd helm/backend
+npm install
+cp .env.example .env
+# Edit .env: set DATABASE_URL (PostgreSQL) and optionally OPENAI_API_KEY
+npm run db:init
+npm run dev
+# API runs at http://localhost:4000
+
+# 2. Frontend (new terminal; from repo root: helm/frontend)
+cd helm/frontend
+npm install
+npm run dev
+# Open http://localhost:5173 in your browser — you should see the Helm UI (dark theme, anchor logo, sidebar)
 ```
 
-Set `DATABASE_URL` and optional `OPENAI_API_KEY` in `backend/.env`.
+If you see a blank page: ensure you are visiting **http://localhost:5173** after starting `helm/frontend`, not the AgileOps app on another port. Check the browser console (F12) for errors.
 
 ## Scripts
 

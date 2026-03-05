@@ -3,7 +3,7 @@
 const fs   = require('fs');
 const path = require('path');
 // Allow self-signed certs when connecting to managed DB (e.g. DigitalOcean) from CLI
-if (process.env.DATABASE_URL && (process.env.DATABASE_URL.includes('ondigitalocean.com') || process.env.DATABASE_URL.includes('sslmode=require'))) {
+if (process.env.DATABASE_URL && (process.env.DATABASE_URL.includes('ondigitalocean.com') || /sslmode=/.test(process.env.DATABASE_URL) || process.env.DATABASE_URL.includes(':25060/'))) {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 }
 const pool = require('./pool');

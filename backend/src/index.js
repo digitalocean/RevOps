@@ -1,5 +1,13 @@
 // src/index.js — AgileOps API Server
 require('dotenv').config();
+
+// Allow self-signed certs for managed DBs (e.g. DigitalOcean) when using SSL
+const dbUrl = process.env.DATABASE_URL || '';
+const isRemoteDb = dbUrl && !/@(localhost|127\.0\.0\.1)(:\d+)?\//.test(dbUrl);
+if (isRemoteDb || dbUrl.includes('ondigitalocean.com') || /sslmode=/.test(dbUrl) || dbUrl.includes(':25060/')) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
+
 const express = require('express');
 const cors    = require('cors');
 const pool    = require('./db/pool');

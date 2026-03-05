@@ -44,7 +44,8 @@ const PRIO = {
 
 const SPRINT_START = new Date("2026-03-01");
 const mkId = () => Math.random().toString(36).slice(2,9);
-const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://localhost:4000";
+// In dev use same-origin so Vite proxy can forward (avoids browser blocking self-signed API certs)
+const API_BASE = (typeof import.meta !== "undefined" && import.meta.env?.DEV) ? "" : ((typeof import.meta !== "undefined" && import.meta.env?.VITE_API_URL) || "http://localhost:4000");
 const daysApart = (a,b) => Math.round((new Date(b)-new Date(a))/86400000);
 const fmtTs = iso => iso ? new Date(iso).toLocaleString("en-US",{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "";
 const byId = (arr,id) => arr.find(x=>x.id===id);
@@ -1061,11 +1062,20 @@ function TeamView({ teamMembers, refreshTeamMembers, roles, refreshRoles, notify
     if (!newRoleName.trim()) return;
     try {
       const res = await fetch(`${API_BASE}/api/roles`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: newRoleName.trim() }) });
-      if (!res.ok) { const d = await res.json().catch(()=>({})); notify(d.error || "Add role failed", "error"); return; }
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        let msg = d.error || "Add role failed";
+        if (/self-signed|certificate/i.test(msg)) msg = "Self-signed certificate: run frontend with npm run dev or use API at http://localhost:4000.";
+        notify(msg, "error");
+        return;
+      }
       setNewRoleName("");
       notify("Role added");
       refreshRoles();
-    } catch (e) { notify(e.message || "Request failed", "error"); }
+    } catch (e) {
+      const msg = e.message || "Request failed";
+      notify(/self-signed|certificate/i.test(msg) ? "Self-signed certificate: run frontend with npm run dev so the proxy is used." : msg, "error");
+    }
   };
 
   const deleteRole = async (id) => {
@@ -1345,6 +1355,7 @@ function CreateProjectModal({ onClose, onCreated, notify }) {
       if (!res.ok) {
         let msg = data.error || data.message || (res.status >= 500 ? "Server error. Check backend logs." : text || `Error ${res.status}`);
         if (res.status === 404) msg = data.path ? `Route not found: ${data.path}. ${data.hint || "Set VITE_API_URL to your backend URL (no /api suffix)."}` : (msg || "API route not found.");
+        if (/self-signed|certificate/i.test(msg)) msg += " Use the frontend dev server (npm run dev) so requests are proxied, or use an API URL with a valid HTTPS certificate.";
         setError(msg);
         return;
       }
@@ -1352,9 +1363,12 @@ function CreateProjectModal({ onClose, onCreated, notify }) {
     } catch (e) {
       const msg = e.message || "Network error";
       const isFetchFailed = /failed to fetch|network error|load failed/i.test(msg);
-      setError(isFetchFailed
-        ? `Cannot reach the API at ${API_BASE}. Start the backend (see below) or set VITE_API_URL to your API URL.`
-        : msg);
+      const isCert = /self-signed|certificate/i.test(msg);
+      setError(isCert
+        ? "Self-signed certificate: the API URL uses HTTPS with an untrusted cert. Run the frontend with npm run dev (requests go through the proxy) or use http://localhost:4000 for local API."
+        : isFetchFailed
+          ? `Cannot reach the API at ${API_BASE || "the proxy target"}. Start the backend or set VITE_API_URL in .env.`
+          : msg);
     } finally {
       setLoading(false);
     }

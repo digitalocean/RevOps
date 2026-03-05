@@ -33,6 +33,20 @@ app.get('/health', async (_req, res) => {
   }
 });
 
+// ─── Root (so opening API URL in browser doesn’t 404) ───────────
+app.get('/', (_req, res) => {
+  res.json({
+    name: 'AgileOps API',
+    docs: 'Open the frontend app URL in your browser, not this API URL.',
+    health: '/health',
+    routes: ['/api/team-members', '/api/projects', '/api/sprints', '/api/items', '/api/labels', '/api/activity'],
+  });
+});
+
+app.get('/api', (_req, res) => {
+  res.json({ routes: ['/api/team-members', '/api/projects', '/api/sprints', '/api/items', '/api/labels', '/api/activity'] });
+});
+
 // ─── Routes ───────────────────────────────────────────────────
 app.use('/api/team-members', require('./routes/teamMembers'));
 app.use('/api/projects',     require('./routes/projects'));

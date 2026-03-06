@@ -19,7 +19,7 @@ const STATUS_MAP: Record<string, Status> = {
   in_progress: 'On Track',
   ascent: 'At Risk',
   basecamp: 'On Track',
-  in_review: 'On Track',
+  in_review: 'In Review',
   peak: 'Complete',
   done: 'Complete',
   blocked: 'Blocked',
@@ -100,7 +100,7 @@ export interface MeridianDataResult {
   createWorkspace: (name: string) => Promise<Workspace | null>;
   createProject: (workspaceId: string, name: string) => Promise<Project | null>;
   createSprint: (projectId: string, name: string, start_date?: string, end_date?: string) => Promise<Sprint | null>;
-  createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; type?: string }) => Promise<unknown>;
+  createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; type?: string }, parentId?: string | null) => Promise<unknown>;
   updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string }) => Promise<unknown>;
   deleteItem: (itemId: string) => Promise<void>;
   sprints: Sprint[];
@@ -227,16 +227,19 @@ export function useMeridianData(): MeridianDataResult {
 
   const createItem = useCallback(async (
     projectId: string,
-    payload: { title: string; description?: string; priority?: string; type?: string }
+    payload: { title: string; description?: string; priority?: string; type?: string },
+    parentId?: string | null
   ): Promise<unknown> => {
-    const res = await post(apiPath('api/items'), {
+    const body: Record<string, unknown> = {
       project_id: projectId,
       title: payload.title.trim(),
       description: payload.description || '',
       priority: payload.priority || 'medium',
       type: payload.type || 'task',
       status: 'not_started',
-    });
+    };
+    if (parentId) body.parent_id = parentId;
+    const res = await post(apiPath('api/items'), body);
     await load();
     return res;
   }, [load]);
@@ -245,6 +248,7 @@ export function useMeridianData(): MeridianDataResult {
     'Not Started': 'not_started',
     'On Track': 'in_progress',
     'At Risk': 'in_progress',
+    'In Review': 'in_review',
     'Blocked': 'blocked',
     'Complete': 'done',
   };

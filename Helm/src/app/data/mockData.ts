@@ -1,5 +1,5 @@
 export type Priority = 'P0' | 'P1' | 'P2';
-export type Status = 'On Track' | 'At Risk' | 'Complete' | 'Blocked' | 'Not Started';
+export type Status = 'On Track' | 'At Risk' | 'Complete' | 'Blocked' | 'Not Started' | 'In Review';
 export type Category = 'Engineering' | 'Design' | 'Sales' | 'Product' | 'Operations';
 
 export interface Initiative {

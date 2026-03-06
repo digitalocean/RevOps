@@ -15,13 +15,15 @@ interface AddInitiativeDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: string | null;
-  onCreate: (projectId: string, payload: { title: string; description?: string }) => Promise<unknown>;
+  parentId?: string | null;
+  onCreate: (projectId: string, payload: { title: string; description?: string }, parentId?: string | null) => Promise<unknown>;
 }
 
 export function AddInitiativeDialog({
   open,
   onOpenChange,
   projectId,
+  parentId = null,
   onCreate,
 }: AddInitiativeDialogProps) {
   const [title, setTitle] = useState('');
@@ -42,7 +44,7 @@ export function AddInitiativeDialog({
     setError(null);
     setSubmitting(true);
     try {
-      await onCreate(projectId, { title: t, description: description.trim() || undefined });
+      await onCreate(projectId, { title: t, description: description.trim() || undefined }, parentId || undefined);
       setTitle('');
       setDescription('');
       onOpenChange(false);
@@ -60,7 +62,7 @@ export function AddInitiativeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Summit Item</DialogTitle>
+          <DialogTitle>{parentId ? 'Add sub-item' : 'Summit Item'}</DialogTitle>
         </DialogHeader>
         {!projectId && (
           <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">

@@ -22,6 +22,9 @@ import { CustomFieldsDialog } from '../components/CustomFieldsDialog';
 import { NewProjectDialog } from '../components/NewProjectDialog';
 import { NewSprintDialog } from '../components/NewSprintDialog';
 import { ObservatoryView } from '../components/ObservatoryView';
+import { SummitBoardKanban } from '../components/SummitBoardKanban';
+import { FieldNotesView } from '../components/FieldNotesView';
+import { ColumnsPopover } from '../components/ColumnsPopover';
 import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { HelpCircle, ChevronUp } from 'lucide-react';
@@ -69,6 +72,8 @@ export function Dashboard() {
   const [showCustomFields, setShowCustomFields] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [showNewSprint, setShowNewSprint] = useState(false);
+  const [addInitiativeParentId, setAddInitiativeParentId] = useState<string | null>(null);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate']));
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filters, setFilters] = useState({
     status: [] as Status[],
@@ -268,33 +273,57 @@ export function Dashboard() {
                 ))}
               </div>
               <div className="flex items-center gap-2">
-                <SavedViewsMenu currentFilters={filters} onApplyView={(newFilters) => setFilters(newFilters)} />
-                <FilterPanel filters={filters} onFiltersChange={setFilters} />
-                <ExportMenu />
-                <Button type="button" variant="outline" size="sm">
-                  Columns
-                </Button>
-                <Button
-                  type="button"
-                  className="gap-2 bg-gray-900 hover:bg-gray-800 text-white"
-                  onClick={() => setShowAddInitiative(true)}
-                >
-                  <ChevronUp className="w-4 h-4" />
-                  Summit Item
-                </Button>
+                {(currentView === 'summit_board' || currentView === 'manifest') && (
+                  <>
+                    <SavedViewsMenu currentFilters={filters} onApplyView={(newFilters) => setFilters(newFilters)} />
+                    <FilterPanel filters={filters} onFiltersChange={setFilters} />
+                    <ExportMenu />
+                    <ColumnsPopover
+                      projectId={selectedProjectId}
+                      visibleColumns={visibleColumns}
+                      onVisibleColumnsChange={setVisibleColumns}
+                    />
+                  </>
+                )}
+                {(currentView === 'summit_board' || currentView === 'manifest') && (
+                  <Button
+                    type="button"
+                    className="gap-2 bg-gray-900 hover:bg-gray-800 text-white"
+                    onClick={() => { setAddInitiativeParentId(null); setShowAddInitiative(true); }}
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                    Summit Item
+                  </Button>
+                )}
               </div>
             </div>
 
             {currentView === 'observatory' ? (
-              <ObservatoryView kpiData={kpiData} sprintLabel={sprintLabel} />
+              <ObservatoryView kpiData={kpiData} initiatives={initiatives} sprintLabel={sprintLabel} />
             ) : currentView === 'expedition_map' ? (
               <GanttChart initiatives={initiatives} />
+            ) : currentView === 'field_notes' ? (
+              <FieldNotesView projectId={selectedProjectId} onRefresh={refresh} />
             ) : currentView === 'base_camp' ? (
               <div className="py-8 text-center text-gray-500">
                 Use <strong>Base Camp</strong> in the sidebar or the tab to manage custom fields and settings.
               </div>
+            ) : currentView === 'summit_board' ? (
+              <SummitBoardKanban
+                initiatives={initiatives}
+                onUpdateStatus={async (id, status) => updateItem(id, { status })}
+                onUpdateItem={updateItem}
+                onDeleteItem={deleteItem}
+                onAddItem={() => setShowAddInitiative(true)}
+              />
             ) : (
               <div className="space-y-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-lg font-semibold text-gray-900">Manifest</h3>
+                  <Button type="button" size="sm" onClick={() => { setAddInitiativeParentId(null); setShowAddInitiative(true); }}>
+                    Add work item
+                  </Button>
+                </div>
                 {trackerSections.map((section) => (
                   <TrackerSection
                     key={section.id}
@@ -303,9 +332,10 @@ export function Dashboard() {
                     filters={filters}
                     selectedIds={selectedIds}
                     onSelectionChange={setSelectedIds}
-                    onAddItem={() => setShowAddInitiative(true)}
+                    onAddItem={() => { setAddInitiativeParentId(null); setShowAddInitiative(true); }}
                     onUpdateItem={updateItem}
                     onDeleteItem={deleteItem}
+                    onCreateSubItem={(parentId) => { setAddInitiativeParentId(parentId); setShowAddInitiative(true); }}
                   />
                 ))}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -360,9 +390,12 @@ export function Dashboard() {
 
       <AddInitiativeDialog
         open={showAddInitiative}
-        onOpenChange={setShowAddInitiative}
+        onOpenChange={(open) => { setShowAddInitiative(open); if (!open) setAddInitiativeParentId(null); }}
         projectId={selectedProjectId}
-        onCreate={createItem}
+        parentId={addInitiativeParentId}
+        onCreate={async (projectId, payload, parentId) => {
+          await createItem(projectId, payload, parentId ?? undefined);
+        }}
       />
 
       <TeamMembersDialog

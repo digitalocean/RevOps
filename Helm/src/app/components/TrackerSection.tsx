@@ -27,6 +27,7 @@ interface TrackerSectionProps {
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
   onAddItem?: () => void;
+  onCreateSubItem?: (parentId: string) => void;
   onUpdateItem?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority }) => Promise<unknown>;
   onDeleteItem?: (id: string) => Promise<void>;
 }
@@ -43,6 +44,7 @@ function getStatusColor(status: Status): string {
   switch (status) {
     case 'On Track': return 'bg-green-500 text-white hover:bg-green-600';
     case 'At Risk': return 'bg-yellow-500 text-white hover:bg-yellow-600';
+    case 'In Review': return 'bg-purple-500 text-white hover:bg-purple-600';
     case 'Complete': return 'bg-blue-500 text-white hover:bg-blue-600';
     case 'Blocked': return 'bg-red-500 text-white hover:bg-red-600';
     case 'Not Started': return 'bg-gray-300 text-gray-700 hover:bg-gray-400';
@@ -64,9 +66,10 @@ interface InitiativeRowProps {
   onOpenDetails: (initiative: Initiative) => void;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
+  onAddSubItem?: (parentId: string) => void;
 }
 
-function InitiativeRow({ initiative, onOpenDetails, isSelected, onToggleSelect }: InitiativeRowProps) {
+function InitiativeRow({ initiative, onOpenDetails, isSelected, onToggleSelect, onAddSubItem }: InitiativeRowProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   return (
@@ -151,8 +154,12 @@ function InitiativeRow({ initiative, onOpenDetails, isSelected, onToggleSelect }
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>View Details</DropdownMenuItem>
-            <DropdownMenuItem>Edit Initiative</DropdownMenuItem>
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onOpenDetails(initiative); }}>View Details</DropdownMenuItem>
+            {onAddSubItem && (
+              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onAddSubItem(initiative.id); }}>
+                Add sub-item
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem>Add Comment</DropdownMenuItem>
             <DropdownMenuItem>Attach File</DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -164,7 +171,7 @@ function InitiativeRow({ initiative, onOpenDetails, isSelected, onToggleSelect }
   );
 }
 
-export function TrackerSection({ section, viewMode, filters, selectedIds, onSelectionChange, onAddItem, onUpdateItem, onDeleteItem }: TrackerSectionProps) {
+export function TrackerSection({ section, viewMode, filters, selectedIds, onSelectionChange, onAddItem, onCreateSubItem, onUpdateItem, onDeleteItem }: TrackerSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedInitiative, setSelectedInitiative] = useState<Initiative | null>(null);
 
@@ -291,6 +298,7 @@ export function TrackerSection({ section, viewMode, filters, selectedIds, onSele
                     onOpenDetails={setSelectedInitiative}
                     isSelected={selectedIds.includes(initiative.id)}
                     onToggleSelect={handleToggleSelect}
+                    onAddSubItem={onCreateSubItem}
                   />
                 ))}
                 {filteredInitiatives.length === 0 && (

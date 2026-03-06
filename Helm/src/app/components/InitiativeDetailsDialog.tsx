@@ -12,7 +12,7 @@ import { ScrollArea } from './ui/scroll-area';
 import { toast } from 'sonner';
 import type { Initiative, Status, Priority } from '../data/mockData';
 
-const STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'Blocked', 'Complete'];
+const STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete'];
 const PRIORITY_OPTIONS: Priority[] = ['P0', 'P1', 'P2'];
 
 interface InitiativeDetailsDialogProps {

@@ -75,7 +75,7 @@ router.post('/create', async (req, res) => {
         result = { type: 'log', entry: rows[0] };
       } else {
         const { rows } = await pool.query(
-          `INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,$6,$7,'backlog') RETURNING *`,
+          `INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,$6,$7,'not_started') RETURNING *`,
           [project_id, sprint_id || null, parsed.type || item_type, parsed.title, parsed.description, parsed.priority || 'medium', parsed.points || 3]
         );
         result = { type: 'item', item: rows[0] };
@@ -92,7 +92,7 @@ router.post('/create', async (req, res) => {
         const title = transcript.slice(0, 500).trim() || 'Voice task';
         const itemType = (item_type === 'story' ? 'story' : 'task');
         const { rows } = await pool.query(
-          `INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,'medium',3,'backlog') RETURNING *`,
+          `INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,'medium',3,'not_started') RETURNING *`,
           [project_id, sprint_id || null, itemType, title, transcript]
         );
         result = { type: 'item', item: rows[0], mode: 'demo' };

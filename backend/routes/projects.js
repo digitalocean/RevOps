@@ -12,11 +12,11 @@ router.get('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 const DEFAULT_COLUMNS = [
-  { name: 'Base Camp', slug: 'backlog', color: '#3d4a63', is_done: false },
-  { name: 'Summit Ready', slug: 'summit', color: '#3d9be9', is_done: false },
-  { name: 'In Ascent', slug: 'ascent', color: '#f59e0b', is_done: false },
-  { name: 'At Base Camp', slug: 'basecamp', color: '#9b7dff', is_done: false },
-  { name: 'Peak Reached', slug: 'peak', color: '#00c9a7', is_done: true },
+  { name: 'Not Started', slug: 'not_started', color: '#6b7280', is_done: false },
+  { name: 'In Progress', slug: 'in_progress', color: '#2563eb', is_done: false },
+  { name: 'In Review', slug: 'in_review', color: '#7c3aed', is_done: false },
+  { name: 'Blocked', slug: 'blocked', color: '#ea580c', is_done: false },
+  { name: 'Done', slug: 'done', color: '#059669', is_done: true },
 ];
 router.post('/', async (req, res) => {
   try {

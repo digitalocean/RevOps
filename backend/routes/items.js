@@ -38,7 +38,7 @@ router.get('/:id', async (req, res) => {
 // POST create item
 router.post('/', async (req, res) => {
   try {
-    const { project_id, sprint_id, type='task', title, description='', status='backlog',
+    const { project_id, sprint_id, type='task', title, description='', status='not_started',
             column_id, priority='medium', points=3, assignee_id, due_date, labels, custom_vals } = req.body;
     if (!title) return res.status(400).json({ error: 'Title required' });
     if (!project_id) return res.status(400).json({ error: 'project_id required' });

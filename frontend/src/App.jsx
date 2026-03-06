@@ -2,14 +2,14 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { get, post, patch, del, postForm, checkApiAtUrl, getApiBaseUrl } from './api.js'
 
 // ── CONSTANTS ─────────────────────────────────────────────
+// Traditional statuses + legacy (for existing projects)
 const COL_COLORS = {
-  backlog:'#3d4a63', summit:'#3d9be9', ascent:'#f59e0b', basecamp:'#9b7dff', peak:'#00c9a7'
+  not_started:'#6b7280', in_progress:'#2563eb', in_review:'#7c3aed', blocked:'#ea580c', done:'#059669',
+  backlog:'#6b7280', summit:'#2563eb', ascent:'#f59e0b', basecamp:'#9b7dff', peak:'#059669'
 }
 const CARD_ACCENTS = {
-  summit:'linear-gradient(90deg,#3d9be9,#5a67e8)',
-  ascent:'linear-gradient(90deg,#f59e0b,#ff5470)',
-  basecamp:'linear-gradient(90deg,#9b7dff,#5a67e8)',
-  peak:'linear-gradient(90deg,#00c9a7,#d4943a)'
+  not_started:'#6b7280', in_progress:'linear-gradient(90deg,#2563eb,#3b82f6)', in_review:'linear-gradient(90deg,#7c3aed,#8b5cf6)', blocked:'linear-gradient(90deg,#ea580c,#f59e0b)', done:'linear-gradient(90deg,#059669,#10b981)',
+  summit:'linear-gradient(90deg,#3d9be9,#5a67e8)', ascent:'linear-gradient(90deg,#f59e0b,#ff5470)', basecamp:'linear-gradient(90deg,#9b7dff,#5a67e8)', peak:'linear-gradient(90deg,#00c9a7,#d4943a)'
 }
 const EMOJIS  = ['🎉','🚀','⛰️','🏔️','🏆','✨','💫','🎯','🌟','⚡']
 const TOASTS  = ['Saved.','Done!','Updated.','Created.','All set.']
@@ -208,7 +208,7 @@ export default function App() {
       showToast('⚠️', 'Select a project', 'Pick a project from the sidebar first.')
       return
     }
-    const colSlug = data.col || 'backlog'
+    const colSlug = data.col || (cols[0]?.slug || 'not_started')
     const col = cols.find(c => c.slug === colSlug)
     const newItem = {
       id: 'local-' + Date.now(),
@@ -368,9 +368,10 @@ export default function App() {
     { id:'admin',   label:'Reports',  icon:'fa-file-lines'    },
   ]
 
-  const doneCount = items.filter(i => i.status === 'peak').length
+  const doneCol = cols.find(c => c.is_done)
+  const doneCount = doneCol ? items.filter(i => i.status === doneCol.slug).length : 0
   const totalPts  = items.reduce((a,b) => a + (b.points||0), 0)
-  const donePts   = items.filter(i => i.status==='peak').reduce((a,b) => a+(b.points||0), 0)
+  const donePts   = doneCol ? items.filter(i => i.status===doneCol.slug).reduce((a,b) => a+(b.points||0), 0) : 0
   const pct       = totalPts ? Math.round(donePts/totalPts*100) : 0
 
   return (
@@ -542,7 +543,7 @@ export default function App() {
       </div>
 
       {/* ── MODALS ── */}
-      {modal === 'add' && <AddModal onClose={()=>setModal(null)} onSubmit={(d)=>{ addItem(d); setModal(null) }} customFields={customFields.item} />}
+      {modal === 'add' && <AddModal onClose={()=>setModal(null)} onSubmit={(d)=>{ addItem(d); setModal(null) }} customFields={customFields.item} cols={cols} />}
       {modal === 'voice' && <VoiceModal recording={recording} transcript={transcript} voiceType={voiceType} voiceError={voiceError}
         onToggle={toggleRec} onSetType={setVoiceType} onCreate={createFromVoice} onClose={()=>{ setModal(null); setVoiceError(''); if (mediaRecRef.current && mediaRecRef.current.state !== 'inactive') mediaRecRef.current.stop(); setRecording(false); setTranscript(''); }} />}
       {modal === 'col' && <ColModal colVis={colVis} onToggle={toggleCol} onClose={()=>setModal(null)}
@@ -638,8 +639,7 @@ function Topbar({ workspaces = [], selWorkspaceId, onSelectWorkspace, onNewWorks
           <line x1="19.5" y1="21.5" x2="23.5" y2="21.5" stroke="url(#lg)" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
         <div>
-          <div className="logo-name">Helm</div>
-          <div className="logo-sub">Command Center</div>
+          <div className="logo-name">Meridian</div>
         </div>
       </div>
       <div className="tb-sep"/>
@@ -838,7 +838,7 @@ function GanttView({ items }) {
   const bars = [
     {s:0,sp:3},{s:1,sp:4},{s:2,sp:3},{s:3,sp:3},{s:0,sp:1},{s:1,sp:2},{s:2,sp:4}
   ]
-  const colBg = { backlog:'#3d4a63', summit:'linear-gradient(90deg,#3d9be9,#5a67e8)', ascent:'linear-gradient(90deg,#f59e0b,#ff5470)', basecamp:'linear-gradient(90deg,#9b7dff,#5a67e8)', peak:'linear-gradient(90deg,#00c9a7,#d4943a)' }
+  const colBg = { not_started:'#6b7280', in_progress:'#2563eb', in_review:'#7c3aed', blocked:'#ea580c', done:'#059669', backlog:'#6b7280', summit:'#3d9be9', ascent:'#f59e0b', basecamp:'#9b7dff', peak:'#059669' }
   const days = ['Mar 1','Mar 3','Mar 5','Mar 7','Mar 9','Mar 11','Mar 13']
   return (
     <div className="scroll">
@@ -854,7 +854,7 @@ function GanttView({ items }) {
             const bg = colBg[item.status]||'#3d4a63'
             const cells = []
             for(let d=0;d<days.length;d++){
-              if(d===g.s) cells.push(<td key={d} colSpan={g.sp} className="gantt-bar-cell"><div className="gantt-bar" style={{background:bg}}>{item.status==='peak'?'✓ ':''}{item.title.slice(0,24)}…</div></td>)
+              if(d===g.s) cells.push(<td key={d} colSpan={g.sp} className="gantt-bar-cell"><div className="gantt-bar" style={{background:bg}}>{(cols.find(c=>c.slug===item.status)?.is_done)?'✓ ':''}{item.title.slice(0,24)}…</div></td>)
               else if(d>g.s && d<g.s+g.sp) continue
               else cells.push(<td key={d}/>)
             }
@@ -951,7 +951,8 @@ function TrackerView({ tab, setTab }) {
 // ════════════════════════════════════════════════════════
 function MetricsView({ items, crew }) {
   const total = items.reduce((a,b)=>a+(b.points||0),0)
-  const done  = items.filter(i=>i.status==='peak').reduce((a,b)=>a+(b.points||0),0)
+  const doneColSlug = cols.find(c=>c.is_done)?.slug
+  const done  = doneColSlug ? items.filter(i=>i.status===doneColSlug).reduce((a,b)=>a+(b.points||0),0) : 0
   const statusColor = { online:'var(--jade)', away:'var(--sun)', offline:'var(--t4)' }
   return (
     <div className="scroll">
@@ -1002,7 +1003,7 @@ function MetricsView({ items, crew }) {
         <div className="chart-sub">Points assigned vs completed</div>
         {crew.map(c=>{
           const assigned = items.filter(i=>i.assignee_initials===c.initials).reduce((a,b)=>a+(b.points||0),0)
-          const cdone    = items.filter(i=>i.assignee_initials===c.initials&&i.status==='peak').reduce((a,b)=>a+(b.points||0),0)
+          const cdone    = doneColSlug ? items.filter(i=>i.assignee_initials===c.initials&&i.status===doneColSlug).reduce((a,b)=>a+(b.points||0),0) : 0
           const pct      = assigned ? Math.round(cdone/assigned*100) : 0
           return (
             <div key={c.id} style={{display:'flex',alignItems:'center',gap:'12px',marginBottom:'8px'}}>
@@ -1205,14 +1206,19 @@ function Modal({ onClose, icon, iconBg, iconColor, title, sub, children, footer,
   )
 }
 
-function AddModal({ onClose, onSubmit, customFields }) {
-  const [d, setD] = useState({ title:'', type:'task', priority:'medium', pts:'3', assignee:'RK', col:'backlog', desc:'' })
+const DEFAULT_COL_OPTIONS = [
+  { name: 'Not Started', slug: 'not_started' }, { name: 'In Progress', slug: 'in_progress' }, { name: 'In Review', slug: 'in_review' }, { name: 'Blocked', slug: 'blocked' }, { name: 'Done', slug: 'done' },
+]
+function AddModal({ onClose, onSubmit, customFields, cols = [] }) {
+  const colOptions = cols.length > 0 ? cols : DEFAULT_COL_OPTIONS.map(c => ({ name: c.name, slug: c.slug }))
+  const defaultCol = colOptions[0]?.slug || 'not_started'
+  const [d, setD] = useState({ title:'', type:'task', priority:'medium', pts:'3', assignee:'RK', col: defaultCol, desc:'' })
   const aColors = { RK:'#6366f1', SK:'#8b5cf6', AM:'#059669', PP:'#f59e0b' }
   return (
     <Modal onClose={onClose} icon="fa-bullseye" iconBg="var(--lavs)" iconColor="var(--lav)" title="Add Initiative" sub="Add a strategic initiative or work item"
       footer={<><button type="button" className="btn-g" onClick={onClose}>Cancel</button><button type="button" className="btn-p" onClick={()=>{ if(d.title.trim()) onSubmit({...d, assigneeColor:aColors[d.assignee]}); }}><i className="fa-solid fa-plus"/> Add</button></>}>
       <div className="form-stack">
-        <div><label className="form-label">Title</label><input className="form-input" value={d.title} onChange={e=>setD({...d,title:e.target.value})} placeholder="What needs to be climbed?"/></div>
+        <div><label className="form-label">Title</label><input className="form-input" value={d.title} onChange={e=>setD({...d,title:e.target.value})} placeholder="Title of the initiative"/></div>
         <div className="form-row">
           <div><label className="form-label">Type</label><select className="form-select" value={d.type} onChange={e=>setD({...d,type:e.target.value})}><option value="epic">◈ Epic</option><option value="story">◎ Story</option><option value="task">✓ Task</option><option value="bug">⚠ Bug</option></select></div>
           <div><label className="form-label">Priority</label><select className="form-select" value={d.priority} onChange={e=>setD({...d,priority:e.target.value})}><option value="critical">🔴 Critical</option><option value="high">🟠 High</option><option value="medium">🟡 Medium</option><option value="low">🟢 Low</option></select></div>
@@ -1221,7 +1227,7 @@ function AddModal({ onClose, onSubmit, customFields }) {
           <div><label className="form-label">Points</label><input className="form-input" type="number" value={d.pts} onChange={e=>setD({...d,pts:e.target.value})} min="1" max="100"/></div>
           <div><label className="form-label">Assignee</label><select className="form-select" value={d.assignee} onChange={e=>setD({...d,assignee:e.target.value})}><option value="RK">Raj Kumar</option><option value="SK">Sara Kim</option><option value="AM">Aman Mehta</option><option value="PP">Priya Patel</option></select></div>
         </div>
-        <div><label className="form-label">Column</label><select className="form-select" value={d.col} onChange={e=>setD({...d,col:e.target.value})}><option value="backlog">Base Camp</option><option value="summit">Summit Ready</option><option value="ascent">In Ascent</option><option value="basecamp">At Base Camp</option><option value="peak">Peak Reached</option></select></div>
+        <div><label className="form-label">Status</label><select className="form-select" value={d.col} onChange={e=>setD({...d,col:e.target.value})}>{colOptions.map(c => <option key={c.slug} value={c.slug}>{c.name}</option>)}</select></div>
         <div><label className="form-label">Description</label><textarea className="form-textarea" value={d.desc} onChange={e=>setD({...d,desc:e.target.value})} placeholder="Describe the challenge…" rows={3}/></div>
         {customFields.length > 0 && customFields.map(f => (
           <div key={f.id}><label className="form-label">{f.name}</label><input className="form-input" placeholder={`Enter ${f.name}…`}/></div>

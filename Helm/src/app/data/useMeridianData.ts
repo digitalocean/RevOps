@@ -38,26 +38,31 @@ function mapItemToInitiative(item: {
   status?: string | null;
   priority?: string | null;
   points?: number | null;
+  assignee_id?: string | null;
   assignee_initials?: string | null;
+  assignee_name?: string | null;
   project_id?: string | null;
   tracker_id?: string | null;
+  due_date?: string | null;
 }): Initiative {
   const status = (item.status && STATUS_MAP[item.status]) || 'Not Started';
   const priority = (item.priority && PRIORITY_MAP[item.priority]) || 'P1';
+  const endDate = item.due_date ? new Date(item.due_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   return {
     id: item.id,
     name: item.title,
     category: CATEGORIES[Math.abs(item.title.length) % CATEGORIES.length],
     priority,
     isBigRock: (item.points ?? 0) >= 5,
-    owner: item.assignee_initials || '—',
+    owner: item.assignee_name || item.assignee_initials || '—',
     status,
     questions: '',
     description: item.description || '',
     startDate: new Date(),
-    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    endDate,
     progress: status === 'Complete' ? 100 : status === 'Not Started' ? 0 : 50,
     tracker_id: item.tracker_id ?? null,
+    assignee_id: item.assignee_id ?? null,
   };
 }
 
@@ -104,9 +109,10 @@ export interface MeridianDataResult {
   createSprint: (projectId: string, name: string, start_date?: string, end_date?: string) => Promise<Sprint | null>;
   createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; type?: string }, parentId?: string | null, trackerId?: string | null) => Promise<unknown>;
   createSection: (projectId: string, name: string) => Promise<{ id: string; name: string } | null>;
-  updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string }) => Promise<unknown>;
+  updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number }) => Promise<unknown>;
   deleteItem: (itemId: string) => Promise<void>;
   sprints: Sprint[];
+  crew: { id: string; name: string; initials: string; role: string }[];
 }
 
 function apiPath(path: string): string {
@@ -121,6 +127,7 @@ export function useMeridianData(): MeridianDataResult {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [initiatives, setInitiatives] = useState<Initiative[]>(mockInitiatives);
   const [sections, setSections] = useState<TrackerSection[]>(mockTrackerSections);
+  const [crew, setCrew] = useState<{ id: string; name: string; initials: string; role: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fromApi, setFromApi] = useState(false);
@@ -146,13 +153,18 @@ export function useMeridianData(): MeridianDataResult {
         setProjects([]);
         setInitiatives([]);
         setSections([]);
+        setCrew([]);
         setLoading(false);
         setFromApi(true);
         return;
       }
-      const projRes = await get<Project[]>(`${apiPath('api/projects')}?workspace_id=${wid}`).catch(() => []);
+      const [projRes, crewRes] = await Promise.all([
+        get<Project[]>(`${apiPath('api/projects')}?workspace_id=${wid}`).catch(() => []),
+        get<{ id: string; name: string; initials: string; role: string }[]>(`${apiPath('api/crew')}?workspace_id=${wid}`).catch(() => []),
+      ]);
       const projList = Array.isArray(projRes) ? projRes : [];
       setProjects(projList);
+      setCrew(Array.isArray(crewRes) ? crewRes : []);
       const pid = overrideProjectId ?? selectedProjectId ?? (projList[0]?.id ?? null);
       if (projList.length && !selectedProjectId && overrideProjectId === undefined) setSelectedProjectId(projList[0].id);
       if (!pid) {
@@ -178,9 +190,12 @@ export function useMeridianData(): MeridianDataResult {
           status: i.status as string | null,
           priority: i.priority as string | null,
           points: i.points as number | null,
+          assignee_id: i.assignee_id as string | null,
           assignee_initials: i.assignee_initials as string | null,
+          assignee_name: i.assignee_name as string | null,
           project_id: i.project_id as string | null,
           tracker_id: i.tracker_id as string | null,
+          due_date: i.due_date as string | null,
         })
       );
       setInitiatives(mapped);
@@ -285,14 +300,17 @@ export function useMeridianData(): MeridianDataResult {
 
   const updateItem = useCallback(async (
     itemId: string,
-    payload: { title?: string; description?: string; status?: string; priority?: string }
+    payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number }
   ): Promise<unknown> => {
-    const body: Record<string, string> = {};
+    const body: Record<string, unknown> = {};
     if (payload.title !== undefined) body.title = payload.title;
     if (payload.description !== undefined) body.description = payload.description;
     if (payload.status !== undefined) body.status = statusToSlug[payload.status] || 'not_started';
     if (payload.priority !== undefined) body.priority = priorityToSlug[payload.priority] || 'medium';
-    const res = await patch(apiPath(`api/items/${itemId}`), body);
+    if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id;
+    if (payload.due_date !== undefined) body.due_date = payload.due_date;
+    if (payload.points !== undefined) body.points = payload.points;
+    const res = await patch(apiPath(`api/items/${itemId}`), body as Record<string, string>);
     await load();
     return res;
   }, [load]);
@@ -312,6 +330,7 @@ export function useMeridianData(): MeridianDataResult {
   return {
     initiatives,
     trackerSections: sections,
+    crew,
     createSection,
     kpiData: fromApi
       ? { solvedYTD: done, inProgress, atRiskBlocked: atRisk, bigRocksCount: bigRocks, overallProgress, totalItems: total }

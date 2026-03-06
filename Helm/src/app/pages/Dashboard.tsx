@@ -65,6 +65,7 @@ export function Dashboard() {
     createSection,
     updateItem,
     deleteItem,
+    crew,
   } = useMeridianData();
   const [currentView, setCurrentView] = useState<NavView>('summit_board');
   const [showActivityPanel, setShowActivityPanel] = useState(false);
@@ -180,6 +181,18 @@ export function Dashboard() {
       toast.success(`Deleted ${count} item(s)`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to delete');
+    }
+  };
+
+  const handleBulkAssignOwner = async (assigneeId: string) => {
+    const count = selectedIds.length;
+    const name = crew.find((c) => c.id === assigneeId)?.name ?? 'Unknown';
+    try {
+      await Promise.all(selectedIds.map((id) => updateItem(id, { assignee_id: assigneeId })));
+      setSelectedIds([]);
+      toast.success(`Assigned ${count} item(s) to ${name}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to assign owner');
     }
   };
 
@@ -352,6 +365,7 @@ export function Dashboard() {
                   <TrackerSection
                     key={section.id}
                     section={section}
+                    crew={crew}
                     viewMode="grid"
                     filters={filters}
                     selectedIds={selectedIds}
@@ -372,8 +386,8 @@ export function Dashboard() {
                   />
                 ))}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <TeamCapacityView />
-                  <MilestoneTimeline />
+                  <TeamCapacityView crew={crew} initiatives={initiatives} />
+                  <MilestoneTimeline initiatives={initiatives} sprints={sprints} />
                 </div>
               </div>
             )}
@@ -403,9 +417,11 @@ export function Dashboard() {
       {selectedIds.length > 0 && (
         <BulkActionsBar
           selectedCount={selectedIds.length}
+          crew={crew}
           onClearSelection={() => setSelectedIds([])}
           onBulkStatusChange={handleBulkStatusChange}
           onBulkPriorityChange={handleBulkPriorityChange}
+          onBulkAssignOwner={handleBulkAssignOwner}
           onBulkDelete={handleBulkDelete}
         />
       )}

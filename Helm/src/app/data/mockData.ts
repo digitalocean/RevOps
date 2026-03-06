@@ -22,6 +22,8 @@ export interface Initiative {
   riskLevel?: 'low' | 'medium' | 'high';
   /** Section (tracker) this item belongs to; null = uncategorized */
   tracker_id?: string | null;
+  /** Crew member id for assignee */
+  assignee_id?: string | null;
 }
 
 export interface TrackerSection {

@@ -35,3 +35,7 @@ Set `VITE_API_URL` to your API URL when building for production (e.g. your Digit
 ## Deploy (DigitalOcean)
 
 Use `.do/app.yaml`. The **web** component builds from **`/Helm`**. Set `VITE_API_URL` (BUILD_TIME) to your app URL. See `docs/DEPLOY-DIGITALOCEAN.md`.
+
+## AI and voice (DigitalOcean Gradient)
+
+For **API operations** and **voice → work item** you can use **DigitalOcean Gradient AI** (serverless inference). **Voice transcription** (speech-to-text) still requires **OpenAI** (Whisper). See **`docs/DIGITALOCEAN-AI.md`** for setup and env vars.

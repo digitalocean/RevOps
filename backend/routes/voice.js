@@ -1,9 +1,11 @@
 const router  = require('express').Router();
 const { pool } = require('../server');
+const { getTranscribeClient, chatCompletion } = require('../lib/ai-client');
 const multer  = require('multer');
 const upload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 // POST /api/voice/transcribe — accepts audio blob (multipart form field "audio")
+// Uses OpenAI Whisper only (DigitalOcean Gradient does not offer speech-to-text).
 router.post('/transcribe', upload.single('audio'), async (req, res) => {
   try {
     if (!req.file || !req.file.buffer || req.file.buffer.length === 0) {
@@ -13,20 +15,18 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
       });
     }
 
-    if (!process.env.OPENAI_API_KEY) {
+    const openai = getTranscribeClient();
+    if (!openai) {
       return res.status(503).json({
         error: 'Voice transcription not configured',
-        hint: 'Set OPENAI_API_KEY on the server to enable real-time voice notes.',
+        hint: 'Set OPENAI_API_KEY on the server for speech-to-text (Whisper). DigitalOcean Gradient does not offer transcription.',
         code: 'OPENAI_API_KEY_REQUIRED',
       });
     }
 
-    const OpenAI = require('openai');
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const { Readable } = require('stream');
     const buffer = req.file.buffer;
     const stream = Readable.from(buffer);
-    // Whisper expects a file-like with name; some environments need this for format detection
     stream.path = req.file.originalname || 'audio.webm';
     const transcription = await openai.audio.transcriptions.create({
       file: stream,
@@ -64,19 +64,16 @@ router.post('/create', async (req, res) => {
       );
       result = { type: 'log', entry: rows[0] };
     } else {
-      // Work items: use GPT to extract structure when API key is set
-      if (process.env.OPENAI_API_KEY) {
-        const OpenAI = require('openai');
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-        const completion = await openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            { role: 'system', content: 'Extract a work item from the transcript. Return JSON: {"title":"...","description":"...","type":"task","priority":"medium","points":3}' },
-            { role: 'user', content: text },
-          ],
-          response_format: { type: 'json_object' },
-        });
-        const parsed = JSON.parse(completion.choices[0].message.content);
+      // Work items: use AI to extract structure (DigitalOcean Gradient or OpenAI)
+      const content = await chatCompletion({
+        messages: [
+          { role: 'system', content: 'Extract a work item from the transcript. Return JSON: {"title":"...","description":"...","type":"task","priority":"medium","points":3}' },
+          { role: 'user', content: text },
+        ],
+        response_format: { type: 'json_object' },
+      });
+      if (content) {
+        const parsed = JSON.parse(content);
         const { rows } = await pool.query(
           `INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,$6,$7,'not_started') RETURNING *`,
           [project_id, sprint_id || null, parsed.type || item_type, parsed.title || text.slice(0, 200), parsed.description || '', parsed.priority || 'medium', parsed.points || 3]

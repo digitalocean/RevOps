@@ -20,6 +20,13 @@ const STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'In Revi
 const PRIORITY_OPTIONS: Priority[] = ['P0', 'P1', 'P2'];
 const CATEGORIES: Category[] = ['Engineering', 'Design', 'Sales', 'Product', 'Operations'];
 
+interface CrewMember {
+  id: string;
+  name: string;
+  initials?: string;
+  role?: string;
+}
+
 interface TrackerSectionProps {
   section: TrackerSectionType;
   viewMode: 'grid' | 'gantt';
@@ -33,10 +40,11 @@ interface TrackerSectionProps {
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
   projectId: string | null;
+  crew?: CrewMember[];
   onAddItem?: () => void;
   onCreateItem?: (projectId: string, payload: { title: string; description?: string }, trackerId?: string | null) => Promise<unknown>;
   onCreateSubItem?: (parentId: string) => void;
-  onUpdateItem?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority }) => Promise<unknown>;
+  onUpdateItem?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null }) => Promise<unknown>;
   onDeleteItem?: (id: string) => Promise<void>;
   onItemCompleted?: () => void;
 }
@@ -75,8 +83,9 @@ interface InitiativeRowEditableProps {
   onOpenDetails: (initiative: Initiative) => void;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
+  crew?: { id: string; name: string; initials?: string }[];
   onAddSubItem?: (parentId: string) => void;
-  onUpdate: (id: string, payload: { title?: string; status?: Status; priority?: Priority }) => Promise<unknown>;
+  onUpdate: (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null }) => Promise<unknown>;
   onDelete?: (id: string) => Promise<void>;
   onItemCompleted?: () => void;
 }
@@ -86,6 +95,7 @@ function InitiativeRowEditable({
   onOpenDetails,
   isSelected,
   onToggleSelect,
+  crew = [],
   onAddSubItem,
   onUpdate,
   onDelete,
@@ -93,6 +103,9 @@ function InitiativeRowEditable({
 }: InitiativeRowEditableProps) {
   const [title, setTitle] = useState(initiative.name);
   const [saving, setSaving] = useState(false);
+  const dueDateStr = initiative.endDate && !isNaN(initiative.endDate.getTime())
+    ? initiative.endDate.toISOString().slice(0, 10)
+    : '';
 
   const handleTitleBlur = () => {
     const t = title.trim();
@@ -116,6 +129,17 @@ function InitiativeRowEditable({
   const handlePriorityChange = (priority: Priority) => {
     setSaving(true);
     onUpdate(initiative.id, { priority }).finally(() => setSaving(false));
+  };
+
+  const handleDueDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value || null;
+    setSaving(true);
+    onUpdate(initiative.id, { due_date: v ? `${v}T00:00:00.000Z` : null }).finally(() => setSaving(false));
+  };
+
+  const handleAssigneeChange = (assigneeId: string) => {
+    setSaving(true);
+    onUpdate(initiative.id, { assignee_id: assigneeId || null }).finally(() => setSaving(false));
   };
 
   return (
@@ -152,8 +176,21 @@ function InitiativeRowEditable({
           </SelectContent>
         </Select>
       </td>
-      <td className="py-2 px-4 align-middle">
-        <span className="text-sm text-gray-600">{initiative.owner}</span>
+      <td className="py-2 px-4 align-middle min-w-[120px]">
+        <Select
+          value={initiative.assignee_id ?? 'unassigned'}
+          onValueChange={(v) => handleAssigneeChange(v === 'unassigned' ? '' : v)}
+        >
+          <SelectTrigger className="h-8 text-xs border-gray-200 bg-white">
+            <SelectValue placeholder="Owner" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="unassigned" className="text-xs">— Unassigned</SelectItem>
+            {crew.map((c) => (
+              <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       <td className="py-2 px-4 align-middle w-36">
         <Select value={initiative.status} onValueChange={(v) => handleStatusChange(v as Status)}>
@@ -173,9 +210,13 @@ function InitiativeRowEditable({
           <span className="text-xs text-gray-600 w-8">{initiative.progress}%</span>
         </div>
       </td>
-      <td className="py-2 px-4 align-middle text-xs text-gray-500">
-        <Clock className="w-3 h-3 inline mr-1" />
-        {initiative.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+      <td className="py-2 px-4 align-middle">
+        <input
+          type="date"
+          value={dueDateStr}
+          onChange={handleDueDateChange}
+          className="h-8 text-xs border border-gray-200 rounded-md px-2 bg-white text-gray-700 w-full max-w-[140px]"
+        />
       </td>
       <td className="py-2 px-4 align-middle w-12">
         <DropdownMenu>
@@ -271,6 +312,7 @@ export function TrackerSection({
   selectedIds,
   onSelectionChange,
   projectId,
+  crew = [],
   onAddItem,
   onCreateItem,
   onCreateSubItem,
@@ -308,7 +350,7 @@ export function TrackerSection({
   const allSelected = filteredInitiatives.length > 0 && filteredInitiatives.every((i) => selectedIds.includes(i.id));
   const someSelected = filteredInitiatives.some((i) => selectedIds.includes(i.id)) && !allSelected;
 
-  const handleUpdate = async (id: string, payload: { title?: string; status?: Status; priority?: Priority }) => {
+  const handleUpdate = async (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null }) => {
     if (onUpdateItem) await onUpdateItem(id, payload);
   };
 
@@ -362,6 +404,7 @@ export function TrackerSection({
                     onOpenDetails={setSelectedInitiative}
                     isSelected={selectedIds.includes(initiative.id)}
                     onToggleSelect={handleToggleSelect}
+                    crew={crew}
                     onAddSubItem={onCreateSubItem}
                     onUpdate={handleUpdate}
                     onDelete={onDeleteItem}

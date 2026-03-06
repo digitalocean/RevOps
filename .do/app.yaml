@@ -50,6 +50,14 @@ services:
       - key: NODE_TLS_REJECT_UNAUTHORIZED
         value: "0"
         scope: RUN_TIME
+      # Optional: DigitalOcean Gradient AI for chat (voice→work item, etc.). Create in DO Control Panel → Gradient → Model API Key.
+      # - key: GRADIENT_MODEL_ACCESS_KEY
+      #   scope: RUN_TIME
+      #   value: "do-..."
+      # Optional: for voice transcription (Field Notes) — Whisper. Gradient does not offer speech-to-text.
+      # - key: OPENAI_API_KEY
+      #   scope: RUN_TIME
+      #   value: "sk-..."
     github:
       deploy_on_push: true
       repo: digitalocean/RevOps

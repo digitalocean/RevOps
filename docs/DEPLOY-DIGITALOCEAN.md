@@ -71,9 +71,8 @@ Optional:
 
 ### 6. After first deploy
 
-1. Copy the app URL (e.g. `https://meridian-xxxxx.ondigitalocean.app`).
-2. In the **web** component, set **`VITE_API_URL`** to that URL (BUILD_TIME).
-3. Redeploy the **web** component so the frontend is rebuilt with the correct API URL.
+1. Open your app using its **main URL** (e.g. `https://meridian-xxxxx.ondigitalocean.app` from the app overview). The frontend uses relative `/api` URLs, so it must be served from that same URL.
+2. Check the API: open `https://your-app.ondigitalocean.app/api/health` — you should see `{"status":"ok","db":"connected","schema":true}`.
 
 ---
 
@@ -83,7 +82,7 @@ Optional:
 - [ ] **api** `source_dir`: `/backend`.
 - [ ] **web** `source_dir`: `/frontend`.
 - [ ] **api** has `DATABASE_URL`, `NODE_ENV=production`, `PORT=8080`.
-- [ ] **web** has `VITE_API_URL` = app URL (no trailing slash), scope **BUILD_TIME**.
+- [ ] **web** has `NPM_CONFIG_PRODUCTION=false` (BUILD_TIME). No need for `VITE_API_URL` — app uses relative `/api` URLs.
 - [ ] **web** index and catchall document = `index.html`.
 - [ ] Database (PostgreSQL) created and linked to **api**.
 
@@ -93,9 +92,10 @@ Optional:
 
 | Issue | Check |
 |-------|--------|
-| **Build failure** (non-zero exit / missing start) | **api**: `backend/package.json` must have a `"build"` script (e.g. `"build": "echo 'No build step'"`) and `"start": "node server.js"`. Node in `engines` (e.g. `"node": "20.x"`). **web**: `tailwindcss`, `postcss`, `autoprefixer` in devDependencies; `engines.node` set. |
-| Blank page | `VITE_API_URL` set at **BUILD_TIME** for web; correct app URL. |
-| “Failed to fetch” / API errors | App URL in `VITE_API_URL` matches the app domain; **api** is healthy (e.g. `/api/health`). |
+| **Build failure** (non-zero exit / missing start) | **api**: `backend/package.json` must have a `"build"` script and `"start": "node server.js"`. **web**: `tailwindcss`, etc. in deps; `engines.node` set. |
+| Blank page | Check browser console; ensure **web** build succeeded. |
+| **“Cannot reach API”** | Open the app from its **main URL** (e.g. `https://your-app.ondigitalocean.app`), not a separate “web” or “static” link. The app uses relative `/api` URLs. **Redeploy the web component** after pulling the latest code, then open the main app URL. Verify API: open `https://your-app.ondigitalocean.app/api/health` — should return `{"status":"ok","db":"connected"}`. |
+| “Failed to fetch” / API errors | **api** is running and has `DATABASE_URL`. Check `/api/health` in the browser. |
 | 404 on refresh | Catchall document = `index.html` for the static site. |
 | DB errors | **api** has `DATABASE_URL`; database is running and reachable. |
 

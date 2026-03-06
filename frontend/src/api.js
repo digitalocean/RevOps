@@ -1,8 +1,10 @@
 function getBase() {
   const v = import.meta.env.VITE_API_URL;
-  if (v) return v.replace(/\/$/, '');
-  if (import.meta.env.DEV) return ''; // Vite proxy to backend
-  return window.location.origin;
+  if (v && String(v).trim()) return String(v).replace(/\/$/, '');
+  // Dev: use relative path so Vite proxy forwards /api to backend
+  if (import.meta.env.DEV) return '';
+  // Production: use relative path so /api goes to same host (works with DO ingress)
+  return '';
 }
 
 export async function api(path, opts = {}) {

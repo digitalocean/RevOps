@@ -339,7 +339,12 @@ export default function App() {
     <div className="app-shell">
       {apiReachable === false && (
         <div className="api-banner" role="alert">
-          <span><strong>Cannot reach API.</strong> Start the backend: <code>cd backend && npm run dev</code>. Set <code>DATABASE_URL</code> in backend/.env.</span>
+          <span>
+            <strong>Cannot reach API.</strong>{' '}
+            {typeof window !== 'undefined' && !/localhost|127\.0\.0\.1/.test(window.location?.host || '')
+              ? 'Open your app using its main URL (e.g. https://your-app.ondigitalocean.app). Redeploy the web component after any env changes.'
+              : 'Start the backend: cd backend && npm run dev. Set DATABASE_URL in backend/.env.'}
+          </span>
           <button type="button" className="api-banner-dismiss" onClick={() => setApiReachable(null)} aria-label="Dismiss">×</button>
         </div>
       )}

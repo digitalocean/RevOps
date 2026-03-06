@@ -47,6 +47,7 @@ export default function App() {
   const [transcript,setTranscript] = useState('')
   const [voiceType, setVoiceType]  = useState('note')
   const [voiceError, setVoiceError] = useState('')
+  const [apiReachable, setApiReachable] = useState(null) // null = unknown, true/false after first check
   const [adminSec,  setAdminSec]   = useState(null)
   const [trackerTab, setTrackerTab]= useState('bigrock')
   const mediaRecRef = useRef(null)
@@ -83,13 +84,14 @@ export default function App() {
   useEffect(() => {
     get('/api/db/ensure').catch(() => {}).finally(() => {
       get('/api/workspaces').then(data => {
+        setApiReachable(true)
         if (Array.isArray(data)) {
           setWorkspaces(data)
           const cur = LSGet('selWorkspaceId', null)
           if (data.length && (!cur || !data.some(w => w.id === cur))) setSelWorkspaceId(data[0].id)
           else if (cur) setSelWorkspaceId(cur)
         }
-      }).catch(() => {})
+      }).catch(() => setApiReachable(false))
     })
   }, [])
   useEffect(() => {
@@ -175,7 +177,7 @@ export default function App() {
       title: data.title,
       type: data.type || 'task',
       priority: data.priority || 'medium',
-      points: parseInt(data.points) || 3,
+      points: parseInt(data.pts || data.points, 10) || 3,
       status: colSlug,
       assignee_initials: data.assignee || '',
       assignee_color: data.assigneeColor || '#6366f1',
@@ -191,7 +193,7 @@ export default function App() {
         title: data.title,
         type: data.type || 'task',
         priority: data.priority || 'medium',
-        points: parseInt(data.points) || 3,
+        points: parseInt(data.pts || data.points, 10) || 3,
         status: colSlug,
         description: data.description || '',
       })
@@ -335,6 +337,12 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      {apiReachable === false && (
+        <div className="api-banner" role="alert">
+          <span><strong>Cannot reach API.</strong> Start the backend: <code>cd backend && npm run dev</code>. Set <code>DATABASE_URL</code> in backend/.env.</span>
+          <button type="button" className="api-banner-dismiss" onClick={() => setApiReachable(null)} aria-label="Dismiss">×</button>
+        </div>
+      )}
       {/* ── TOPBAR ── */}
       <Topbar workspaces={workspaces} selWorkspaceId={selWorkspaceId} onSelectWorkspace={setSelWorkspaceId}
         onNewWorkspace={()=>setModal('newWorkspace')} onVoice={()=>setModal('voice')} onLog={()=>setLogOpen(v=>{LSSet('logOpen',!v);return !v})} />
@@ -1035,12 +1043,12 @@ function Modal({ onClose, icon, iconBg, iconColor, title, sub, children, footer,
     return () => document.removeEventListener('keydown', fn)
   }, [onClose])
   return (
-    <div className="modal-overlay" onClick={e=>{ if(e.target===e.currentTarget) onClose() }}>
-      <div className="modal" style={{width}}>
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="modal" style={{width}} onClick={e => e.stopPropagation()}>
         <div className="modal-head">
           <div className="modal-ico" style={{background:iconBg}}><i className={`fa-solid ${icon}`} style={{color:iconColor}}/></div>
           <div><div className="modal-title">{title}</div><div className="modal-sub">{sub}</div></div>
-          <button className="modal-close" onClick={onClose}><i className="fa-solid fa-xmark"/></button>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close"><i className="fa-solid fa-xmark"/></button>
         </div>
         <div className="modal-body" style={{maxHeight:'65vh',overflowY:'auto'}}>{children}</div>
         {footer && <div className="modal-footer">{footer}</div>}
@@ -1054,7 +1062,7 @@ function AddModal({ onClose, onSubmit, customFields }) {
   const aColors = { RK:'#6366f1', SK:'#8b5cf6', AM:'#059669', PP:'#f59e0b' }
   return (
     <Modal onClose={onClose} icon="fa-mountain" iconBg="var(--golds)" iconColor="var(--gold)" title="Summit Item" sub="Add new work to Sprint 14"
-      footer={<><button className="btn-g" onClick={onClose}>Cancel</button><button className="btn-p" onClick={()=>{ if(d.title.trim()) onSubmit({...d, assigneeColor:aColors[d.assignee]}); }}><i className="fa-solid fa-mountain"/> Summit It</button></>}>
+      footer={<><button type="button" className="btn-g" onClick={onClose}>Cancel</button><button type="button" className="btn-p" onClick={()=>{ if(d.title.trim()) onSubmit({...d, assigneeColor:aColors[d.assignee]}); }}><i className="fa-solid fa-mountain"/> Summit It</button></>}>
       <div className="form-stack">
         <div><label className="form-label">Title</label><input className="form-input" value={d.title} onChange={e=>setD({...d,title:e.target.value})} placeholder="What needs to be climbed?"/></div>
         <div className="form-row">
@@ -1078,7 +1086,7 @@ function AddModal({ onClose, onSubmit, customFields }) {
 function VoiceModal({ recording, transcript, voiceType, voiceError, onToggle, onSetType, onCreate, onClose }) {
   return (
     <Modal onClose={onClose} icon="fa-microphone" iconBg="var(--roses)" iconColor="var(--rose)" title="Voice" sub="Record to transcribe; create a note or task" width={400}
-      footer={<><button className="btn-g" onClick={onClose}>Cancel</button><button className="btn-p" onClick={onCreate}><i className="fa-solid fa-wand-magic-sparkles"/> Save / Create</button></>}>
+      footer={<><button type="button" className="btn-g" onClick={onClose}>Cancel</button><button type="button" className="btn-p" onClick={onCreate}><i className="fa-solid fa-wand-magic-sparkles"/> Save / Create</button></>}>
       <div className={`vorb${recording?' rec':''}`} onClick={onToggle}>{recording?'⏹':'🎙'}</div>
       {voiceError && <div className="form-err" style={{marginBottom:8}}>{voiceError}</div>}
       <div className="vbox" style={!transcript||transcript.startsWith('Click')?{fontStyle:'italic',color:'var(--t3)'}:{}}>{transcript||'Click the mic to record. Speak clearly, then click stop.'}</div>
@@ -1102,7 +1110,7 @@ function ColModal({ colVis, onToggle, onClose, customFields, onAddField }) {
   ]
   return (
     <Modal onClose={onClose} icon="fa-table-columns" iconBg="var(--skys)" iconColor="var(--sky)" title="Column Manager" sub="Toggle columns visible in Manifest" width={360}
-      footer={<button className="btn-p" onClick={onClose}><i className="fa-solid fa-check"/> Done</button>}>
+      footer={<button type="button" className="btn-p" onClick={onClose}><i className="fa-solid fa-check"/> Done</button>}>
       <div style={{display:'flex',flexDirection:'column',gap:'6px'}}>
         {cols.map(c => (
           <div key={c.key} className="tog-row">
@@ -1131,7 +1139,7 @@ function CFModal({ target, cfType, onSetType, onClose, onSave }) {
   const targetLabel = { item:'Summit Items', project:'Campaigns', sprint:'Expeditions' }[target] || target
   return (
     <Modal onClose={onClose} icon="fa-sparkles" iconBg="var(--golds)" iconColor="var(--gold)" title="Add Custom Field" sub={`Adding to: ${targetLabel}`} width={420}
-      footer={<><button className="btn-g" onClick={onClose}>Cancel</button><button className="btn-p" onClick={()=>{ if(name.trim()) onSave(name.trim(), cfType) }}><i className="fa-solid fa-check"/> Add Field</button></>}>
+      footer={<><button type="button" className="btn-g" onClick={onClose}>Cancel</button><button type="button" className="btn-p" onClick={()=>{ if(name.trim()) onSave(name.trim(), cfType) }}><i className="fa-solid fa-check"/> Add Field</button></>}>
       <div className="form-stack">
         <div><label className="form-label">Field Name</label><input className="form-input" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Client Name, Budget, Phase…"/></div>
         <div>
@@ -1167,7 +1175,7 @@ function CreateProjectModal({ workspaceId, onClose, onCreated }) {
   }
   return (
     <Modal onClose={onClose} icon="fa-diagram-project" iconBg="var(--skys)" iconColor="var(--sky)" title="New Project" sub="Create a project in the current team" width={420}
-      footer={<><button className="btn-g" onClick={onClose}>Cancel</button><button className="btn-p" onClick={handleSubmit}><i className="fa-solid fa-plus"/> Create</button></>}>
+      footer={<><button type="button" className="btn-g" onClick={onClose}>Cancel</button><button type="button" className="btn-p" onClick={handleSubmit}><i className="fa-solid fa-plus"/> Create</button></>}>
       <div className="form-stack">
         {err && <div className="form-err">{err}</div>}
         <div><label className="form-label">Name</label><input className="form-input" value={name} onChange={e=>setName(e.target.value)} placeholder="Project name"/></div>
@@ -1195,7 +1203,7 @@ function CreateSprintModal({ projectId, onClose, onCreated }) {
   }
   return (
     <Modal onClose={onClose} icon="fa-mountain-sun" iconBg="var(--jades)" iconColor="var(--jade)" title="New Sprint" sub="Create a sprint in the current project" width={420}
-      footer={<><button className="btn-g" onClick={onClose}>Cancel</button><button className="btn-p" onClick={handleSubmit}><i className="fa-solid fa-plus"/> Create</button></>}>
+      footer={<><button type="button" className="btn-g" onClick={onClose}>Cancel</button><button type="button" className="btn-p" onClick={handleSubmit}><i className="fa-solid fa-plus"/> Create</button></>}>
       <div className="form-stack">
         {err && <div className="form-err">{err}</div>}
         <div><label className="form-label">Name</label><input className="form-input" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Sprint 1"/></div>
@@ -1221,7 +1229,7 @@ function CreateWorkspaceModal({ onClose, onCreated }) {
   }
   return (
     <Modal onClose={onClose} icon="fa-users" iconBg="var(--lavs)" iconColor="var(--lav)" title="New Team" sub="Create a team (workspace) to hold projects" width={400}
-      footer={<><button className="btn-g" onClick={onClose}>Cancel</button><button className="btn-p" onClick={handleSubmit}><i className="fa-solid fa-plus"/> Create</button></>}>
+      footer={<><button type="button" className="btn-g" onClick={onClose}>Cancel</button><button type="button" className="btn-p" onClick={handleSubmit}><i className="fa-solid fa-plus"/> Create</button></>}>
       <div className="form-stack">
         {err && <div className="form-err">{err}</div>}
         <div><label className="form-label">Team name</label><input className="form-input" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. RevOps, Engineering"/></div>

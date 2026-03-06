@@ -23,7 +23,7 @@ npm install
 npm run dev            # http://localhost:5173 (proxies /api to backend)
 ```
 
-No seed data — create campaigns (projects) and expeditions (sprints) from the UI. One default campaign and sprint are created on first run.
+No seed data — create **teams** (workspaces), then **projects**, then **sprints** from the UI. On first run, one workspace "My Team" is created if the table is empty. If the UI shows "Cannot reach API", start the backend and set `DATABASE_URL` in `backend/.env` (copy from `backend/.env.example`).
 
 ## Scripts
 

@@ -1,6 +1,9 @@
 # Meridian database schema
 
-Schema is in **`backend/scripts/schema.sql`**. It runs automatically on API startup (with retry at 2s and 5s if the DB is not ready). You can also trigger it by calling **`GET /api/health`** (which checks DB) or **`GET /api/db/ensure`** (which runs the schema and returns `{ ok, schema }`).
+Schema is in **`backend/scripts/schema.sql`**. It runs **automatically on API startup** (with retry at 2s and 5s if the DB is not ready). You can also run it once manually with **`cd backend && npm run db:init`** (requires `DATABASE_URL` in `backend/.env`).
+
+- **Health:** `GET /api/health` returns `db: 'connected'` and `schema: true` when the DB is ready.
+- **Manual schema run:** `GET /api/db/ensure` runs the schema and returns `{ ok, schema }`.
 
 ## Tables (order matters for FKs)
 

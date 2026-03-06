@@ -372,3 +372,9 @@ input, select, textarea { font-family: var(--font); }
 .empty-state h3 { font-family: var(--font); font-size: 18px; font-weight: 700; color: var(--t2); margin-bottom: 8px; }
 .ph-back { color: var(--t3); cursor: pointer; font-size: 13px; font-weight: 500; padding: 8px 12px; border-radius: var(--r2); transition: all .14s; border: none; background: none; display: flex; align-items: center; gap: 6px; margin-bottom: 18px; }
 .ph-back:hover { background: var(--bg3); color: var(--t1); }
+
+/* ── API connection banner ── */
+.api-banner { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 16px; background: #fef2f2; border-bottom: 1px solid #fecaca; color: #b91c1c; font-size: 13px; flex-shrink: 0; position: relative; }
+.api-banner code { background: rgba(0,0,0,.06); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+.api-banner-dismiss { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #b91c1c; font-size: 20px; cursor: pointer; padding: 0 6px; line-height: 1; }
+.api-banner-dismiss:hover { background: rgba(0,0,0,.06); border-radius: 4px; }

@@ -9,10 +9,13 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 const dbUrl = process.env.DATABASE_URL || '';
+if (!dbUrl.trim()) {
+  console.warn('⚠️  DATABASE_URL is not set. Create backend/.env with DATABASE_URL=postgresql://user:pass@host:5432/dbname');
+}
 const isRemoteDb = dbUrl && !/@(localhost|127\.0\.0\.1)(:\d+)?\//.test(dbUrl);
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' || isRemoteDb || /sslmode=/.test(dbUrl)
+  ssl: process.env.NODE_ENV === 'production' || isRemoteDb || (dbUrl && /sslmode=/.test(dbUrl))
     ? { rejectUnauthorized: false }
     : false,
 });

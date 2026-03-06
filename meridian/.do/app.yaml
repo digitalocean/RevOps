@@ -1,0 +1,29 @@
+name: meridian
+region: nyc
+services:
+  - name: meridian-backend
+    source_dir: /backend
+    run_command: node server.js
+    http_port: 4000
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: FRONTEND_URL
+        value: "${APP_URL}"
+
+static_sites:
+  - name: meridian-frontend
+    source_dir: /frontend
+    build_command: npm install && npm run build
+    output_dir: dist
+    envs:
+      - key: VITE_API_URL
+        value: "${meridian-backend.PUBLIC_URL}"
+
+databases:
+  - name: meridian-db
+    engine: PG
+    version: "16"
+    size: db-s-dev-database

@@ -1,0 +1,6 @@
+const router = require('express').Router();
+const { pool } = require('../server');
+router.get('/', async (req,res)=>{ try{ const {rows}=await pool.query(`SELECT p.*,c.name as owner_name FROM projects p LEFT JOIN crew c ON p.owner_id=c.id ORDER BY p.created_at`); res.json(rows); }catch(e){res.status(500).json({error:e.message});} });
+router.post('/', async (req,res)=>{ try{ const {workspace_id,name,description,color='#6366f1',owner_id}=req.body; const {rows}=await pool.query(`INSERT INTO projects(workspace_id,name,description,color,owner_id) VALUES($1,$2,$3,$4,$5) RETURNING *`,[workspace_id,name,description,color,owner_id]); res.status(201).json(rows[0]); }catch(e){res.status(500).json({error:e.message});} });
+router.patch('/:id', async (req,res)=>{ try{ const allowed=['name','description','color','status','owner_id']; const fields=Object.keys(req.body).filter(k=>allowed.includes(k)); if(!fields.length) return res.status(400).json({error:'No fields'}); const sets=fields.map((f,i)=>`${f}=$${i+2}`).join(','); const {rows}=await pool.query(`UPDATE projects SET ${sets} WHERE id=$1 RETURNING *`,[req.params.id,...fields.map(f=>req.body[f])]); res.json(rows[0]); }catch(e){res.status(500).json({error:e.message});} });
+module.exports = router;

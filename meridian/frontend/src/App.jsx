@@ -20,7 +20,33 @@ const DEMO_TRANSCRIPTS = [
   'Update bogiefile configs with new AWS account IDs and proxy settings for QA.',
 ]
 
-// No seed data — load from API only
+// ── SEED DATA (shown while DB loads / offline) ─────────────
+const SEED_ITEMS = [
+  { id:'s1', title:'Build agent availability detection system', type:'task',  priority:'high',   points:8,  status:'summit',  assignee_initials:'RK', assignee_color:'#6366f1' },
+  { id:'s2', title:'Custom pre-chat LWC form + Omni-Channel routing', type:'story', priority:'high', points:13, status:'ascent', assignee_initials:'RK', assignee_color:'#6366f1' },
+  { id:'s3', title:'SOQL query limit errors in revenue rollup', type:'bug',   priority:'medium', points:5,  status:'ascent',  assignee_initials:'SK', assignee_color:'#8b5cf6' },
+  { id:'s4', title:'Opportunity rollup batch — 5+ level hierarchy', type:'story', priority:'medium', points:8, status:'basecamp', assignee_initials:'AM', assignee_color:'#059669' },
+  { id:'s5', title:'SNS topic migration for auto-panda to QA', type:'task',  priority:'low',    points:3,  status:'peak',    assignee_initials:'PP', assignee_color:'#f59e0b' },
+  { id:'s6', title:'AgentWork trigger refactor to handler pattern', type:'epic', priority:'high',  points:8,  status:'peak',    assignee_initials:'RK', assignee_color:'#6366f1' },
+]
+const SEED_COLS = [
+  { id:'c1', slug:'backlog',  name:'Base Camp',    color:'#3d4a63', is_done:false },
+  { id:'c2', slug:'summit',   name:'Summit Ready', color:'#3d9be9', is_done:false },
+  { id:'c3', slug:'ascent',   name:'In Ascent',    color:'#f59e0b', is_done:false },
+  { id:'c4', slug:'basecamp', name:'At Base Camp', color:'#9b7dff', is_done:false },
+  { id:'c5', slug:'peak',     name:'Peak Reached', color:'#00c9a7', is_done:true  },
+]
+const SEED_LOG = [
+  { id:'l1', entry_type:'ai',    content:'Sprint 14 kickoff complete. SOQL fix is P0. Raj leading, Sara on architecture.', created_at: new Date().toISOString() },
+  { id:'l2', entry_type:'voice', content:'Follow up with Aman — rollup review stalling. Break into sub-stories.',          created_at: new Date().toISOString() },
+  { id:'l3', entry_type:'note',  content:'LWC bridge polling at 30s works. embeddedservice_bootstrap issue resolved.',      created_at: new Date().toISOString() },
+]
+const SEED_CREW = [
+  { id:'cr1', name:'Raj Kumar',   initials:'RK', color:'#6366f1', status:'online'  },
+  { id:'cr2', name:'Sara Kim',    initials:'SK', color:'#8b5cf6', status:'online'  },
+  { id:'cr3', name:'Aman Mehta',  initials:'AM', color:'#059669', status:'away'    },
+  { id:'cr4', name:'Priya Patel', initials:'PP', color:'#f59e0b', status:'offline' },
+]
 
 // ── LS HELPERS ────────────────────────────────────────────
 const LSGet = (k, d) => { try { return JSON.parse(localStorage.getItem('mer_'+k)) ?? d } catch{ return d } }
@@ -33,17 +59,12 @@ const fmtDate = () => new Date().toLocaleDateString('en-US', { weekday:'long', m
 export default function App() {
   // ── STATE ─────────────────────────────────────────────
   const [view,      setViewState]  = useState(() => LSGet('view','board'))
-  const [projects,  setProjects]   = useState([])
-  const [sprints,   setSprints]    = useState([])
-  const [selProjId, setSelProjId]   = useState(() => LSGet('selProjId', null))
-  const [selSprintId, setSelSprintId] = useState(() => LSGet('selSprintId', null))
-  const [items,     setItems]      = useState([])
-  const [cols,      setCols]       = useState([])
-  const [logItems,  setLog]        = useState([])
-  const [crew,      setCrew]       = useState([])
+  const [items,     setItems]      = useState(SEED_ITEMS)
+  const [cols,      setCols]       = useState(SEED_COLS)
+  const [logItems,  setLog]        = useState(SEED_LOG)
+  const [crew,      setCrew]       = useState(SEED_CREW)
   const [colVis,    setColVis]     = useState(() => LSGet('colVis', { Title:true, Type:true, Status:true, Priority:true, Points:true, Assignee:true, 'Due Date':true, Sprint:false, Labels:false }))
   const [customFields, setCF]      = useState(() => LSGet('customFields', { item:[], project:[], sprint:[] }))
-  const [workspaceId, setWorkspaceId] = useState(null)
   const [logOpen,   setLogOpen]    = useState(() => LSGet('logOpen', true))
   const [toast,     setToastState] = useState({ show:false, emoji:'🎉', title:'', sub:'' })
   const [modal,     setModal]      = useState(null)  // 'add'|'voice'|'col'|'cf'|null
@@ -58,69 +79,27 @@ export default function App() {
   const recTimerRef = useRef(null)
 
   const setView = (v) => { setViewState(v); LSSet('view', v) }
-  const selProject = projects.find(p => p.id === selProjId) || projects[0]
-  const selSprint = sprints.find(s => s.id === selSprintId) || sprints[0]
 
   // ── PERSIST ───────────────────────────────────────────
   useEffect(() => { LSSet('colVis', colVis) }, [colVis])
   useEffect(() => { LSSet('customFields', customFields) }, [customFields])
   useEffect(() => { LSSet('logOpen', logOpen) }, [logOpen])
   useEffect(() => { LSSet('items', items) }, [items])
-  useEffect(() => { if (selProjId) LSSet('selProjId', selProjId) }, [selProjId])
-  useEffect(() => { if (selSprintId) LSSet('selSprintId', selSprintId) }, [selSprintId])
 
-  // ── LOAD PROJECTS & SPRINTS FIRST ─────────────────────
-  const refreshProjects = useCallback(() => {
-    get('/api/projects').then(data => {
-      if (Array.isArray(data)) setProjects(data)
-    }).catch(()=>{})
-  }, [])
+  // ── LOAD FROM API ─────────────────────────────────────
   useEffect(() => {
-    get('/api/projects').then(data => {
-      if (Array.isArray(data) && data.length) {
-        setProjects(data)
-        if (!selProjId) setSelProjId(data[0].id)
-      }
-    }).catch(()=>{})
-  }, [])
-  const refreshSprints = useCallback(() => {
-    if (!selProjId) return
-    get(`/api/sprints?project_id=${selProjId}`).then(data => {
-      if (Array.isArray(data)) setSprints(data)
-    }).catch(()=>{})
-  }, [selProjId])
-  useEffect(() => {
-    if (!selProjId) { setSprints([]); return }
-    get(`/api/sprints?project_id=${selProjId}`).then(data => {
-      if (Array.isArray(data) && data.length) {
-        setSprints(data)
-        if (!selSprintId || !data.some(s => s.id === selSprintId)) setSelSprintId(data[0].id)
-      } else setSprints([])
-    }).catch(()=>{})
-  }, [selProjId])
-  useEffect(() => {
-    if (!selProjId) { setCols([]); setItems([]); setLog([]); return }
-    get(`/api/columns?project_id=${selProjId}`).then(data => { setCols(Array.isArray(data) ? data : []) }).catch(()=>setCols([]))
-    get(`/api/log?project_id=${selProjId}`).then(data => { setLog(Array.isArray(data) ? data : []) }).catch(()=>setLog([]))
-  }, [selProjId])
-  useEffect(() => {
-    if (!selSprintId) { setItems([]); return }
-    get(`/api/items?sprint_id=${selSprintId}`).then(data => { setItems(Array.isArray(data) ? data : []) }).catch(()=>setItems([]))
-  }, [selSprintId])
-  useEffect(() => {
-    get('/api/crew').then(data => { if(Array.isArray(data) && data.length) setCrew(data) }).catch(()=>{})
-  }, [])
-  useEffect(() => {
-    const wid = selProject?.workspace_id
-    if (!wid) return
-    get(`/api/custom-fields?workspace_id=${wid}`).then(data => {
-      if (Array.isArray(data) && data.length) {
+    get('/api/items?sprint_id=').then(data => { if(data?.length) setItems(data) }).catch(()=>{})
+    get('/api/log?project_id=').then(data => { if(data?.length) setLog(data) }).catch(()=>{})
+    get('/api/columns?project_id=').then(data => { if(data?.length) setCols(data) }).catch(()=>{})
+    get('/api/crew').then(data => { if(data?.length) setCrew(data) }).catch(()=>{})
+    get('/api/custom-fields?workspace_id=').then(data => {
+      if(data?.length) {
         const cf = { item:[], project:[], sprint:[] }
-        data.forEach(f => { if (cf[f.target]) cf[f.target].push(f) })
+        data.forEach(f => { if(cf[f.target]) cf[f.target].push(f) })
         setCF(cf)
       }
     }).catch(()=>{})
-  }, [selProjId, selProject?.workspace_id])
+  }, [])
 
   // ── TOAST ─────────────────────────────────────────────
   const showToast = (emoji, title, sub) => {
@@ -146,59 +125,46 @@ export default function App() {
 
   // ── ITEMS ─────────────────────────────────────────────
   const addItem = async (data) => {
-    if (!selProjId || !selSprintId) {
-      showToast('⚠️', 'Select a campaign and expedition', 'Pick one from the sidebar first.')
-      return
-    }
-    const colSlug = data.col || 'backlog'
-    const col = cols.find(c => c.slug === colSlug)
     const newItem = {
       id: 'local-' + Date.now(),
       title: data.title,
       type: data.type || 'task',
       priority: data.priority || 'medium',
       points: parseInt(data.points) || 3,
-      status: colSlug,
-      assignee_initials: data.assignee || '',
+      status: data.col || 'backlog',
+      assignee_initials: data.assignee || 'RK',
       assignee_color: data.assigneeColor || '#6366f1',
       description: data.description || '',
     }
     setItems(prev => [...prev, newItem])
-    showToast('⛰️', 'Item added!', `"${data.title.slice(0,35)}…" added`)
+    showToast('⛰️', 'Item added!', `"${data.title.slice(0,35)}…" added to Sprint 14`)
     try {
       const saved = await post('/api/items', {
-        project_id: selProjId,
-        sprint_id: selSprintId,
-        column_id: col?.id || null,
-        title: data.title,
-        type: data.type || 'task',
-        priority: data.priority || 'medium',
-        points: parseInt(data.points) || 3,
-        status: colSlug,
-        description: data.description || '',
+        title: data.title, type: data.type, priority: data.priority,
+        points: parseInt(data.points)||3, status: data.col||'backlog',
+        description: data.description,
       })
       setItems(prev => prev.map(i => i.id === newItem.id ? { ...saved, assignee_initials: newItem.assignee_initials, assignee_color: newItem.assignee_color } : i))
-    } catch (e) {
-      showToast('⚠️', 'Could not save', e?.message || 'API error')
-    }
+    } catch (_) {}
   }
 
   const cycleItemStatus = async (id) => {
     const item = items.find(i => i.id === id)
-    if (!item || !cols.length) return
+    if (!item) return
     const idx  = cols.findIndex(c => c.slug === item.status)
     const next = cols[(idx + 1) % cols.length]
-    setItems(prev => prev.map(i => i.id === id ? { ...i, status: next.slug, column_id: next.id } : i))
+    setItems(prev => prev.map(i => i.id === id ? { ...i, status: next.slug } : i))
     if (next.is_done) launchConfetti()
-    try { await patch(`/api/items/${id}`, { status: next.slug, column_id: next.id }) } catch (_) {}
+    try { await patch(`/api/items/${id}`, { status: next.slug }) } catch (_) {}
   }
 
   // ── LOG ───────────────────────────────────────────────
   const saveLogEntry = (text, type = 'note') => {
     const entry = { id: 'log-'+Date.now(), entry_type: type, content: text, created_at: new Date().toISOString() }
     setLog(prev => [entry, ...prev])
+    LSSet('log', [entry, ...logItems])
     showToast('📝', type==='voice'?'Voice note saved':'Note logged', "Saved to Captain's Log")
-    post('/api/log', { project_id: selProjId || undefined, sprint_id: selSprintId || undefined, entry_type: type, content: text }).catch(()=>{})
+    post('/api/log', { entry_type: type, content: text }).catch(()=>{})
   }
 
   // ── VOICE ─────────────────────────────────────────────
@@ -232,11 +198,9 @@ export default function App() {
 
   // ── CUSTOM FIELDS ─────────────────────────────────────
   const addCustomField = (name, type, target) => {
-    const wid = selProject?.workspace_id
-    if (!wid) { showToast('⚠️', 'Select a campaign first', 'Campaign provides workspace for custom fields.'); return }
     const field = { id:'cf-'+Date.now(), name, field_type: type, target }
-    setCF(prev => ({ ...prev, [target]: [...(prev[target]||[]), field] }))
-    post('/api/custom-fields', { name, field_type: type, target, workspace_id: wid }).catch(()=>{})
+    setCF(prev => ({ ...prev, [target]: [...prev[target], field] }))
+    post('/api/custom-fields', { name, field_type: type, target, workspace_id: 'default' }).catch(()=>{})
   }
   const deleteCustomField = (id, target) => {
     setCF(prev => ({ ...prev, [target]: prev[target].filter(f => f.id !== id) }))
@@ -270,27 +234,20 @@ export default function App() {
 
       <div className="app-body">
         {/* ── SIDEBAR ── */}
-        <Sidebar view={view} setView={setView} crew={crew} items={items}
-          projects={projects} sprints={sprints} selProjId={selProjId} selSprintId={selSprintId}
-          onSelectProject={setSelProjId} onSelectSprint={setSelSprintId}
-          onNewProject={()=>setModal('newProject')} onNewSprint={()=>setModal('newSprint')} />
+        <Sidebar view={view} setView={setView} crew={crew} items={items} />
 
         {/* ── MAIN ── */}
         <div className="main-area">
           <div className="page-head">
             <div className="bc">
               <i className="fa-solid fa-house-chimney"></i>
-              <span style={{color:'var(--t3)'}}>{selProject?.name || 'Meridian'}</span>
-              {selSprint && (
-                <>
-                  <span className="bc-sep"> › </span>
-                  <span style={{color:'var(--t2)'}}>{selSprint.name}</span>
-                </>
-              )}
+              <span style={{color:'var(--t3)'}}>RevOps</span>
+              <span className="bc-sep"> › </span>
+              <span style={{color:'var(--t2)'}}>Sprint 14 — Revenue Horizon</span>
             </div>
             <div className="pt-row">
-              <div className="page-title">{selSprint?.name || selProject?.name || 'Select a campaign'}</div>
-              {selSprint && <div className="s-tag"><div className="s-dot"></div> {selSprint.status || 'Active'}</div>}
+              <div className="page-title">Sprint 14 — Revenue Horizon</div>
+              <div className="s-tag"><div className="s-dot"></div> Active</div>
             </div>
             <div className="pm">
               <div className="pmi"><i className="fa-regular fa-calendar"></i> Mar 1 – 14, 2026</div>
@@ -353,8 +310,6 @@ export default function App() {
       {modal === 'cf' && <CFModal target={cfTarget} cfType={cfType} onSetType={setCFType}
         onClose={()=>setModal(null)}
         onSave={(name,type)=>{ addCustomField(name,type,cfTarget); setModal(null); showToast('✨','Field added!',`"${name}" added to ${cfTarget} fields`) }} />}
-      {modal === 'newProject' && <CreateProjectModal workspaceId={selProject?.workspace_id || projects[0]?.workspace_id} onClose={()=>setModal(null)} onCreated={(id)=>{ refreshProjects(); setSelProjId(id); setModal(null); showToast('⛰️','Campaign created','') }} />}
-      {modal === 'newSprint' && <CreateSprintModal projectId={selProjId} onClose={()=>setModal(null)} onCreated={(id)=>{ refreshSprints(); setSelSprintId(id); setModal(null); showToast('⛰️','Expedition created','') }} />}
 
       {/* Confetti + Toast */}
       <div className="conf-layer" id="conf"></div>
@@ -418,7 +373,7 @@ function Topbar({ onVoice, onLog }) {
 // ════════════════════════════════════════════════════════
 //  SIDEBAR
 // ════════════════════════════════════════════════════════
-function Sidebar({ view, setView, crew, items, projects = [], sprints = [], selProjId, selSprintId, onSelectProject, onSelectSprint, onNewProject, onNewSprint }) {
+function Sidebar({ view, setView, crew, items }) {
   const navItems = [
     { id:'board',   label:'Summit Board',   icon:'fa-chart-kanban',  cnt: items.length },
     { id:'list',    label:'Manifest',       icon:'fa-list-ul'        },
@@ -428,8 +383,6 @@ function Sidebar({ view, setView, crew, items, projects = [], sprints = [], selP
     { id:'admin',   label:'Base Camp',      icon:'fa-sliders',       special:'Admin' },
   ]
   const statusColor = { online:'var(--jade)', away:'var(--sun)', offline:'var(--t4)' }
-  const colors = ['#6366f1','#8b5cf6','#059669','#f59e0b','#3d9be9']
-  const projectSprints = sprints.filter(s => s.project_id === selProjId)
   return (
     <div className="sidebar">
       <div className="sb-sect">
@@ -445,23 +398,18 @@ function Sidebar({ view, setView, crew, items, projects = [], sprints = [], selP
       </div>
       <div className="sb-div"/>
       <div className="sb-sect">
-        <div className="sb-lbl">Campaigns</div>
-        {projects.map((p, i) => (
-          <div key={p.id} className={`si${selProjId===p.id?' active':''}`} onClick={()=>onSelectProject?.(p.id)}>
-            <span className="si-ico" style={{color:p.color||colors[i%colors.length],fontSize:'10px'}}>●</span> {p.name}
-          </div>
-        ))}
-        <div className="sb-add" onClick={onNewProject} role="button"><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> New Campaign</div>
+        <div className="sb-lbl">Expeditions</div>
+        <div className="si active"><i className="fa-solid fa-mountain-sun si-ico"/>Sprint 14 <span className="sb-cnt">{items.length}</span></div>
+        <div className="si"><i className="fa-solid fa-flag si-ico"/>Sprint 13</div>
+        <div className="sb-add"><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> New Expedition</div>
       </div>
       <div className="sb-div"/>
       <div className="sb-sect">
-        <div className="sb-lbl">Expeditions</div>
-        {projectSprints.map(s => (
-          <div key={s.id} className={`si${selSprintId===s.id?' active':''}`} onClick={()=>onSelectSprint?.(s.id)}>
-            <i className="fa-solid fa-mountain-sun si-ico"/>{s.name} <span className="sb-cnt">{items.length}</span>
-          </div>
-        ))}
-        <div className="sb-add" onClick={onNewSprint} role="button"><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> New Expedition</div>
+        <div className="sb-lbl">Campaigns</div>
+        <div className="si"><span className="si-ico" style={{color:'#6366f1',fontSize:'10px'}}>●</span> RevOps Initiative</div>
+        <div className="si"><span className="si-ico" style={{color:'#8b5cf6',fontSize:'10px'}}>●</span> Experience Cloud</div>
+        <div className="si"><span className="si-ico" style={{color:'#059669',fontSize:'10px'}}>●</span> Infrastructure</div>
+        <div className="sb-add"><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> New Campaign</div>
       </div>
       <div className="sb-crew-sect">
         <div className="crew-lbl">Crew</div>
@@ -1033,62 +981,6 @@ function CFModal({ target, cfType, onSetType, onClose, onSave }) {
             ))}
           </div>
         </div>
-      </div>
-    </Modal>
-  )
-}
-
-function CreateProjectModal({ workspaceId, onClose, onCreated }) {
-  const [name, setName] = useState('')
-  const [desc, setDesc] = useState('')
-  const [err, setErr] = useState('')
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setErr('')
-    if (!name.trim()) { setErr('Name required'); return }
-    if (!workspaceId) { setErr('No workspace. Create a campaign from the default one first.'); return }
-    try {
-      const created = await post('/api/projects', { workspace_id: workspaceId, name: name.trim(), description: desc.trim() })
-      onCreated(created.id)
-    } catch (e) {
-      setErr(e?.message || 'Failed to create campaign')
-    }
-  }
-  return (
-    <Modal onClose={onClose} icon="fa-diagram-project" iconBg="var(--skys)" iconColor="var(--sky)" title="New Campaign" sub="Create a new campaign (project)" width={420}
-      footer={<><button className="btn-g" onClick={onClose}>Cancel</button><button className="btn-p" onClick={handleSubmit}><i className="fa-solid fa-plus"/> Create</button></>}>
-      <div className="form-stack">
-        {err && <div className="form-err" style={{color:'var(--coral)'}}>{err}</div>}
-        <div><label className="form-label">Name</label><input className="form-input" value={name} onChange={e=>setName(e.target.value)} placeholder="Campaign name"/></div>
-        <div><label className="form-label">Description</label><textarea className="form-input" value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Optional" rows={2}/></div>
-      </div>
-    </Modal>
-  )
-}
-
-function CreateSprintModal({ projectId, onClose, onCreated }) {
-  const [name, setName] = useState('')
-  const [goal, setGoal] = useState('')
-  const [err, setErr] = useState('')
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setErr('')
-    if (!name.trim()) { setErr('Name required'); return }
-    if (!projectId) { setErr('Select a campaign first'); return }
-    try {
-      const created = await post('/api/sprints', { project_id: projectId, name: name.trim(), goal: goal.trim() })
-      onCreated(created.id)
-    } catch (e) {
-      setErr(e?.message || 'Failed to create expedition')
-    }
-  }
-  return (
-    <Modal onClose={onClose} icon="fa-mountain-sun" iconBg="var(--jades)" iconColor="var(--jade)" title="New Expedition" sub="Create a new expedition (sprint)" width={420}
-      footer={<><button className="btn-g" onClick={onClose}>Cancel</button><button className="btn-p" onClick={handleSubmit}><i className="fa-solid fa-plus"/> Create</button></>}>
-      <div className="form-stack">
-        {err && <div className="form-err" style={{color:'var(--coral)'}}>{err}</div>}
-        <div><label className="form-label">Name</label><input className="form-input" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Sprint 1"/></div>
-        <div><label className="form-label">Goal</label><textarea className="form-input" value={goal} onChange={e=>setGoal(e.target.value)} placeholder="Optional" rows={2}/></div>
       </div>
     </Modal>
   )

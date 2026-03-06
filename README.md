@@ -1,14 +1,12 @@
-# Helm — Navigate Your Work
+# Meridian — Peak Performance
 
-Premium dark-themed sprint and work management for engineering and product teams.
+Project and sprint management with Summit Board, Expeditions, Field Notes, and Captain's Log.
 
 ## Stack
 
-- **Frontend**: React 18 + Vite + Tailwind CSS v3
+- **Frontend**: React 18 + Vite
 - **Backend**: Node.js + Express
-- **Database**: PostgreSQL 15
-- **State**: React Context + useReducer
-- **Routing**: React Router v6
+- **Database**: PostgreSQL (schema applied on server startup)
 
 ## Quick start
 
@@ -16,24 +14,24 @@ Premium dark-themed sprint and work management for engineering and product teams
 # Backend
 cd backend
 npm install
-cp .env.example .env   # set DATABASE_URL and optionally OPENAI_API_KEY
-npm run db:init
-npm run dev            # http://localhost:4000
+cp .env.example .env   # set DATABASE_URL
+npm start              # runs schema init then http://localhost:4000
 
 # Frontend (new terminal)
 cd frontend
 npm install
-npm run dev            # http://localhost:5173
+npm run dev            # http://localhost:5173 (proxies /api to backend)
 ```
+
+No seed data — create campaigns (projects) and expeditions (sprints) from the UI. One default campaign and sprint are created on first run.
 
 ## Scripts
 
-| Location   | Scripts |
-|-----------|---------|
+| Location  | Scripts |
+|----------|---------|
 | **backend**  | `npm start`, `npm run dev`, `npm run db:init`, `npm run db:seed` |
 | **frontend** | `npm run dev`, `npm run build`, `npm run preview` |
 
 ## Deploy (DigitalOcean)
 
-- Use `.do/app.yaml`. Set `VITE_API_URL` to your app URL (BUILD_TIME) on the static site.
-- See `docs/DEPLOY-DIGITALOCEAN.md` for details.
+Use `.do/app.yaml`. Set `VITE_API_URL` to your app URL (BUILD_TIME) on the static site so the frontend can reach the API. See `docs/DEPLOY-DIGITALOCEAN.md` for details.

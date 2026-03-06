@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { NavigationSidebar } from '../components/NavigationSidebar';
+import { NavigationSidebar, type NavView } from '../components/NavigationSidebar';
 import { WorkspaceHeader } from '../components/WorkspaceHeader';
 import { KPIStatsBar } from '../components/KPIStatsBar';
 import { TrackerSection } from '../components/TrackerSection';
 import { GanttChart } from '../components/GanttChart';
-import { ViewToggle } from '../components/ViewToggle';
 import { ActivityPanel } from '../components/ActivityPanel';
 import { FilterPanel } from '../components/FilterPanel';
-import { QuickActionsMenu } from '../components/QuickActionsMenu';
 import { ExportMenu } from '../components/ExportMenu';
 import { TeamCapacityView } from '../components/TeamCapacityView';
 import { MilestoneTimeline } from '../components/MilestoneTimeline';
@@ -19,11 +17,25 @@ import { SavedViewsMenu } from '../components/SavedViewsMenu';
 import { KeyboardShortcutsDialog } from '../components/KeyboardShortcutsDialog';
 import { InitiativeDetailsDialog } from '../components/InitiativeDetailsDialog';
 import { AddInitiativeDialog } from '../components/AddInitiativeDialog';
+import { TeamMembersDialog } from '../components/TeamMembersDialog';
+import { CustomFieldsDialog } from '../components/CustomFieldsDialog';
+import { NewProjectDialog } from '../components/NewProjectDialog';
+import { NewSprintDialog } from '../components/NewSprintDialog';
+import { ObservatoryView } from '../components/ObservatoryView';
 import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { BarChart3, HelpCircle } from 'lucide-react';
+import { HelpCircle, ChevronUp } from 'lucide-react';
 import { useMeridianData } from '../data/useMeridianData';
 import type { Status, Priority, Category, Initiative } from '../data/mockData';
+
+const VIEW_TABS: { id: NavView; label: string }[] = [
+  { id: 'summit_board', label: 'Summit Board' },
+  { id: 'manifest', label: 'Manifest' },
+  { id: 'expedition_map', label: 'Expedition Map' },
+  { id: 'field_notes', label: 'Field Notes' },
+  { id: 'observatory', label: 'Observatory' },
+  { id: 'base_camp', label: 'Base Camp' },
+];
 
 export function Dashboard() {
   const {
@@ -36,21 +48,27 @@ export function Dashboard() {
     refresh,
     workspaces,
     projects,
+    sprints,
     selectedWorkspaceId,
     setSelectedWorkspaceId,
     selectedProjectId,
     setSelectedProjectId,
     createWorkspace,
     createProject,
+    createSprint,
     createItem,
     updateItem,
     deleteItem,
   } = useMeridianData();
-  const [viewMode, setViewMode] = useState<'grid' | 'gantt' | 'analytics'>('grid');
+  const [currentView, setCurrentView] = useState<NavView>('summit_board');
   const [showActivityPanel, setShowActivityPanel] = useState(false);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showAddInitiative, setShowAddInitiative] = useState(false);
+  const [showTeamMembers, setShowTeamMembers] = useState(false);
+  const [showCustomFields, setShowCustomFields] = useState(false);
+  const [showNewProject, setShowNewProject] = useState(false);
+  const [showNewSprint, setShowNewSprint] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filters, setFilters] = useState({
     status: [] as Status[],
@@ -78,22 +96,22 @@ export function Dashboard() {
         setShowGlobalSearch(true);
       }
       
-      // Cmd/Ctrl + Shift + A for analytics
+      // Cmd/Ctrl + Shift + A for Observatory
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'A') {
         e.preventDefault();
-        setViewMode('analytics');
+        setCurrentView('observatory');
       }
       
-      // Cmd/Ctrl + 1 for grid view
+      // Cmd/Ctrl + 1 for Summit Board
       if ((e.metaKey || e.ctrlKey) && e.key === '1') {
         e.preventDefault();
-        setViewMode('grid');
+        setCurrentView('summit_board');
       }
       
-      // Cmd/Ctrl + 2 for gantt view
+      // Cmd/Ctrl + 2 for Expedition Map
       if ((e.metaKey || e.ctrlKey) && e.key === '2') {
         e.preventDefault();
-        setViewMode('gantt');
+        setCurrentView('expedition_map');
       }
       
       // Cmd/Ctrl + B for Big Rocks filter
@@ -158,13 +176,10 @@ export function Dashboard() {
     setSelectedInitiativeFromSearch(initiative);
   };
 
-  const handleCreateProject = async (name: string) => {
-    if (!selectedWorkspaceId) {
-      toast.error('Create or select a workspace first (sidebar).');
-      return;
-    }
-    await createProject(selectedWorkspaceId, name);
-  };
+  const selectedProject = projects.find((p) => p.id === selectedProjectId);
+  const selectedSprint = sprints[0];
+  const sprintLabel = selectedSprint ? selectedSprint.name : 'Sprint';
+  const progressPercent = kpiData.overallProgress ?? 0;
 
   return (
     <div className="flex h-screen bg-white">
@@ -176,6 +191,20 @@ export function Dashboard() {
           setSelectedProjectId(null);
         }}
         onCreateWorkspace={createWorkspace}
+        projects={projects}
+        selectedProjectId={selectedProjectId}
+        onSelectProject={(id) => setSelectedProjectId(id)}
+        onOpenNewProject={() => setShowNewProject(true)}
+        sprints={sprints}
+        onOpenNewSprint={() => setShowNewSprint(true)}
+        onOpenAddCrew={() => setShowTeamMembers(true)}
+        onOpenCustomFields={() => setShowCustomFields(true)}
+        currentView={currentView}
+        onNavigateView={(v) => {
+          setCurrentView(v);
+          if (v === 'base_camp') setShowCustomFields(true);
+        }}
+        fieldNotesCount={initiatives.length}
       />
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -194,48 +223,83 @@ export function Dashboard() {
           projects={projects}
           selectedProjectId={selectedProjectId}
           onSelectProject={(id) => setSelectedProjectId(id)}
-          onCreateProject={handleCreateProject}
+          onOpenNewProject={() => setShowNewProject(true)}
           onToggleActivity={() => setShowActivityPanel(!showActivityPanel)}
+          selectedProjectName={selectedProject?.name}
+          sprintLabel={selectedSprint ? `${selectedSprint.start_date || ''} – ${selectedSprint.end_date || ''}` : undefined}
+          progressPercent={progressPercent}
         />
         <KPIStatsBar kpiData={kpiData} />
         
         <div className="flex-1 overflow-auto bg-gray-50">
           <div className="max-w-[1600px] mx-auto p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-semibold text-gray-900">
-                  Project Intelligence
-                </h2>
-                <p className="text-sm text-gray-600 mt-1">
-                  Track strategic initiatives, OKRs, and sprint progress across all teams
-                </p>
+            {selectedProject && (
+              <div className="mb-4">
+                <h2 className="text-2xl font-semibold text-gray-900">{selectedProject.name}</h2>
+                <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                  {selectedSprint && (
+                    <span>
+                      {selectedSprint.start_date || '—'} – {selectedSprint.end_date || '—'}
+                    </span>
+                  )}
+                  <span>{progressPercent}% complete</span>
+                </div>
               </div>
-              
-              <div className="flex items-center gap-3">
+            )}
+
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex gap-1 border-b border-gray-200">
+                {VIEW_TABS.map((tab) => (
+                  <button
+                    type="button"
+                    key={tab.id}
+                    onClick={() => {
+                      if (tab.id === 'base_camp') setShowCustomFields(true);
+                      else setCurrentView(tab.id);
+                    }}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                      currentView === tab.id
+                        ? 'border-blue-600 text-blue-600'
+                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
                 <SavedViewsMenu currentFilters={filters} onApplyView={(newFilters) => setFilters(newFilters)} />
                 <FilterPanel filters={filters} onFiltersChange={setFilters} />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => setViewMode('analytics')}
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  Analytics
-                </Button>
-                <ViewToggle viewMode={viewMode === 'analytics' ? 'grid' : viewMode} onViewChange={setViewMode} />
                 <ExportMenu />
-                <QuickActionsMenu onAddInitiative={() => setShowAddInitiative(true)} />
+                <Button type="button" variant="outline" size="sm">
+                  Columns
+                </Button>
+                <Button
+                  type="button"
+                  className="gap-2 bg-gray-900 hover:bg-gray-800 text-white"
+                  onClick={() => setShowAddInitiative(true)}
+                >
+                  <ChevronUp className="w-4 h-4" />
+                  Summit Item
+                </Button>
               </div>
             </div>
 
-            {viewMode === 'grid' ? (
+            {currentView === 'observatory' ? (
+              <ObservatoryView kpiData={kpiData} sprintLabel={sprintLabel} />
+            ) : currentView === 'expedition_map' ? (
+              <GanttChart initiatives={initiatives} />
+            ) : currentView === 'base_camp' ? (
+              <div className="py-8 text-center text-gray-500">
+                Use <strong>Base Camp</strong> in the sidebar or the tab to manage custom fields and settings.
+              </div>
+            ) : (
               <div className="space-y-4">
                 {trackerSections.map((section) => (
-                  <TrackerSection 
-                    key={section.id} 
-                    section={section} 
-                    viewMode={viewMode} 
+                  <TrackerSection
+                    key={section.id}
+                    section={section}
+                    viewMode="grid"
                     filters={filters}
                     selectedIds={selectedIds}
                     onSelectionChange={setSelectedIds}
@@ -244,16 +308,11 @@ export function Dashboard() {
                     onDeleteItem={deleteItem}
                   />
                 ))}
-                
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <TeamCapacityView />
                   <MilestoneTimeline />
                 </div>
               </div>
-            ) : viewMode === 'gantt' ? (
-              <GanttChart initiatives={initiatives} />
-            ) : (
-              <AnalyticsDashboard />
             )}
           </div>
         </div>
@@ -304,6 +363,38 @@ export function Dashboard() {
         onOpenChange={setShowAddInitiative}
         projectId={selectedProjectId}
         onCreate={createItem}
+      />
+
+      <TeamMembersDialog
+        open={showTeamMembers}
+        onOpenChange={setShowTeamMembers}
+        workspaceId={selectedWorkspaceId}
+        onAdded={refresh}
+      />
+
+      <CustomFieldsDialog
+        open={showCustomFields}
+        onOpenChange={setShowCustomFields}
+        workspaceId={selectedWorkspaceId}
+      />
+
+      <NewProjectDialog
+        open={showNewProject}
+        onOpenChange={setShowNewProject}
+        selectedWorkspaceId={selectedWorkspaceId}
+        onCreate={async (workspaceId, name) => {
+          await createProject(workspaceId, name);
+        }}
+      />
+
+      <NewSprintDialog
+        open={showNewSprint}
+        onOpenChange={setShowNewSprint}
+        projectId={selectedProjectId}
+        projectName={selectedProject?.name ?? ''}
+        onCreate={async (projectId, name, start_date, end_date) => {
+          await createSprint(projectId, name, start_date, end_date);
+        }}
       />
 
       {/* Floating help button */}

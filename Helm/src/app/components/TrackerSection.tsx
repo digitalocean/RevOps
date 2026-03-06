@@ -227,9 +227,14 @@ export function TrackerSection({ section, viewMode, filters, selectedIds, onSele
             </button>
             
             <Button
+              type="button"
               size="sm"
               className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white h-8"
-              onClick={(e) => { e.stopPropagation(); onAddItem?.(); }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onAddItem?.();
+              }}
             >
               <Plus className="w-4 h-4" />
               Add item

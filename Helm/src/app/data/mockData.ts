@@ -194,5 +194,6 @@ export const kpiData = {
   inProgress: 8,
   atRiskBlocked: 3,
   bigRocksCount: 6,
-  overallProgress: 54
+  overallProgress: 54,
+  totalItems: 24
 };

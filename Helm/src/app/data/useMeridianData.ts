@@ -73,10 +73,19 @@ export interface Project {
   description?: string;
 }
 
+export interface Sprint {
+  id: string;
+  name: string;
+  project_id: string;
+  start_date?: string;
+  end_date?: string;
+  status?: string;
+}
+
 export interface MeridianDataResult {
   initiatives: Initiative[];
   trackerSections: TrackerSection[];
-  kpiData: { solvedYTD: number; inProgress: number; atRiskBlocked: number; bigRocksCount: number; overallProgress: number };
+  kpiData: { solvedYTD: number; inProgress: number; atRiskBlocked: number; bigRocksCount: number; overallProgress: number; totalItems: number };
   loading: boolean;
   error: string | null;
   apiBase: string;
@@ -90,9 +99,11 @@ export interface MeridianDataResult {
   setSelectedProjectId: (id: string | null) => void;
   createWorkspace: (name: string) => Promise<Workspace | null>;
   createProject: (workspaceId: string, name: string) => Promise<Project | null>;
+  createSprint: (projectId: string, name: string, start_date?: string, end_date?: string) => Promise<Sprint | null>;
   createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; type?: string }) => Promise<unknown>;
   updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string }) => Promise<unknown>;
   deleteItem: (itemId: string) => Promise<void>;
+  sprints: Sprint[];
 }
 
 function apiPath(path: string): string {
@@ -102,6 +113,7 @@ function apiPath(path: string): string {
 export function useMeridianData(): MeridianDataResult {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [sprints, setSprints] = useState<Sprint[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [initiatives, setInitiatives] = useState<Initiative[]>(mockInitiatives);
@@ -141,13 +153,18 @@ export function useMeridianData(): MeridianDataResult {
       const pid = overrideProjectId ?? selectedProjectId ?? (projList[0]?.id ?? null);
       if (projList.length && !selectedProjectId && overrideProjectId === undefined) setSelectedProjectId(projList[0].id);
       if (!pid) {
+        setSprints([]);
         setInitiatives([]);
         setSections([]);
         setLoading(false);
         setFromApi(true);
         return;
       }
-      const itemsRes = await get<unknown[]>(`${apiPath('api/items')}?project_id=${pid}`).catch(() => []);
+      const [sprintsRes, itemsRes] = await Promise.all([
+        get<Sprint[]>(`${apiPath('api/sprints')}?project_id=${pid}`).catch(() => []),
+        get<unknown[]>(`${apiPath('api/items')}?project_id=${pid}`).catch(() => []),
+      ]);
+      setSprints(Array.isArray(sprintsRes) ? sprintsRes : []);
       const itemList = Array.isArray(itemsRes) ? itemsRes : [];
       const mapped = itemList.map((i: Record<string, unknown>) =>
         mapItemToInitiative({
@@ -190,6 +207,22 @@ export function useMeridianData(): MeridianDataResult {
     await load();
     if (p?.id) setSelectedProjectId(p.id);
     return p ?? null;
+  }, [load]);
+
+  const createSprint = useCallback(async (
+    projectId: string,
+    name: string,
+    start_date?: string,
+    end_date?: string
+  ): Promise<Sprint | null> => {
+    const s = await post<Sprint>(apiPath('api/sprints'), {
+      project_id: projectId,
+      name: name.trim(),
+      start_date: start_date || null,
+      end_date: end_date || null,
+    });
+    await load();
+    return s ?? null;
   }, [load]);
 
   const createItem = useCallback(async (
@@ -247,8 +280,8 @@ export function useMeridianData(): MeridianDataResult {
     initiatives,
     trackerSections: sections,
     kpiData: fromApi
-      ? { solvedYTD: done, inProgress, atRiskBlocked: atRisk, bigRocksCount: bigRocks, overallProgress }
-      : mockKpiData,
+      ? { solvedYTD: done, inProgress, atRiskBlocked: atRisk, bigRocksCount: bigRocks, overallProgress, totalItems: total }
+      : { ...mockKpiData, totalItems: mockKpiData.totalItems ?? 0 },
     loading,
     error,
     apiBase: getApiBaseUrl(),
@@ -262,8 +295,10 @@ export function useMeridianData(): MeridianDataResult {
     setSelectedProjectId,
     createWorkspace,
     createProject,
+    createSprint,
     createItem,
     updateItem,
     deleteItem,
+    sprints,
   };
 }

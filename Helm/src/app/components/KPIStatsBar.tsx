@@ -8,6 +8,7 @@ export interface KpiData {
   atRiskBlocked: number;
   bigRocksCount: number;
   overallProgress: number;
+  totalItems?: number;
 }
 
 interface KPITileProps {
@@ -44,29 +45,29 @@ export function KPIStatsBar({ kpiData = defaultKpiData }: KPIStatsBarProps) {
       <div className="max-w-[1600px] mx-auto px-6 py-5">
         <div className="grid grid-cols-4 gap-4 mb-5">
           <KPITile
-            label="Solved YTD"
+            label="SOLVED / DONE"
             value={kpiData.solvedYTD}
             icon={<CheckCircle2 className="w-5 h-5 text-green-600" />}
             color="text-green-600"
             bgColor="bg-green-50"
           />
           <KPITile
-            label="In Progress"
+            label="IN PROGRESS"
             value={kpiData.inProgress}
             icon={<Clock className="w-5 h-5 text-blue-600" />}
             color="text-blue-600"
             bgColor="bg-blue-50"
           />
           <KPITile
-            label="At Risk / Blocked"
+            label="AT RISK / BLOCKED"
             value={kpiData.atRiskBlocked}
             icon={<AlertTriangle className="w-5 h-5 text-orange-600" />}
             color="text-orange-600"
             bgColor="bg-orange-50"
           />
           <KPITile
-            label="Big Rocks"
-            value={kpiData.bigRocksCount}
+            label="ITEMS"
+            value={kpiData.totalItems ?? (kpiData.bigRocksCount + kpiData.solvedYTD + kpiData.inProgress + kpiData.atRiskBlocked)}
             icon={<Target className="w-5 h-5 text-purple-600" />}
             color="text-purple-600"
             bgColor="bg-purple-50"

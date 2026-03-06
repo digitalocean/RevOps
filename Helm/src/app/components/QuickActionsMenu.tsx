@@ -11,20 +11,24 @@ import {
 
 interface QuickActionsMenuProps {
   onAddInitiative?: () => void;
+  onAddTeamMember?: () => void;
 }
 
-export function QuickActionsMenu({ onAddInitiative }: QuickActionsMenuProps) {
+export function QuickActionsMenu({ onAddInitiative, onAddTeamMember }: QuickActionsMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+        <Button type="button" className="gap-2 bg-blue-600 hover:bg-blue-700 text-white">
           <Plus className="w-4 h-4" />
           Quick Actions
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-56 z-[60]" sideOffset={8}>
         <DropdownMenuLabel>Create New</DropdownMenuLabel>
-        <DropdownMenuItem className="gap-2 cursor-pointer" onClick={onAddInitiative}>
+        <DropdownMenuItem
+          className="gap-2 cursor-pointer"
+          onSelect={() => onAddInitiative?.()}
+        >
           <Target className="w-4 h-4" />
           New Initiative
         </DropdownMenuItem>
@@ -46,9 +50,12 @@ export function QuickActionsMenu({ onAddInitiative }: QuickActionsMenuProps) {
           <Upload className="w-4 h-4" />
           Import Data
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2 cursor-pointer">
+        <DropdownMenuItem
+          className="gap-2 cursor-pointer"
+          onSelect={() => onAddTeamMember?.()}
+        >
           <Users className="w-4 h-4" />
-          Invite Team Member
+          Add Team Member
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

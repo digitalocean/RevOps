@@ -60,7 +60,7 @@ export function AddInitiativeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New initiative</DialogTitle>
+          <DialogTitle>Summit Item</DialogTitle>
         </DialogHeader>
         {!projectId && (
           <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">
@@ -91,8 +91,8 @@ export function AddInitiativeDialog({
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={!projectId || !title.trim() || submitting}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button type="button" onClick={handleSubmit} disabled={!projectId || !title.trim() || submitting}>
             {submitting ? 'Creating…' : 'Create'}
           </Button>
         </DialogFooter>

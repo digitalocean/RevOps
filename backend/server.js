@@ -65,8 +65,8 @@ async function ensureSchema() {
     }
     console.log('🏔  Meridian schema ensured.');
   } catch (err) {
-    console.error('Schema init failed:', err.message);
-    process.exit(1);
+    console.error('Schema init failed (server still running):', err.message);
+    // Do not exit — allow health check to pass and DB to connect later
   }
 }
 

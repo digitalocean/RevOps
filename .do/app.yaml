@@ -32,6 +32,7 @@ alerts:
 services:
   - name: api
     environment_slug: node-js
+    build_command: npm ci && npm run build
     envs:
       - key: DATABASE_URL
         scope: RUN_TIME

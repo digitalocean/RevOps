@@ -107,3 +107,5 @@ Optional:
 | DB errors | **api** has `DATABASE_URL`; database is running and reachable. |
 
 Health check URL: `https://your-app-url.ondigitalocean.app/api/health` — should return `{"status":"ok","db":"connected",...}`.
+
+**If you still get a build or runtime error:** In the DigitalOcean dashboard go to your app → **Runtime Logs** or **Build Logs** for the failing component (api or web). Copy the **exact error message** (last 20–30 lines). Common causes: wrong **Source Directory** (must be `/backend` for api, `/frontend` for web), **Database** not linked to the api component, or **Branch** not set to `meridian`.

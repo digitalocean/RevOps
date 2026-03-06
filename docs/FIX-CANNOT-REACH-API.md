@@ -52,6 +52,10 @@ You should see JSON like: `{"status":"ok","db":"connected","schema":true}`.
 - **If you see JSON** → The API is up. Try a hard refresh (Ctrl+Shift+R) or clear site data; then paste the URL again and click Save & retry.
 - **If you see an HTML page or "Error"** → The request is hitting the wrong component. On DigitalOcean, `/api` must be routed to the **api** service, not the static site. See below.
 
+## Why you see 404 on /api/workspaces or /api/crew
+
+If the browser is requesting `https://your-app.ondigitalocean.app/api/workspaces` and you get **404**, the request is reaching the app, but DigitalOcean **trims the `/api` prefix** before forwarding to the API service. So the API receives `/workspaces` instead of `/api/workspaces`. The backend is now set up to accept **both** paths (with and without `/api`), so after you **redeploy the api component**, those 404s should stop and the "Cannot reach API" banner should go away.
+
 ## If pasting the URL still doesn’t work
 
 1. **Confirm routing**  

@@ -75,6 +75,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ── Routes ───────────────────────────────────────────────
+// Mount with /api prefix (local dev, or when platform does not trim path)
 app.use('/api/workspaces',   require('./routes/workspaces'));
 app.use('/api/items',        require('./routes/items'));
 app.use('/api/sprints',      require('./routes/sprints'));
@@ -85,6 +86,28 @@ app.use('/api/trackers',     require('./routes/trackers'));
 app.use('/api/custom-fields',require('./routes/customFields'));
 app.use('/api/voice',        require('./routes/voice'));
 app.use('/api/columns',      require('./routes/columns'));
+
+// Mount without /api prefix (DigitalOcean App Platform trims /api before forwarding to the service)
+const workspaces = require('./routes/workspaces');
+const items = require('./routes/items');
+const sprints = require('./routes/sprints');
+const projects = require('./routes/projects');
+const crew = require('./routes/crew');
+const log = require('./routes/log');
+const trackers = require('./routes/trackers');
+const customFields = require('./routes/customFields');
+const voice = require('./routes/voice');
+const columns = require('./routes/columns');
+app.use('/workspaces', workspaces);
+app.use('/items', items);
+app.use('/sprints', sprints);
+app.use('/projects', projects);
+app.use('/crew', crew);
+app.use('/log', log);
+app.use('/trackers', trackers);
+app.use('/custom-fields', customFields);
+app.use('/voice', voice);
+app.use('/columns', columns);
 
 // ── Health Check (both /api/health and /health for platform checks) ─
 const healthHandler = async (req, res) => {
@@ -99,14 +122,16 @@ app.get('/api/health', healthHandler);
 app.get('/health', healthHandler);
 
 // ── Optional: trigger schema ensure (e.g. if DB was not ready at startup) ─
-app.get('/api/db/ensure', async (req, res) => {
+const dbEnsureHandler = async (req, res) => {
   try {
     const ok = await ensureSchema();
     res.json({ ok, schema: schemaEnsured });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
-});
+};
+app.get('/api/db/ensure', dbEnsureHandler);
+app.get('/db/ensure', dbEnsureHandler);
 
 // ── Start: listen first, then ensure schema (with retry) ─
 app.listen(PORT, () => {

@@ -1,4 +1,11 @@
 require('dotenv').config();
+
+const dbUrl = process.env.DATABASE_URL || '';
+const isLocalDb = /@(localhost|127\.0\.0\.1)(:\d+)?\//.test(dbUrl);
+if (!isLocalDb && dbUrl.trim()) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
+
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
@@ -8,14 +15,22 @@ const { Pool } = require('pg');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-const dbUrl = process.env.DATABASE_URL || '';
 if (!dbUrl.trim()) {
   console.warn('⚠️  DATABASE_URL is not set. Create backend/.env with DATABASE_URL=postgresql://user:pass@host:5432/dbname');
 }
-const isLocalDb = /@(localhost|127\.0\.0\.1)(:\d+)?\//.test(dbUrl);
-const poolConfig = {
-  connectionString: process.env.DATABASE_URL,
-};
+
+function stripSslModeFromUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  return url
+    .replace(/[?&]sslmode=[^&]+/gi, '')
+    .replace(/[?&]sslrootcert=[^&]+/gi, '')
+    .replace(/[?&]ssl=[^&]+/gi, '')
+    .replace(/\?&/, '?')
+    .replace(/\?$/, '');
+}
+
+const connectionString = stripSslModeFromUrl(process.env.DATABASE_URL);
+const poolConfig = { connectionString };
 if (!isLocalDb && dbUrl.trim()) {
   poolConfig.ssl = { rejectUnauthorized: false };
 }

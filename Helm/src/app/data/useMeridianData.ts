@@ -209,7 +209,7 @@ export function useMeridianData(): MeridianDataResult {
       const trackers = Array.isArray(trackersRes) ? trackersRes : [];
       const uncategorized = mapped.filter((init) => !init.tracker_id);
       const sectionList: TrackerSection[] = [
-        { id: 'uncategorized', title: 'Work items', initiatives: uncategorized },
+        { id: 'uncategorized', title: 'Tasks', initiatives: uncategorized },
         ...trackers.map((t) => ({
           id: t.id,
           title: t.name,
@@ -239,8 +239,10 @@ export function useMeridianData(): MeridianDataResult {
     return w ?? null;
   }, [load]);
 
-  const createProject = useCallback(async (workspaceId: string, name: string): Promise<Project | null> => {
-    const p = await post<Project>(apiPath('api/projects'), { workspace_id: workspaceId, name: name.trim() });
+  const createProject = useCallback(async (workspaceId: string, name: string, isPersonal?: boolean): Promise<Project | null> => {
+    const body: { workspace_id: string; name: string; is_personal?: boolean } = { workspace_id: workspaceId, name: name.trim() };
+    if (isPersonal !== undefined) body.is_personal = isPersonal;
+    const p = await post<Project>(apiPath('api/projects'), body);
     await load();
     if (p?.id) setSelectedProjectId(p.id);
     return p ?? null;

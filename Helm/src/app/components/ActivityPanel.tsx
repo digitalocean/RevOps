@@ -1,131 +1,89 @@
-import { X, MessageSquare, Clock, CheckCircle2, AlertCircle, FileText, Upload, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, MessageSquare, Clock, CheckCircle2, AlertCircle, Upload, Users } from 'lucide-react';
 import { Button } from './ui/button';
 import { ScrollArea } from './ui/scroll-area';
-import { Avatar } from './ui/avatar';
-import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
+import { get } from '../api/meridian';
 
 interface ActivityPanelProps {
   onClose: () => void;
+  projectId: string | null;
 }
 
-interface Activity {
+interface ActivityItem {
   id: string;
-  type: 'comment' | 'status_change' | 'file_upload' | 'assignment' | 'completion';
-  user: string;
-  userInitials: string;
-  initiative: string;
-  message: string;
-  timestamp: string;
-  metadata?: {
-    oldStatus?: string;
-    newStatus?: string;
-    fileName?: string;
-  };
+  action: string;
+  entity_type: string;
+  entity_id?: string;
+  details?: { title?: string };
+  created_at: string;
+  crew_name?: string | null;
+  crew_initials?: string | null;
 }
 
-const mockActivities: Activity[] = [
-  {
-    id: '1',
-    type: 'comment',
-    user: 'Sarah Chen',
-    userInitials: 'SC',
-    initiative: 'Revenue Intelligence Platform Migration',
-    message: 'API integration is on track. Testing phase starts next week.',
-    timestamp: '2 hours ago'
-  },
-  {
-    id: '2',
-    type: 'status_change',
-    user: 'Marcus Rodriguez',
-    userInitials: 'MR',
-    initiative: 'Deal Desk Automation Workflow',
-    message: 'changed status from On Track to At Risk',
-    timestamp: '4 hours ago',
-    metadata: {
-      oldStatus: 'On Track',
-      newStatus: 'At Risk'
-    }
-  },
-  {
-    id: '3',
-    type: 'completion',
-    user: 'Emily Watson',
-    userInitials: 'EW',
-    initiative: 'Sales Compensation Dashboard V2',
-    message: 'marked this initiative as Complete',
-    timestamp: '1 day ago'
-  },
-  {
-    id: '4',
-    type: 'file_upload',
-    user: 'David Park',
-    userInitials: 'DP',
-    initiative: 'Territory Planning Tool',
-    message: 'uploaded pilot_results_west_region.pdf',
-    timestamp: '1 day ago',
-    metadata: {
-      fileName: 'pilot_results_west_region.pdf'
-    }
-  },
-  {
-    id: '5',
-    type: 'assignment',
-    user: 'Lisa Kumar',
-    userInitials: 'LK',
-    initiative: 'Forecasting Model Refinement',
-    message: 'assigned this to themselves',
-    timestamp: '2 days ago'
-  },
-  {
-    id: '6',
-    type: 'comment',
-    user: 'Nina Patel',
-    userInitials: 'NP',
-    initiative: 'Customer Health Score Automation',
-    message: 'Blocked by data pipeline issues. Need engineering team support ASAP.',
-    timestamp: '2 days ago'
-  },
-  {
-    id: '7',
-    type: 'status_change',
-    user: 'Alex Thompson',
-    userInitials: 'AT',
-    initiative: 'RevOps Design System',
-    message: 'changed status from Not Started to On Track',
-    timestamp: '3 days ago',
-    metadata: {
-      oldStatus: 'Not Started',
-      newStatus: 'On Track'
-    }
-  },
-  {
-    id: '8',
-    type: 'comment',
-    user: 'Robert Kim',
-    userInitials: 'RK',
-    initiative: 'Quote Approval Streamlining',
-    message: 'Need to align with stakeholders before moving forward.',
-    timestamp: '3 days ago'
-  }
-];
-
-function getActivityIcon(type: Activity['type']) {
-  switch (type) {
+function getActivityIcon(action: string) {
+  switch (action) {
     case 'comment':
       return <MessageSquare className="w-4 h-4 text-blue-600" />;
     case 'status_change':
       return <AlertCircle className="w-4 h-4 text-orange-600" />;
+    case 'item_updated':
+      return <AlertCircle className="w-4 h-4 text-orange-600" />;
+    case 'item_created':
+      return <CheckCircle2 className="w-4 h-4 text-green-600" />;
     case 'file_upload':
       return <Upload className="w-4 h-4 text-purple-600" />;
     case 'assignment':
       return <Users className="w-4 h-4 text-green-600" />;
     case 'completion':
       return <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
+    default:
+      return <AlertCircle className="w-4 h-4 text-gray-500" />;
   }
 }
 
-export function ActivityPanel({ onClose }: ActivityPanelProps) {
+function formatTime(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  if (diff < 60000) return 'Just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)} min ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)} hours ago`;
+  if (diff < 604800000) return `${Math.floor(diff / 86400000)} days ago`;
+  return d.toLocaleDateString();
+}
+
+function getMessage(row: ActivityItem): string {
+  const title = row.details?.title || 'Item';
+  switch (row.action) {
+    case 'item_created':
+      return `created "${title}"`;
+    case 'item_updated':
+      return `updated "${title}"`;
+    default:
+      return row.details?.title ? `"${title}"` : 'activity';
+  }
+}
+
+export function ActivityPanel({ onClose, projectId }: ActivityPanelProps) {
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!projectId) {
+      setActivities([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    get(`/api/activity?project_id=${projectId}&limit=50`)
+      .then((data: unknown) => setActivities(Array.isArray(data) ? data as ActivityItem[] : []))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
+      .finally(() => setLoading(false));
+  }, [projectId]);
+
   return (
     <div className="w-96 border-l border-gray-200 bg-white flex flex-col h-full">
       <div className="p-4 border-b border-gray-200 flex items-center justify-between">
@@ -140,35 +98,46 @@ export function ActivityPanel({ onClose }: ActivityPanelProps) {
 
       <ScrollArea className="flex-1">
         <div className="p-4 space-y-4">
-          {mockActivities.map((activity, index) => (
+          {!projectId && (
+            <p className="text-sm text-gray-500">Select a project to see activity.</p>
+          )}
+          {projectId && loading && (
+            <p className="text-sm text-gray-500">Loading…</p>
+          )}
+          {projectId && error && (
+            <p className="text-sm text-red-600">{error}</p>
+          )}
+          {projectId && !loading && !error && activities.length === 0 && (
+            <p className="text-sm text-gray-500">No activity yet for this project.</p>
+          )}
+          {projectId && !loading && activities.length > 0 && activities.map((activity, index) => (
             <div key={activity.id}>
               <div className="flex gap-3">
                 <div className="flex-shrink-0">
                   <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-semibold">
-                    {activity.userInitials}
+                    {activity.crew_initials || activity.crew_name?.slice(0, 2).toUpperCase() || '—'}
                   </div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start gap-2 mb-1">
                     <div className="flex-shrink-0 mt-1">
-                      {getActivityIcon(activity.type)}
+                      {getActivityIcon(activity.action)}
                     </div>
                     <div className="flex-1">
                       <p className="text-sm">
-                        <span className="font-semibold text-gray-900">{activity.user}</span>
+                        <span className="font-semibold text-gray-900">{activity.crew_name || 'Someone'}</span>
                         {' '}
-                        <span className="text-gray-600">{activity.message}</span>
+                        <span className="text-gray-600">{getMessage(activity)}</span>
                       </p>
-                      <p className="text-xs text-gray-500 mt-1">{activity.initiative}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <Clock className="w-3 h-3 text-gray-400" />
-                        <span className="text-xs text-gray-500">{activity.timestamp}</span>
+                        <span className="text-xs text-gray-500">{formatTime(activity.created_at)}</span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-              {index < mockActivities.length - 1 && (
+              {index < activities.length - 1 && (
                 <Separator className="mt-4" />
               )}
             </div>
@@ -176,11 +145,13 @@ export function ActivityPanel({ onClose }: ActivityPanelProps) {
         </div>
       </ScrollArea>
 
-      <div className="p-4 border-t border-gray-200">
-        <Button variant="outline" size="sm" className="w-full">
-          View All Activity
-        </Button>
-      </div>
+      {projectId && activities.length > 0 && (
+        <div className="p-4 border-t border-gray-200">
+          <Button variant="outline" size="sm" className="w-full" disabled>
+            View All Activity
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

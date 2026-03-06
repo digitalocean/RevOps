@@ -34,12 +34,12 @@ import { useMeridianData } from '../data/useMeridianData';
 import type { Status, Priority, Category, Initiative } from '../data/mockData';
 
 const VIEW_TABS: { id: NavView; label: string }[] = [
-  { id: 'summit_board', label: 'Summit Board' },
-  { id: 'manifest', label: 'Manifest' },
-  { id: 'expedition_map', label: 'Expedition Map' },
+  { id: 'manifest', label: 'Trackers' },
+  { id: 'expedition_map', label: 'Gantt' },
   { id: 'field_notes', label: 'Field Notes' },
-  { id: 'observatory', label: 'Observatory' },
+  { id: 'observatory', label: 'Analytics' },
   { id: 'base_camp', label: 'Base Camp' },
+  { id: 'summit_board', label: 'Board' },
 ];
 
 export function Dashboard() {
@@ -216,7 +216,7 @@ export function Dashboard() {
     <div className="flex h-screen bg-white">
       <NavigationSidebar
         workspaces={workspaces}
-        selectedWorkspaceId={selectedWorkspaceId}
+        selectedWorkspaceId={selectedWorkspaceId ?? null}
         onSelectWorkspace={(id) => {
           setSelectedWorkspaceId(id);
           setSelectedProjectId(null);
@@ -226,8 +226,9 @@ export function Dashboard() {
         selectedProjectId={selectedProjectId}
         onSelectProject={(id) => setSelectedProjectId(id)}
         onOpenNewProject={() => setShowNewProject(true)}
-        sprints={sprints}
-        onOpenNewSprint={() => setShowNewSprint(true)}
+        initiatives={initiatives}
+        trackerSections={trackerSections}
+        crew={crew}
         onOpenAddCrew={() => setShowTeamMembers(true)}
         onOpenCustomFields={() => setShowCustomFields(true)}
         currentView={currentView}
@@ -241,13 +242,13 @@ export function Dashboard() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {error && (
           <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-800 flex items-center justify-between">
-            <span>Meridian API: {error}. Using demo data.</span>
+            <span>To-DO API: {error}. Using demo data.</span>
             <button type="button" onClick={refresh} className="text-amber-700 underline">Retry</button>
           </div>
         )}
         {fromApi && !error && (
           <div className="bg-emerald-50 border-b border-emerald-200 px-4 py-1.5 text-xs text-emerald-800">
-            Connected to Meridian — showing work items from your workspace.
+            Connected to To-DO — showing tasks from your workspace.
           </div>
         )}
         <WorkspaceHeader
@@ -259,6 +260,9 @@ export function Dashboard() {
           selectedProjectName={selectedProject?.name}
           sprintLabel={selectedSprint ? `${selectedSprint.start_date || ''} – ${selectedSprint.end_date || ''}` : undefined}
           progressPercent={progressPercent}
+          currentUser={null}
+          onLogin={() => toast.info('Google sign-in coming soon')}
+          onLogout={() => toast.info('Signed out')}
         />
         <KPIStatsBar kpiData={kpiData} />
         
@@ -320,7 +324,7 @@ export function Dashboard() {
                         size="sm"
                         onClick={() => setShowNewSection(true)}
                       >
-                        Add section
+                        + Tracker
                       </Button>
                     )}
                     {currentView === 'summit_board' && (
@@ -330,7 +334,7 @@ export function Dashboard() {
                         onClick={() => { setAddInitiativeParentId(null); setAddInitiativeTrackerId(null); setShowAddInitiative(true); }}
                       >
                         <ChevronUp className="w-4 h-4" />
-                        Add work item
+                        Add task
                       </Button>
                     )}
                   </>
@@ -360,7 +364,7 @@ export function Dashboard() {
             ) : (
               <div className="space-y-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">Manifest</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Trackers</h3>
                 </div>
                 {trackerSections.map((section) => (
                   <TrackerSection
@@ -397,7 +401,7 @@ export function Dashboard() {
       </div>
 
       {showActivityPanel && (
-        <ActivityPanel onClose={() => setShowActivityPanel(false)} />
+        <ActivityPanel projectId={selectedProjectId} onClose={() => setShowActivityPanel(false)} />
       )}
 
       {selectedInitiativeFromSearch && (

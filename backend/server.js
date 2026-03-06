@@ -44,7 +44,7 @@ async function ensureSchema() {
     const sql = fs.readFileSync(path.join(__dirname, 'scripts', 'schema.sql'), 'utf8');
     await pool.query(sql);
     schemaEnsured = true;
-    console.log('🏔  Meridian schema ensured.');
+    console.log('To-DO schema ensured.');
     return true;
   } catch (err) {
     console.error('Schema init failed (server still running):', err.message);
@@ -86,6 +86,7 @@ app.use('/api/trackers',     require('./routes/trackers'));
 app.use('/api/custom-fields',require('./routes/customFields'));
 app.use('/api/voice',        require('./routes/voice'));
 app.use('/api/columns',      require('./routes/columns'));
+app.use('/api/activity',     require('./routes/activity'));
 
 // Mount without /api prefix (DigitalOcean App Platform trims /api before forwarding to the service)
 const workspaces = require('./routes/workspaces');
@@ -98,6 +99,7 @@ const trackers = require('./routes/trackers');
 const customFields = require('./routes/customFields');
 const voice = require('./routes/voice');
 const columns = require('./routes/columns');
+const activity = require('./routes/activity');
 app.use('/workspaces', workspaces);
 app.use('/items', items);
 app.use('/sprints', sprints);
@@ -108,6 +110,7 @@ app.use('/trackers', trackers);
 app.use('/custom-fields', customFields);
 app.use('/voice', voice);
 app.use('/columns', columns);
+app.use('/activity', activity);
 
 // ── Health Check (both /api/health and /health for platform checks) ─
 const healthHandler = async (req, res) => {
@@ -135,7 +138,7 @@ app.get('/db/ensure', dbEnsureHandler);
 
 // ── Start: listen first, then ensure schema (with retry) ─
 app.listen(PORT, () => {
-  console.log(`\n🏔  Meridian API running on port ${PORT}`);
+  console.log(`\nTo-DO API running on port ${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/api/health\n`);
   runSchemaWithRetry();
 });

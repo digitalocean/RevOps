@@ -1,8 +1,8 @@
 /**
- * Meridian API client — workspaces, projects, items (initiatives).
+ * To-DO API client — workspaces, projects, items, activity.
  * Set VITE_API_URL at build time or use ?api_url= in the URL for the app base.
  */
-const STORAGE_KEY = 'meridian_api_base';
+const STORAGE_KEY = 'todo_api_base';
 
 function getBase(): string {
   if (typeof window === 'undefined') return '';

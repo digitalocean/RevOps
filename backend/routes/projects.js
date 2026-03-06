@@ -20,12 +20,13 @@ const DEFAULT_COLUMNS = [
 ];
 router.post('/', async (req, res) => {
   try {
-    const { workspace_id, name, description, color = '#6366f1', owner_id } = req.body;
+    const { workspace_id, name, description, color = '#6366f1', owner_id, is_personal } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Project name is required' });
     if (!workspace_id) return res.status(400).json({ error: 'Select a team first' });
+    const personal = !!is_personal;
     const { rows } = await pool.query(
-      `INSERT INTO projects(workspace_id,name,description,color,owner_id) VALUES($1,$2,$3,$4,$5) RETURNING *`,
-      [workspace_id, name.trim(), description || '', color, owner_id || null]
+      `INSERT INTO projects(workspace_id,name,description,color,owner_id,is_personal) VALUES($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [workspace_id, name.trim(), description || '', color, owner_id || null, personal]
     );
   const pid = rows[0].id;
   for (let i = 0; i < DEFAULT_COLUMNS.length; i++) {

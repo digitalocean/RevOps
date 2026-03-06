@@ -14,7 +14,7 @@ interface NewProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedWorkspaceId: string | null;
-  onCreate: (workspaceId: string, name: string) => Promise<unknown>;
+  onCreate: (workspaceId: string, name: string, isPersonal?: boolean) => Promise<unknown>;
 }
 
 export function NewProjectDialog({
@@ -38,8 +38,9 @@ export function NewProjectDialog({
     }
     setCreating(true);
     try {
-      await onCreate(selectedWorkspaceId, n);
-      toast.success('Project created');
+      const isPersonal = n.toLowerCase() === 'personal project';
+      await onCreate(selectedWorkspaceId, n, isPersonal);
+      toast.success(isPersonal ? 'Personal project created (only you can see it)' : 'Project created');
       setName('');
       onOpenChange(false);
     } catch (e) {
@@ -63,7 +64,7 @@ export function NewProjectDialog({
         <div>
           <label className="text-sm font-medium text-gray-700 block mb-1">Project name</label>
           <Input
-            placeholder="e.g. Salesforce Integrations"
+            placeholder="e.g. Personal Project, My Team"
             value={name}
             onChange={(e) => setName(e.target.value)}
             disabled={!selectedWorkspaceId}

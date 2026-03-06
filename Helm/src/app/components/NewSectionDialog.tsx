@@ -60,7 +60,7 @@ export function NewSectionDialog({
         <DialogHeader>
           <DialogTitle>New section</DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-gray-500">Add a section to group work items (e.g. &quot;Sprint 1&quot;, &quot;Backlog&quot;).</p>
+        <p className="text-sm text-gray-500">Add a tracker to group tasks.</p>
         <div className="space-y-4">
           <div>
             <Label htmlFor="section-name">Section name</Label>

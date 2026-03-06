@@ -1,4 +1,4 @@
-import { Plus, User, Bell, Search, Activity } from 'lucide-react';
+import { Plus, User, Search, Activity, LogOut } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import type { Project } from '../data/useMeridianData';
@@ -12,6 +12,9 @@ interface WorkspaceHeaderProps {
   selectedProjectName?: string;
   sprintLabel?: string;
   progressPercent?: number;
+  currentUser?: { name?: string; email?: string; initials?: string } | null;
+  onLogin?: () => void;
+  onLogout?: () => void;
 }
 
 export function WorkspaceHeader({
@@ -20,9 +23,9 @@ export function WorkspaceHeader({
   onSelectProject,
   onOpenNewProject,
   onToggleActivity,
-  selectedProjectName,
-  sprintLabel,
-  progressPercent = 0,
+  currentUser = null,
+  onLogin,
+  onLogout,
 }: WorkspaceHeaderProps) {
   return (
     <div className="bg-white border-b border-gray-200">
@@ -63,24 +66,32 @@ export function WorkspaceHeader({
             type="button"
             variant="ghost"
             size="sm"
-            className="h-9 w-9 p-0 relative"
+            className="h-9 w-9 p-0"
             onClick={onToggleActivity}
           >
             <Activity className="w-4 h-4" />
-          </Button>
-
-          <Button type="button" variant="ghost" size="sm" className="h-9 w-9 p-0 relative">
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full" />
           </Button>
 
           <Badge variant="outline" className="text-xs text-gray-600 border-gray-300">
             {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
           </Badge>
 
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center cursor-pointer">
-            <User className="w-4 h-4 text-white" />
-          </div>
+          {currentUser ? (
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
+                {currentUser.initials || currentUser.name?.slice(0, 2).toUpperCase() || 'U'}
+              </div>
+              <span className="text-sm text-gray-700 hidden sm:inline">{currentUser.name || currentUser.email}</span>
+              <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onLogout} title="Log out">
+                <LogOut className="w-4 h-4 text-gray-500" />
+              </Button>
+            </div>
+          ) : (
+            <Button type="button" variant="outline" size="sm" onClick={onLogin} className="gap-1.5">
+              <User className="w-4 h-4" />
+              Log in
+            </Button>
+          )}
         </div>
       </div>
 

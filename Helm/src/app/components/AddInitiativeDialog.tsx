@@ -65,7 +65,7 @@ export function AddInitiativeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{parentId ? 'Add sub-item' : 'Summit Item'}</DialogTitle>
+          <DialogTitle>{parentId ? 'Add sub-task' : 'Add Task'}</DialogTitle>
         </DialogHeader>
         {!projectId && (
           <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">

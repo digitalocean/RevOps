@@ -1,4 +1,4 @@
--- Meridian schema (run on server startup or via npm run db:init)
+-- To-DO schema (run on server startup or via npm run db:init)
 CREATE TABLE IF NOT EXISTS workspaces (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name        VARCHAR(120) NOT NULL,
@@ -8,9 +8,19 @@ CREATE TABLE IF NOT EXISTS workspaces (
   created_at  TIMESTAMPTZ  DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS users (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email         VARCHAR(200) UNIQUE NOT NULL,
+  name          VARCHAR(120),
+  avatar_url    TEXT,
+  google_id     VARCHAR(120) UNIQUE,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS crew (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+  user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
   name        VARCHAR(120) NOT NULL,
   email       VARCHAR(200) UNIQUE,
   initials    VARCHAR(4)   NOT NULL,
@@ -18,19 +28,43 @@ CREATE TABLE IF NOT EXISTS crew (
   role        VARCHAR(60)  DEFAULT 'Member',
   status      VARCHAR(20)  DEFAULT 'online',
   active      BOOLEAN      DEFAULT true,
+  invite_sent_at TIMESTAMPTZ,
   created_at  TIMESTAMPTZ  DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS projects (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id  UUID REFERENCES workspaces(id) ON DELETE CASCADE,
+  name          VARCHAR(200) NOT NULL,
+  description   TEXT,
+  color         VARCHAR(20)  DEFAULT '#6366f1',
+  status        VARCHAR(30)  DEFAULT 'active',
+  owner_id      UUID REFERENCES crew(id),
+  is_personal   BOOLEAN      DEFAULT false,
+  created_at    TIMESTAMPTZ  DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS project_members (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE,
-  name        VARCHAR(200) NOT NULL,
-  description TEXT,
-  color       VARCHAR(20)  DEFAULT '#6366f1',
-  status      VARCHAR(30)  DEFAULT 'active',
-  owner_id    UUID REFERENCES crew(id),
+  project_id  UUID REFERENCES projects(id) ON DELETE CASCADE,
+  crew_id     UUID REFERENCES crew(id) ON DELETE CASCADE,
+  role        VARCHAR(40)  DEFAULT 'member',
+  created_at  TIMESTAMPTZ  DEFAULT NOW(),
+  UNIQUE(project_id, crew_id)
+);
+
+CREATE TABLE IF NOT EXISTS activity_log (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  UUID REFERENCES projects(id) ON DELETE CASCADE,
+  crew_id     UUID REFERENCES crew(id) ON DELETE SET NULL,
+  action      VARCHAR(40)  NOT NULL,
+  entity_type VARCHAR(40)  NOT NULL,
+  entity_id   UUID,
+  details     JSONB        DEFAULT '{}',
   created_at  TIMESTAMPTZ  DEFAULT NOW()
 );
+
+CREATE INDEX IF NOT EXISTS activity_log_project_created ON activity_log(project_id, created_at DESC);
 
 CREATE TABLE IF NOT EXISTS board_columns (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -165,5 +199,17 @@ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'items')
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'items' AND column_name = 'category') THEN
     ALTER TABLE items ADD COLUMN category VARCHAR(60);
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'crew')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'crew' AND column_name = 'user_id') THEN
+    ALTER TABLE crew ADD COLUMN user_id UUID REFERENCES users(id) ON DELETE SET NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'crew')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'crew' AND column_name = 'invite_sent_at') THEN
+    ALTER TABLE crew ADD COLUMN invite_sent_at TIMESTAMPTZ;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'is_personal') THEN
+    ALTER TABLE projects ADD COLUMN is_personal BOOLEAN DEFAULT false;
   END IF;
 END $$;

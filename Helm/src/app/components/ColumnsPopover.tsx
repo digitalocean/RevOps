@@ -17,7 +17,7 @@ const COLUMN_IDS = [
   { id: 'dueDate', label: 'Due Date' },
 ] as const;
 
-const STORAGE_KEY_PREFIX = 'meridian_visible_columns_';
+const STORAGE_KEY_PREFIX = 'todo_visible_columns_';
 
 function loadVisibleColumns(projectId: string | null): Set<string> {
   if (typeof window === 'undefined' || !projectId) return new Set(COLUMN_IDS.map((c) => c.id));

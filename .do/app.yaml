@@ -61,9 +61,8 @@ static_sites:
       - key: NPM_CONFIG_PRODUCTION
         value: "false"
         scope: BUILD_TIME
-      # Set VITE_API_URL in Dashboard to your app URL (e.g. https://meridian-xxxxx.ondigitalocean.app) then redeploy web
       - key: VITE_API_URL
-        value: ""
+        value: "https://revops-ntkll.ondigitalocean.app"
         scope: BUILD_TIME
     github:
       deploy_on_push: true

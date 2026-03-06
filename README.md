@@ -32,6 +32,10 @@ No seed data — create campaigns (projects) and expeditions (sprints) from the 
 | **backend**  | `npm start`, `npm run dev`, `npm run db:init`, `npm run db:seed` |
 | **frontend** | `npm run dev`, `npm run build`, `npm run preview` |
 
+## Push to GitHub
+
+See **`docs/PUSH-TO-GITHUB.md`** for steps to push Meridian code to GitHub (branch `meridian`).
+
 ## Deploy (DigitalOcean)
 
 Use `.do/app.yaml`. Set `VITE_API_URL` to your app URL (BUILD_TIME) on the static site so the frontend can reach the API. See `docs/DEPLOY-DIGITALOCEAN.md` for details.

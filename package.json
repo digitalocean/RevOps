@@ -1,13 +1,13 @@
 {
-  "name": "agileops",
+  "name": "meridian",
   "version": "1.0.0",
   "private": true,
-  "description": "Helm — Navigate Your Work (monorepo: backend in /backend, frontend in /frontend)",
+  "description": "Meridian — Peak Performance (monorepo: backend in /backend, frontend in /frontend)",
   "engines": {
     "node": ">=18.0.0"
   },
   "scripts": {
     "build": "cd backend && npm install",
-    "start": "cd backend && npm start"
+    "start": "cd backend && node server.js"
   }
 }

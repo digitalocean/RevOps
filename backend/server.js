@@ -103,10 +103,11 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// ── Start ─────────────────────────────────────────────────
-ensureSchema().then(() => {
-  app.listen(PORT, () => {
-    console.log(`\n🏔  Meridian API running on port ${PORT}`);
-    console.log(`   Health: http://localhost:${PORT}/api/health\n`);
-  });
-}).catch((e) => { console.error(e); process.exit(1); });
+// ── Start: listen first so port is open for health checks, then ensure schema ─
+const server = app.listen(PORT, () => {
+  console.log(`\n🏔  Meridian API running on port ${PORT}`);
+  console.log(`   Health: http://localhost:${PORT}/api/health\n`);
+});
+ensureSchema().then(() => {}).catch((e) => {
+  console.error('Schema init warning (server still running):', e.message);
+});

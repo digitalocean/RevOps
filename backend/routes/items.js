@@ -1,6 +1,5 @@
 const router = require('express').Router();
 const { pool } = require('../server');
-const { v4: uuid } = require('uuid');
 
 // GET all items for a sprint
 router.get('/', async (req, res) => {

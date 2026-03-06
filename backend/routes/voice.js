@@ -41,7 +41,11 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
 router.post('/create', async (req, res) => {
   try {
     const { transcript, item_type = 'note', project_id, sprint_id, author_id } = req.body;
-    if (!transcript) return res.status(400).json({ error: 'transcript required' });
+    if (!transcript || !transcript.trim()) return res.status(400).json({ error: 'Transcript is required' });
+    if (item_type !== 'note') {
+      if (!project_id) return res.status(400).json({ error: 'Select a project first' });
+      if (!sprint_id) return res.status(400).json({ error: 'Select a sprint first' });
+    }
 
     let result = null;
 
@@ -78,12 +82,22 @@ router.post('/create', async (req, res) => {
         result = { type: 'item', item: rows[0] };
       }
     } else {
-      // Demo mode — save transcript as log entry
-      const { rows } = await pool.query(
-        `INSERT INTO log_entries(project_id,sprint_id,author_id,entry_type,content) VALUES($1,$2,$3,'voice',$4) RETURNING *`,
-        [project_id, sprint_id, author_id, transcript]
-      );
-      result = { type: 'log', entry: rows[0], mode: 'demo' };
+      // Demo mode — save as log or require project/sprint for item
+      if (item_type === 'note') {
+        const { rows } = await pool.query(
+          `INSERT INTO log_entries(project_id,sprint_id,author_id,entry_type,content) VALUES($1,$2,$3,'voice',$4) RETURNING *`,
+          [project_id || null, sprint_id || null, author_id, transcript]
+        );
+        result = { type: 'log', entry: rows[0], mode: 'demo' };
+      } else {
+        const title = transcript.slice(0, 500).trim() || 'Voice task';
+        const itemType = (item_type === 'story' ? 'story' : 'task');
+        const { rows } = await pool.query(
+          `INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,'medium',3,'backlog') RETURNING *`,
+          [project_id, sprint_id, itemType, title, transcript]
+        );
+        result = { type: 'item', item: rows[0], mode: 'demo' };
+      }
     }
 
     // Save voice recording record

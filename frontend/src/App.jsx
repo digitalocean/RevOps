@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { get, post, patch, del } from './api.js'
+import { get, post, patch, del, postForm } from './api.js'
 
 // ── CONSTANTS ─────────────────────────────────────────────
 const COL_COLORS = {
@@ -12,15 +12,7 @@ const CARD_ACCENTS = {
   peak:'linear-gradient(90deg,#00c9a7,#d4943a)'
 }
 const EMOJIS  = ['🎉','🚀','⛰️','🏔️','🏆','✨','💫','🎯','🌟','⚡']
-const TOASTS  = ['Peak reached!','Summit conquered!','Another one done!','Quest complete, Captain!','Full ascent! ⚡']
-const DEMO_TRANSCRIPTS = [
-  'Follow up with Aman — rollup review is stalling. Consider breaking into sub-stories.',
-  'Create task: Build LWC bridge that polls agent availability every 30 seconds.',
-  'SOQL error root cause: rollup trigger is not bulk-safe. Needs static caching pattern.',
-  'Update bogiefile configs with new AWS account IDs and proxy settings for QA.',
-]
-
-// No seed data — load from API only
+const TOASTS  = ['Saved.','Done!','Updated.','Created.','All set.']
 
 // ── LS HELPERS ────────────────────────────────────────────
 const LSGet = (k, d) => { try { return JSON.parse(localStorage.getItem('mer_'+k)) ?? d } catch{ return d } }
@@ -33,6 +25,8 @@ const fmtDate = () => new Date().toLocaleDateString('en-US', { weekday:'long', m
 export default function App() {
   // ── STATE ─────────────────────────────────────────────
   const [view,      setViewState]  = useState(() => LSGet('view','board'))
+  const [workspaces, setWorkspaces] = useState([])
+  const [selWorkspaceId, setSelWorkspaceId] = useState(() => LSGet('selWorkspaceId', null))
   const [projects,  setProjects]   = useState([])
   const [sprints,   setSprints]    = useState([])
   const [selProjId, setSelProjId]   = useState(() => LSGet('selProjId', null))
@@ -52,10 +46,11 @@ export default function App() {
   const [recording, setRecording]  = useState(false)
   const [transcript,setTranscript] = useState('')
   const [voiceType, setVoiceType]  = useState('note')
+  const [voiceError, setVoiceError] = useState('')
   const [adminSec,  setAdminSec]   = useState(null)
   const [trackerTab, setTrackerTab]= useState('bigrock')
-  const [demoTIdx,  setDemoTIdx]   = useState(0)
-  const recTimerRef = useRef(null)
+  const mediaRecRef = useRef(null)
+  const chunksRef = useRef([])
 
   const setView = (v) => { setViewState(v); LSSet('view', v) }
   const selProject = projects.find(p => p.id === selProjId) || projects[0]
@@ -68,23 +63,44 @@ export default function App() {
   useEffect(() => { LSSet('items', items) }, [items])
   useEffect(() => { if (selProjId) LSSet('selProjId', selProjId) }, [selProjId])
   useEffect(() => { if (selSprintId) LSSet('selSprintId', selSprintId) }, [selSprintId])
+  useEffect(() => { if (selWorkspaceId) LSSet('selWorkspaceId', selWorkspaceId) }, [selWorkspaceId])
 
-  // ── LOAD: ensure DB schema then fetch projects ─────────
+  // ── LOAD: ensure schema → workspaces → projects (by workspace) ─────────
+  const refreshWorkspaces = useCallback(() => {
+    get('/api/workspaces').then(data => {
+      if (Array.isArray(data)) {
+        setWorkspaces(data)
+        if (data.length && !data.some(w => w.id === selWorkspaceId)) setSelWorkspaceId(data[0].id)
+      }
+    }).catch(() => {})
+  }, [selWorkspaceId])
   const refreshProjects = useCallback(() => {
-    get('/api/projects').then(data => {
+    if (!selWorkspaceId) { setProjects([]); return }
+    get(`/api/projects?workspace_id=${selWorkspaceId}`).then(data => {
       if (Array.isArray(data)) setProjects(data)
-    }).catch(()=>{})
-  }, [])
+    }).catch(() => setProjects([]))
+  }, [selWorkspaceId])
   useEffect(() => {
-    get('/api/db/ensure').catch(()=>{}).finally(() => {
-      get('/api/projects').then(data => {
-        if (Array.isArray(data) && data.length) {
-          setProjects(data)
-          if (!selProjId) setSelProjId(data[0].id)
+    get('/api/db/ensure').catch(() => {}).finally(() => {
+      get('/api/workspaces').then(data => {
+        if (Array.isArray(data)) {
+          setWorkspaces(data)
+          const cur = LSGet('selWorkspaceId', null)
+          if (data.length && (!cur || !data.some(w => w.id === cur))) setSelWorkspaceId(data[0].id)
+          else if (cur) setSelWorkspaceId(cur)
         }
-      }).catch(()=>{})
+      }).catch(() => {})
     })
   }, [])
+  useEffect(() => {
+    if (!selWorkspaceId) { setProjects([]); setSprints([]); setSelProjId(null); setSelSprintId(null); return }
+    get(`/api/projects?workspace_id=${selWorkspaceId}`).then(data => {
+      if (Array.isArray(data) && data.length) {
+        setProjects(data)
+        if (!selProjId || !data.some(p => p.id === selProjId)) setSelProjId(data[0].id)
+      } else { setProjects([]); setSelProjId(null); setSelSprintId(null); setSprints([]) }
+    }).catch(() => { setProjects([]); setSelProjId(null) })
+  }, [selWorkspaceId])
   const refreshSprints = useCallback(() => {
     if (!selProjId) return
     get(`/api/sprints?project_id=${selProjId}`).then(data => {
@@ -149,7 +165,7 @@ export default function App() {
   // ── ITEMS ─────────────────────────────────────────────
   const addItem = async (data) => {
     if (!selProjId || !selSprintId) {
-      showToast('⚠️', 'Select a campaign and expedition', 'Pick one from the sidebar first.')
+      showToast('⚠️', 'Select a project and sprint', 'Pick one from the sidebar first.')
       return
     }
     const colSlug = data.col || 'backlog'
@@ -200,42 +216,94 @@ export default function App() {
     const entry = { id: 'log-'+Date.now(), entry_type: type, content: text, created_at: new Date().toISOString() }
     setLog(prev => [entry, ...prev])
     showToast('📝', type==='voice'?'Voice note saved':'Note logged', "Saved to Captain's Log")
-    post('/api/log', { project_id: selProjId || undefined, sprint_id: selSprintId || undefined, entry_type: type, content: text }).catch(()=>{})
+    post('/api/log', { project_id: selProjId || undefined, sprint_id: selSprintId || undefined, entry_type: type, content: text }).catch(e => showToast('⚠️', 'Could not save note', e?.message || ''))
   }
 
-  // ── VOICE ─────────────────────────────────────────────
-  const toggleRec = () => {
-    if (!recording) {
-      setRecording(true)
-      setTranscript('Listening…')
-      let d = 0
-      recTimerRef.current = setInterval(() => {
-        setTranscript('Listening' + '.'.repeat(++d % 4))
-      }, 400)
-    } else {
-      clearInterval(recTimerRef.current)
+  // ── VOICE: real recording + transcribe API ─────────────
+  const toggleRec = async () => {
+    if (recording) {
+      if (mediaRecRef.current && mediaRecRef.current.state !== 'inactive') {
+        mediaRecRef.current.stop()
+      }
       setRecording(false)
-      const t = DEMO_TRANSCRIPTS[demoTIdx % DEMO_TRANSCRIPTS.length]
-      setDemoTIdx(i => i+1)
-      setTranscript(t)
+      return
+    }
+    setVoiceError('')
+    setTranscript('Listening…')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const rec = new MediaRecorder(stream)
+      chunksRef.current = []
+      rec.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data) }
+      rec.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop())
+        if (chunksRef.current.length === 0) { setTranscript('No audio captured'); return }
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        setTranscript('Transcribing…')
+        try {
+          const form = new FormData()
+          form.append('audio', blob, 'voice.webm')
+          const { transcript: text } = await postForm('/api/voice/transcribe', form)
+          setTranscript(text || '(no text)')
+        } catch (e) {
+          setVoiceError(e?.message || 'Transcription failed')
+          setTranscript('')
+        }
+      }
+      rec.start()
+      mediaRecRef.current = rec
+      setRecording(true)
+    } catch (e) {
+      setVoiceError(e?.message || 'Microphone access denied')
+      setTranscript('')
     }
   }
 
-  const createFromVoice = () => {
-    if (!transcript || transcript.startsWith('Listening') || transcript.startsWith('Click')) {
-      setModal(null); return
+  const createFromVoice = async () => {
+    const t = (transcript || '').trim()
+    if (!t || t.startsWith('Listening') || t.startsWith('Click') || t === 'Transcribing…') {
+      setVoiceError('Record and transcribe first')
+      return
     }
-    saveLogEntry(transcript, voiceType === 'note' ? 'voice' : 'ai')
-    setModal(null)
-    setTranscript('')
-    setRecording(false)
-    clearInterval(recTimerRef.current)
+    setVoiceError('')
+    if (voiceType === 'note') {
+      saveLogEntry(t, 'voice')
+      setModal(null)
+      setTranscript('')
+      return
+    }
+    if (!selProjId || !selSprintId) {
+      setVoiceError('Select a project and sprint to create a task')
+      showToast('⚠️', 'Select project & sprint', 'Choose them from the sidebar first.')
+      return
+    }
+    try {
+      const result = await post('/api/voice/create', {
+        transcript: t,
+        item_type: voiceType,
+        project_id: selProjId,
+        sprint_id: selSprintId,
+      })
+      if (result.type === 'item' && result.item) {
+        setItems(prev => [...prev, { ...result.item, assignee_initials: '', assignee_color: '#6366f1' }])
+        showToast('✅', 'Created', result.item.title?.slice(0, 40) + (result.item.title?.length > 40 ? '…' : ''))
+      } else if (result.type === 'log' && result.entry) {
+        setLog(prev => [{ ...result.entry, author_name: 'Voice' }, ...prev])
+        showToast('📝', 'Note saved', "Saved to Captain's Log")
+      }
+      setModal(null)
+      setTranscript('')
+    } catch (e) {
+      const msg = e?.message || 'Failed to create'
+      setVoiceError(msg)
+      showToast('⚠️', 'Error', msg)
+    }
   }
 
   // ── CUSTOM FIELDS ─────────────────────────────────────
   const addCustomField = (name, type, target) => {
     const wid = selProject?.workspace_id
-    if (!wid) { showToast('⚠️', 'Select a campaign first', 'Campaign provides workspace for custom fields.'); return }
+    if (!wid) { showToast('⚠️', 'Select a project first', 'Custom fields are saved per team.'); return }
     const field = { id:'cf-'+Date.now(), name, field_type: type, target }
     setCF(prev => ({ ...prev, [target]: [...(prev[target]||[]), field] }))
     post('/api/custom-fields', { name, field_type: type, target, workspace_id: wid }).catch(()=>{})
@@ -268,7 +336,8 @@ export default function App() {
   return (
     <div className="app-shell">
       {/* ── TOPBAR ── */}
-      <Topbar onVoice={()=>setModal('voice')} onLog={()=>setLogOpen(v=>{LSSet('logOpen',!v);return !v})} />
+      <Topbar workspaces={workspaces} selWorkspaceId={selWorkspaceId} onSelectWorkspace={setSelWorkspaceId}
+        onNewWorkspace={()=>setModal('newWorkspace')} onVoice={()=>setModal('voice')} onLog={()=>setLogOpen(v=>{LSSet('logOpen',!v);return !v})} />
 
       <div className="app-body">
         {/* ── SIDEBAR ── */}
@@ -291,7 +360,7 @@ export default function App() {
               )}
             </div>
             <div className="pt-row">
-              <div className="page-title">{selSprint?.name || selProject?.name || 'Select a campaign'}</div>
+              <div className="page-title">{selSprint?.name || selProject?.name || 'Select a project'}</div>
               {selSprint && <div className="s-tag"><div className="s-dot"></div> {selSprint.status || 'Active'}</div>}
             </div>
             <div className="pm">
@@ -382,15 +451,16 @@ export default function App() {
 
       {/* ── MODALS ── */}
       {modal === 'add' && <AddModal onClose={()=>setModal(null)} onSubmit={(d)=>{ addItem(d); setModal(null) }} customFields={customFields.item} />}
-      {modal === 'voice' && <VoiceModal recording={recording} transcript={transcript} voiceType={voiceType}
-        onToggle={toggleRec} onSetType={setVoiceType} onCreate={createFromVoice} onClose={()=>{ setModal(null); clearInterval(recTimerRef.current); setRecording(false); }} />}
+      {modal === 'voice' && <VoiceModal recording={recording} transcript={transcript} voiceType={voiceType} voiceError={voiceError}
+        onToggle={toggleRec} onSetType={setVoiceType} onCreate={createFromVoice} onClose={()=>{ setModal(null); setVoiceError(''); if (mediaRecRef.current && mediaRecRef.current.state !== 'inactive') mediaRecRef.current.stop(); setRecording(false); setTranscript(''); }} />}
       {modal === 'col' && <ColModal colVis={colVis} onToggle={toggleCol} onClose={()=>setModal(null)}
         customFields={customFields.item} onAddField={()=>{ setModal('cf'); setCFTarget('item') }} />}
       {modal === 'cf' && <CFModal target={cfTarget} cfType={cfType} onSetType={setCFType}
         onClose={()=>setModal(null)}
         onSave={(name,type)=>{ addCustomField(name,type,cfTarget); setModal(null); showToast('✨','Field added!',`"${name}" added to ${cfTarget} fields`) }} />}
-      {modal === 'newProject' && <CreateProjectModal workspaceId={selProject?.workspace_id || projects[0]?.workspace_id} onClose={()=>setModal(null)} onCreated={(id)=>{ refreshProjects(); setSelProjId(id); setModal(null); showToast('⛰️','Campaign created','') }} />}
-      {modal === 'newSprint' && <CreateSprintModal projectId={selProjId} onClose={()=>setModal(null)} onCreated={(id)=>{ refreshSprints(); setSelSprintId(id); setModal(null); showToast('⛰️','Expedition created','') }} />}
+      {modal === 'newWorkspace' && <CreateWorkspaceModal onClose={()=>setModal(null)} onCreated={(id)=>{ refreshWorkspaces(); setSelWorkspaceId(id); setModal(null); showToast('✅','Team created','') }} />}
+      {modal === 'newProject' && <CreateProjectModal workspaceId={selWorkspaceId} onClose={()=>setModal(null)} onCreated={(id)=>{ refreshProjects(); setSelProjId(id); setModal(null); showToast('✅','Project created','') }} />}
+      {modal === 'newSprint' && <CreateSprintModal projectId={selProjId} onClose={()=>setModal(null)} onCreated={(id)=>{ refreshSprints(); setSelSprintId(id); setModal(null); showToast('✅','Sprint created','') }} />}
 
       {/* Confetti + Toast */}
       <div className="conf-layer" id="conf"></div>
@@ -405,8 +475,7 @@ export default function App() {
 // ════════════════════════════════════════════════════════
 //  TOPBAR
 // ════════════════════════════════════════════════════════
-function Topbar({ onVoice, onLog }) {
-  const [ws, setWs] = useState('RevOps')
+function Topbar({ workspaces = [], selWorkspaceId, onSelectWorkspace, onNewWorkspace, onVoice, onLog }) {
   return (
     <div className="topbar">
       <div className="logo">
@@ -431,14 +500,13 @@ function Topbar({ onVoice, onLog }) {
         </div>
       </div>
       <div className="tb-sep"/>
-      {['RevOps','Platform','Infra'].map(w => (
-        <button key={w} className={`ws-btn${ws===w?' active':''}`} onClick={()=>setWs(w)}>
-          {w==='RevOps' && <i className="fa-solid fa-bolt" style={{color:'var(--gold)',fontSize:'10px'}}/>}
-          {w==='Platform' && <i className="fa-solid fa-rocket" style={{fontSize:'10px'}}/>}
-          {w==='Infra' && <i className="fa-solid fa-server" style={{fontSize:'10px'}}/>}
-          {w}
+      {workspaces.map(w => (
+        <button key={w.id} className={`ws-btn${selWorkspaceId===w.id?' active':''}`} onClick={()=>onSelectWorkspace?.(w.id)} title={w.name}>
+          <span style={{fontSize:'10px',opacity:0.9}}>{w.icon || '⚡'}</span>
+          <span style={{maxWidth:100,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{w.name}</span>
         </button>
       ))}
+      <button className="ws-btn" onClick={onNewWorkspace} title="New team" style={{color:'rgba(255,255,255,.8)'}}><i className="fa-solid fa-plus" style={{fontSize:10}}/> New team</button>
       <div className="tb-right">
         <button className="voice-btn" onClick={onVoice}><div className="vdot"/><i className="fa-solid fa-microphone"/> Voice Log</button>
         <button className="ib" onClick={onLog} title="Captain's Log (Cmd+L)"><i className="fa-solid fa-book-open-cover"/></button>
@@ -481,23 +549,25 @@ function Sidebar({ view, setView, crew, items, projects = [], sprints = [], selP
       </div>
       <div className="sb-div"/>
       <div className="sb-sect">
-        <div className="sb-lbl">Campaigns</div>
+        <div className="sb-lbl">Projects</div>
+        {projects.length === 0 ? <div style={{fontSize:'12px',color:'var(--t4)',padding:'8px 12px'}}>No projects yet</div> : null}
         {projects.map((p, i) => (
           <div key={p.id} className={`si${selProjId===p.id?' active':''}`} onClick={()=>onSelectProject?.(p.id)}>
             <span className="si-ico" style={{color:p.color||colors[i%colors.length],fontSize:'10px'}}>●</span> {p.name}
           </div>
         ))}
-        <div className="sb-add" onClick={onNewProject} role="button"><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> New Campaign</div>
+        <div className="sb-add" onClick={onNewProject} role="button"><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> New project</div>
       </div>
       <div className="sb-div"/>
       <div className="sb-sect">
-        <div className="sb-lbl">Expeditions</div>
+        <div className="sb-lbl">Sprints</div>
+        {projectSprints.length === 0 && selProjId ? <div style={{fontSize:'12px',color:'var(--t4)',padding:'8px 12px'}}>No sprints yet</div> : null}
         {projectSprints.map(s => (
           <div key={s.id} className={`si${selSprintId===s.id?' active':''}`} onClick={()=>onSelectSprint?.(s.id)}>
             <i className="fa-solid fa-mountain-sun si-ico"/>{s.name} <span className="sb-cnt">{items.length}</span>
           </div>
         ))}
-        <div className="sb-add" onClick={onNewSprint} role="button"><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> New Expedition</div>
+        <div className="sb-add" onClick={onNewSprint} role="button"><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> New sprint</div>
       </div>
       <div className="sb-crew-sect">
         <div className="crew-lbl">Crew</div>
@@ -1005,12 +1075,13 @@ function AddModal({ onClose, onSubmit, customFields }) {
   )
 }
 
-function VoiceModal({ recording, transcript, voiceType, onToggle, onSetType, onCreate, onClose }) {
+function VoiceModal({ recording, transcript, voiceType, voiceError, onToggle, onSetType, onCreate, onClose }) {
   return (
-    <Modal onClose={onClose} icon="fa-microphone" iconBg="var(--roses)" iconColor="var(--rose)" title="Voice Log" sub="Speak — Meridian transcribes and creates items" width={400}
-      footer={<><button className="btn-g" onClick={onClose}>Cancel</button><button className="btn-p" onClick={onCreate}><i className="fa-solid fa-wand-magic-sparkles"/> Create with AI</button></>}>
+    <Modal onClose={onClose} icon="fa-microphone" iconBg="var(--roses)" iconColor="var(--rose)" title="Voice" sub="Record to transcribe; create a note or task" width={400}
+      footer={<><button className="btn-g" onClick={onClose}>Cancel</button><button className="btn-p" onClick={onCreate}><i className="fa-solid fa-wand-magic-sparkles"/> Save / Create</button></>}>
       <div className={`vorb${recording?' rec':''}`} onClick={onToggle}>{recording?'⏹':'🎙'}</div>
-      <div className="vbox" style={!transcript||transcript.startsWith('Click')?{fontStyle:'italic',color:'var(--t3)'}:{}}>{transcript||'Click the orb to begin recording…'}</div>
+      {voiceError && <div className="form-err" style={{marginBottom:8}}>{voiceError}</div>}
+      <div className="vbox" style={!transcript||transcript.startsWith('Click')?{fontStyle:'italic',color:'var(--t3)'}:{}}>{transcript||'Click the mic to record. Speak clearly, then click stop.'}</div>
       <div className="vtyps">
         {[{id:'note',icon:'fa-bookmark',label:'Log Note'},{id:'story',icon:'fa-circle-dot',label:'Create Story'},{id:'task',icon:'fa-circle-check',label:'Create Task'}].map(t=>(
           <div key={t.id} className={`vty${voiceType===t.id?' sel':''}`} onClick={()=>onSetType(t.id)}>
@@ -1085,21 +1156,21 @@ function CreateProjectModal({ workspaceId, onClose, onCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setErr('')
-    if (!name.trim()) { setErr('Name required'); return }
-    if (!workspaceId) { setErr('No workspace. Create a campaign from the default one first.'); return }
+    if (!name.trim()) { setErr('Project name is required'); return }
+    if (!workspaceId) { setErr('Select a team first (use the top bar).'); return }
     try {
       const created = await post('/api/projects', { workspace_id: workspaceId, name: name.trim(), description: desc.trim() })
       onCreated(created.id)
     } catch (e) {
-      setErr(e?.message || 'Failed to create campaign')
+      setErr(e?.message || 'Failed to create project')
     }
   }
   return (
-    <Modal onClose={onClose} icon="fa-diagram-project" iconBg="var(--skys)" iconColor="var(--sky)" title="New Campaign" sub="Create a new campaign (project)" width={420}
+    <Modal onClose={onClose} icon="fa-diagram-project" iconBg="var(--skys)" iconColor="var(--sky)" title="New Project" sub="Create a project in the current team" width={420}
       footer={<><button className="btn-g" onClick={onClose}>Cancel</button><button className="btn-p" onClick={handleSubmit}><i className="fa-solid fa-plus"/> Create</button></>}>
       <div className="form-stack">
-        {err && <div className="form-err" style={{color:'var(--coral)'}}>{err}</div>}
-        <div><label className="form-label">Name</label><input className="form-input" value={name} onChange={e=>setName(e.target.value)} placeholder="Campaign name"/></div>
+        {err && <div className="form-err">{err}</div>}
+        <div><label className="form-label">Name</label><input className="form-input" value={name} onChange={e=>setName(e.target.value)} placeholder="Project name"/></div>
         <div><label className="form-label">Description</label><textarea className="form-input" value={desc} onChange={e=>setDesc(e.target.value)} placeholder="Optional" rows={2}/></div>
       </div>
     </Modal>
@@ -1113,22 +1184,47 @@ function CreateSprintModal({ projectId, onClose, onCreated }) {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setErr('')
-    if (!name.trim()) { setErr('Name required'); return }
-    if (!projectId) { setErr('Select a campaign first'); return }
+    if (!name.trim()) { setErr('Sprint name is required'); return }
+    if (!projectId) { setErr('Select a project first'); return }
     try {
       const created = await post('/api/sprints', { project_id: projectId, name: name.trim(), goal: goal.trim() })
       onCreated(created.id)
     } catch (e) {
-      setErr(e?.message || 'Failed to create expedition')
+      setErr(e?.message || 'Failed to create sprint')
     }
   }
   return (
-    <Modal onClose={onClose} icon="fa-mountain-sun" iconBg="var(--jades)" iconColor="var(--jade)" title="New Expedition" sub="Create a new expedition (sprint)" width={420}
+    <Modal onClose={onClose} icon="fa-mountain-sun" iconBg="var(--jades)" iconColor="var(--jade)" title="New Sprint" sub="Create a sprint in the current project" width={420}
       footer={<><button className="btn-g" onClick={onClose}>Cancel</button><button className="btn-p" onClick={handleSubmit}><i className="fa-solid fa-plus"/> Create</button></>}>
       <div className="form-stack">
-        {err && <div className="form-err" style={{color:'var(--coral)'}}>{err}</div>}
+        {err && <div className="form-err">{err}</div>}
         <div><label className="form-label">Name</label><input className="form-input" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Sprint 1"/></div>
         <div><label className="form-label">Goal</label><textarea className="form-input" value={goal} onChange={e=>setGoal(e.target.value)} placeholder="Optional" rows={2}/></div>
+      </div>
+    </Modal>
+  )
+}
+
+function CreateWorkspaceModal({ onClose, onCreated }) {
+  const [name, setName] = useState('')
+  const [err, setErr] = useState('')
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setErr('')
+    if (!name.trim()) { setErr('Team name is required'); return }
+    try {
+      const created = await post('/api/workspaces', { name: name.trim() })
+      onCreated(created.id)
+    } catch (e) {
+      setErr(e?.message || 'Failed to create team')
+    }
+  }
+  return (
+    <Modal onClose={onClose} icon="fa-users" iconBg="var(--lavs)" iconColor="var(--lav)" title="New Team" sub="Create a team (workspace) to hold projects" width={400}
+      footer={<><button className="btn-g" onClick={onClose}>Cancel</button><button className="btn-p" onClick={handleSubmit}><i className="fa-solid fa-plus"/> Create</button></>}>
+      <div className="form-stack">
+        {err && <div className="form-err">{err}</div>}
+        <div><label className="form-label">Team name</label><input className="form-input" value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. RevOps, Engineering"/></div>
       </div>
     </Modal>
   )

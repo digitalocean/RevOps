@@ -21,14 +21,21 @@ Schema is in **`backend/scripts/schema.sql`**. It runs automatically on API star
 
 ## Bootstrap (on first run)
 
-When the schema runs, it creates (if missing):
+When the schema runs, it creates **only** (if the table is empty):
 
-- One **workspace** (`Default`, slug `default`).
-- One **project** (`My Campaign`) under that workspace.
-- Five **board_columns** for that project (backlog, summit, ascent, basecamp, peak).
-- One **sprint** (`Sprint 1`) for that project.
+- One **workspace** (`My Team`, slug `my-team`).
 
-So after the first successful run you always have at least one project and one sprint to use.
+No projects or sprints are created. Create teams (workspaces), then projects, then sprints from the UI.
+
+## Wiping all data
+
+To start from scratch (e.g. in production), run in order (e.g. via `psql` or a DB client):
+
+```sql
+TRUNCATE voice_recordings, tracker_rows, trackers, log_entries, column_prefs, items, board_columns, sprints, projects, custom_fields, crew, workspaces RESTART IDENTITY CASCADE;
+```
+
+Then restart the API (or call `GET /api/db/ensure`). One workspace `My Team` will be re-created if the table is empty.
 
 ## If data is not persisting
 

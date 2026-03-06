@@ -1,5 +1,7 @@
 # Meridian — DigitalOcean App Platform
-# API = /backend. Web = Meridian UI in /frontend.
+# Repo: https://github.com/digitalocean/RevOps
+# Branch: helm-deploy
+# API = /backend. Web = Helm app (Meridian UI) in /Helm.
 # /api → API service; / → static site.
 
 name: meridian
@@ -33,7 +35,7 @@ alerts:
 services:
   - name: api
     environment_slug: node-js
-    build_command: npm ci && npm run build
+    build_command: npm install && npm run build
     envs:
       - key: DATABASE_URL
         scope: RUN_TIME
@@ -51,7 +53,7 @@ services:
     github:
       deploy_on_push: true
       repo: digitalocean/RevOps
-      branch: main
+      branch: helm-deploy
     http_port: 8080
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
@@ -66,14 +68,15 @@ static_sites:
       - key: NPM_CONFIG_PRODUCTION
         value: "false"
         scope: BUILD_TIME
+      # Set to your app URL (e.g. https://your-app-xxxx.ondigitalocean.app) so the UI can reach the API
       - key: VITE_API_URL
         value: "https://revops-ntkll.ondigitalocean.app"
         scope: BUILD_TIME
     github:
       deploy_on_push: true
       repo: digitalocean/RevOps
-      branch: main
+      branch: helm-deploy
     output_dir: dist
-    source_dir: /frontend
+    source_dir: /Helm
     index_document: index.html
     catchall_document: index.html

@@ -26,7 +26,7 @@ Schema is in **`backend/scripts/schema.sql`**. It runs **automatically on API st
 
 When the schema runs, it **only creates tables**. No seed data is inserted. Create your first workspace from the app (topbar → “New team”).
 
-No projects or sprints are created. Create teams (workspaces), then projects, then sprints from the UI.
+No projects or sprints are created. Create workspaces (sidebar “+” under Workspaces), then projects (header “+” tabs), then add initiatives (Quick Actions → New Initiative) from the UI.
 
 ## Wiping all data
 

@@ -9,7 +9,11 @@ import {
   DropdownMenuLabel
 } from './ui/dropdown-menu';
 
-export function QuickActionsMenu() {
+interface QuickActionsMenuProps {
+  onAddInitiative?: () => void;
+}
+
+export function QuickActionsMenu({ onAddInitiative }: QuickActionsMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -20,7 +24,7 @@ export function QuickActionsMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel>Create New</DropdownMenuLabel>
-        <DropdownMenuItem className="gap-2 cursor-pointer">
+        <DropdownMenuItem className="gap-2 cursor-pointer" onClick={onAddInitiative}>
           <Target className="w-4 h-4" />
           New Initiative
         </DropdownMenuItem>

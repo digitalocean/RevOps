@@ -5,11 +5,10 @@ node_modules/
 # Environment files — NEVER commit these, they contain passwords
 .env
 */.env
-frontend/.env.production
+Helm/.env.production
 
 # Build output
-frontend/dist/
-frontend/build/
+Helm/dist/
 
 # OS files
 .DS_Store

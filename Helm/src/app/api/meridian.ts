@@ -53,6 +53,8 @@ export async function api<T = unknown>(path: string, opts: RequestInit = {}): Pr
 export const get = <T = unknown>(path: string) => api<T>(path);
 export const post = <T = unknown>(path: string, body: object) =>
   api<T>(path, { method: 'POST', body: body as BodyInit });
+export const patch = <T = unknown>(path: string, body: object) =>
+  api<T>(path, { method: 'PATCH', body: body as BodyInit });
 
 export function getApiBaseUrl(): string {
   return getBase();

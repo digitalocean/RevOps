@@ -1,6 +1,14 @@
 import { CheckCircle2, Clock, AlertTriangle, Target } from 'lucide-react';
 import { Progress } from './ui/progress';
-import { kpiData } from '../data/mockData';
+import { kpiData as defaultKpiData } from '../data/mockData';
+
+export interface KpiData {
+  solvedYTD: number;
+  inProgress: number;
+  atRiskBlocked: number;
+  bigRocksCount: number;
+  overallProgress: number;
+}
 
 interface KPITileProps {
   label: string;
@@ -26,7 +34,11 @@ function KPITile({ label, value, icon, color, bgColor }: KPITileProps) {
   );
 }
 
-export function KPIStatsBar() {
+interface KPIStatsBarProps {
+  kpiData?: KpiData;
+}
+
+export function KPIStatsBar({ kpiData = defaultKpiData }: KPIStatsBarProps) {
   return (
     <div className="bg-white border-b border-gray-200">
       <div className="max-w-[1600px] mx-auto px-6 py-5">

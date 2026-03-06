@@ -17,6 +17,7 @@ import { AnalyticsDashboard } from '../components/AnalyticsDashboard';
 import { SavedViewsMenu } from '../components/SavedViewsMenu';
 import { KeyboardShortcutsDialog } from '../components/KeyboardShortcutsDialog';
 import { InitiativeDetailsDialog } from '../components/InitiativeDetailsDialog';
+import { AddInitiativeDialog } from '../components/AddInitiativeDialog';
 import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { BarChart3, HelpCircle } from 'lucide-react';
@@ -24,11 +25,29 @@ import { useMeridianData } from '../data/useMeridianData';
 import type { Status, Priority, Category, Initiative } from '../data/mockData';
 
 export function Dashboard() {
-  const { initiatives, trackerSections, loading, error, fromApi, refresh } = useMeridianData();
+  const {
+    initiatives,
+    trackerSections,
+    kpiData,
+    loading,
+    error,
+    fromApi,
+    refresh,
+    workspaces,
+    projects,
+    selectedWorkspaceId,
+    setSelectedWorkspaceId,
+    selectedProjectId,
+    setSelectedProjectId,
+    createWorkspace,
+    createProject,
+    createItem,
+  } = useMeridianData();
   const [viewMode, setViewMode] = useState<'grid' | 'gantt' | 'analytics'>('grid');
   const [showActivityPanel, setShowActivityPanel] = useState(false);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [showAddInitiative, setShowAddInitiative] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filters, setFilters] = useState({
     status: [] as Status[],
@@ -117,10 +136,22 @@ export function Dashboard() {
     setSelectedInitiativeFromSearch(initiative);
   };
 
+  const handleCreateProject = async (name: string) => {
+    if (selectedWorkspaceId) await createProject(selectedWorkspaceId, name);
+  };
+
   return (
     <div className="flex h-screen bg-white">
-      <NavigationSidebar />
-      
+      <NavigationSidebar
+        workspaces={workspaces}
+        selectedWorkspaceId={selectedWorkspaceId}
+        onSelectWorkspace={(id) => {
+          setSelectedWorkspaceId(id);
+          setSelectedProjectId(null);
+        }}
+        onCreateWorkspace={createWorkspace}
+      />
+
       <div className="flex-1 flex flex-col overflow-hidden">
         {error && (
           <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-800 flex items-center justify-between">
@@ -133,8 +164,14 @@ export function Dashboard() {
             Connected to Meridian — showing work items from your workspace.
           </div>
         )}
-        <WorkspaceHeader onToggleActivity={() => setShowActivityPanel(!showActivityPanel)} />
-        <KPIStatsBar />
+        <WorkspaceHeader
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          onSelectProject={(id) => setSelectedProjectId(id)}
+          onCreateProject={handleCreateProject}
+          onToggleActivity={() => setShowActivityPanel(!showActivityPanel)}
+        />
+        <KPIStatsBar kpiData={kpiData} />
         
         <div className="flex-1 overflow-auto bg-gray-50">
           <div className="max-w-[1600px] mx-auto p-6">
@@ -162,7 +199,7 @@ export function Dashboard() {
                 </Button>
                 <ViewToggle viewMode={viewMode === 'analytics' ? 'grid' : viewMode} onViewChange={setViewMode} />
                 <ExportMenu />
-                <QuickActionsMenu />
+                <QuickActionsMenu onAddInitiative={() => setShowAddInitiative(true)} />
               </div>
             </div>
 
@@ -223,6 +260,13 @@ export function Dashboard() {
       <KeyboardShortcutsDialog
         open={showKeyboardShortcuts}
         onOpenChange={setShowKeyboardShortcuts}
+      />
+
+      <AddInitiativeDialog
+        open={showAddInitiative}
+        onOpenChange={setShowAddInitiative}
+        projectId={selectedProjectId}
+        onCreate={createItem}
       />
 
       {/* Floating help button */}

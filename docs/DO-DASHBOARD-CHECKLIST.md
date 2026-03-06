@@ -17,7 +17,7 @@ This makes the live app match the repo and fixes wrong component names/source.
 7. **Important:** In the pasted spec, update the **web** component’s `VITE_API_URL` to your **actual** app URL (e.g. `https://your-app-xxxx.ondigitalocean.app`). Replace `https://revops-ntkll.ondigitalocean.app` if your URL is different.
 8. Click **Save** (or **Update**). This will **recreate** components from the spec:
    - **api** (Web Service, source `/backend`)
-   - **web** (Static Site, source `/frontend`)
+   - **web** (Static Site, source `/Helm`)
    - **db** (Database)
    The old **revops** component may disappear and be replaced by **api**.
 9. Go to **Activity** → **Force Build and Deploy** → enable **Clear Build Cache** → deploy.

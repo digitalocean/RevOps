@@ -1,11 +1,24 @@
 # Deploy Meridian to DigitalOcean App Platform
 
+## Recommended settings (helm-deploy)
+
+| Setting | Value |
+|--------|--------|
+| **Repository** | `https://github.com/digitalocean/RevOps` |
+| **Branch** | `helm-deploy` |
+| **API (service)** | Source directory: `/backend` |
+| **Web (static site)** | Source directory: `/Helm` |
+
+Use **Edit your App Spec** and paste `.do/app.yaml` from the repo (branch `helm-deploy`), or set the above in the dashboard for each component.
+
+---
+
 ## How to configure in DigitalOcean
 
 ### 1. Create the app from GitHub
 
 1. In [DigitalOcean](https://cloud.digitalocean.com/) go to **Apps** → **Create App**.
-2. Choose **GitHub** and select your repo and branch (e.g. `main` or `feature/create-sprint-ui`).
+2. Choose **GitHub** and select repo **digitalocean/RevOps**, branch **helm-deploy**.
 3. Either use **App Spec** (recommended) or configure components manually.
 
 ---
@@ -16,7 +29,7 @@
 |-----------|-------------|------------------|------------|
 | **db**    | Database    | —                | PostgreSQL 17 |
 | **api**   | Service     | `/backend`       | `npm start` (Node, port 8080) |
-| **web**   | Static Site | `/frontend` | `npm run build` → serve `dist` |
+| **web**   | Static Site | `/Helm` | `npm run build` → serve `dist` |
 
 - **Ingress:** Requests to `/api/*` go to **api**; everything else (`/`) goes to **web** (React SPA).
 
@@ -49,7 +62,7 @@ Optional:
 
 - **`FRONTEND_URL`** – Your app URL (e.g. `https://meridian-xxxxx.ondigitalocean.app`) if you want to restrict CORS to that origin.
 
-#### Web (Meridian UI, built from /frontend) component
+#### Web (Helm — Meridian UI, built from /Helm) component
 
 - **`NPM_CONFIG_PRODUCTION`** = `false` (BUILD_TIME) so devDependencies install during build.
 - **Do not set `VITE_API_URL`** when using the default ingress (same app URL for web and `/api`). The app uses same-origin requests so `/api` is routed to the API. Only set `VITE_API_URL` (BUILD_TIME) if your API is on a **different** URL.
@@ -80,7 +93,7 @@ Optional:
 
 - [ ] Repo and branch set correctly in app spec or UI.
 - [ ] **api** `source_dir`: `/backend`.
-- [ ] **web** `source_dir`: `/frontend`.
+- [ ] **web** `source_dir`: `/Helm`.
 - [ ] **api** has `DATABASE_URL`, `NODE_ENV=production`, `PORT=8080`.
 - [ ] **web** has `NPM_CONFIG_PRODUCTION=false` (BUILD_TIME). No need for `VITE_API_URL` — app uses relative `/api` URLs.
 - [ ] **web** index and catchall document = `index.html`.
@@ -101,7 +114,7 @@ Optional:
 
 Health check URL: `https://your-app-url.ondigitalocean.app/api/health` — should return `{"status":"ok","db":"connected",...}`.
 
-**If you still get a build or runtime error:** In the DigitalOcean dashboard go to your app → **Runtime Logs** or **Build Logs** for the failing component (api or web). Copy the **exact error message** (last 20–30 lines). Common causes: wrong **Source Directory** (must be `/backend` for api, `/frontend` for web), **Database** not linked to the api component, or wrong **Branch**.
+**If you still get a build or runtime error:** In the DigitalOcean dashboard go to your app → **Runtime Logs** or **Build Logs** for the failing component (api or web). Copy the **exact error message** (last 20–30 lines). Common causes: wrong **Source Directory** (must be `/backend` for api, `/Helm` for web), **Database** not linked to the api component, or wrong **Branch**.
 
 ---
 

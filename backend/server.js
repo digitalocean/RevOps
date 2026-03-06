@@ -9,13 +9,12 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 
 const dbUrl = process.env.DATABASE_URL || '';
-if (dbUrl && !/@(localhost|127\.0\.0\.1)(:\d+)?\//.test(dbUrl)) {
-  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
-}
-
+const isRemoteDb = dbUrl && !/@(localhost|127\.0\.0\.1)(:\d+)?\//.test(dbUrl);
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' || dbUrl.includes('ondigitalocean') || /sslmode=/.test(dbUrl) ? { rejectUnauthorized: false } : false,
+  ssl: process.env.NODE_ENV === 'production' || isRemoteDb || /sslmode=/.test(dbUrl)
+    ? { rejectUnauthorized: false }
+    : false,
 });
 module.exports.pool = pool;
 

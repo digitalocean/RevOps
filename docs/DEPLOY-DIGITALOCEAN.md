@@ -109,3 +109,38 @@ Optional:
 Health check URL: `https://your-app-url.ondigitalocean.app/api/health` — should return `{"status":"ok","db":"connected",...}`.
 
 **If you still get a build or runtime error:** In the DigitalOcean dashboard go to your app → **Runtime Logs** or **Build Logs** for the failing component (api or web). Copy the **exact error message** (last 20–30 lines). Common causes: wrong **Source Directory** (must be `/backend` for api, `/frontend` for web), **Database** not linked to the api component, or **Branch** not set to `meridian`.
+
+---
+
+### 9. Logs show old app (e.g. "helm-backend", "node src/index.js")
+
+If Runtime Logs show **helm-backend** and **node src/index.js**, the component is **not** running Meridian. Meridian uses **meridian-backend** and **node server.js**.
+
+**Fix:** For the **revops** (or API) component, set:
+- **Branch:** `meridian`
+- **Source Directory:** `/backend`
+- **Run Command:** `node server.js` (or leave blank to use `package.json` start script)
+
+Then **Save** → **Force Build and Deploy** (optionally **Clear Build Cache**). After the new deploy, logs should show "Meridian schema ensured." and "Meridian API running on port 8080".
+
+---
+
+### 10. "Deploy cluster proxy not ready" when viewing logs
+
+This is a DigitalOcean platform message: the log viewer can’t connect to the deploy environment. It often happens when:
+
+- **App structure doesn’t match the spec** — The spec defines two components: **api** (service) and **web** (static site). If the app was created manually and has a single component (e.g. named **revops**), the internal routing and proxy can be wrong and logs may never become available.
+
+**What to do:**
+
+1. **Use the app spec from the repo**  
+   In the DO app: **Settings** → **App Spec** → **Edit**. Replace the spec with the contents of `.do/app.yaml` from the **meridian** branch (components must be named **api** and **web**). Save and deploy. Then try logs again after the new deployment finishes.
+
+2. **Create a new app from the spec**  
+   Create a new App → **Edit your App Spec** → paste the full contents of `.do/app.yaml` (from the meridian branch). Connect the same GitHub repo and **meridian** branch. This gives you the correct structure (api + web + db) and often fixes proxy/log issues.
+
+3. **Check deployment status**  
+   In **Activity** / **Deployments**, see if the latest deploy is **Failed** or **Live**. If it’s Failed, open that deployment and read the **build** or **deploy** error there (you don’t need runtime logs for that). If it’s Live, open the app URL to confirm it works.
+
+4. **DigitalOcean status and support**  
+   Check [status.digitalocean.com](https://status.digitalocean.com). If the problem continues, contact DigitalOcean support and mention “deploy cluster proxy not ready” when fetching logs for the app.

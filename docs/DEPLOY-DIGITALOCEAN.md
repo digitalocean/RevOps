@@ -100,6 +100,7 @@ Optional:
 
 | Issue | Check |
 |-------|--------|
+| **Build failure** (non-zero exit / missing start) | **api**: `backend/package.json` must have a `"build"` script (e.g. `"build": "echo 'No build step'"`) and `"start": "node server.js"`. Node in `engines` (e.g. `"node": "20.x"`). **web**: `tailwindcss`, `postcss`, `autoprefixer` in devDependencies; `engines.node` set. |
 | Blank page | `VITE_API_URL` set at **BUILD_TIME** for web; correct app URL. |
 | “Failed to fetch” / API errors | App URL in `VITE_API_URL` matches the app domain; **api** is healthy (e.g. `/api/health`). |
 | 404 on refresh | Catchall document = `index.html` for the static site. |

@@ -1,9 +1,9 @@
 import { createBrowserRouter } from 'react-router';
-import { Dashboard } from './pages/Dashboard';
+import { AuthGate } from './components/AuthGate';
 
 export const router = createBrowserRouter([
   {
     path: '/',
-    Component: Dashboard,
+    Component: AuthGate,
   },
 ]);

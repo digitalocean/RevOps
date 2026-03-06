@@ -44,7 +44,16 @@ const VIEW_TABS: { id: NavView; label: string }[] = [
   { id: 'summit_board', label: 'Board' },
 ];
 
-export function Dashboard() {
+type AuthUser = { id: string; email?: string; name?: string; initials?: string } | null;
+
+interface DashboardProps {
+  /** When provided (e.g. from AuthGate), user is already logged in; no auth UI. */
+  currentUser?: AuthUser;
+  /** When provided, logout will call this (e.g. AuthGate sets user to null). */
+  onLogout?: () => void;
+}
+
+export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogout }: DashboardProps = {}) {
   const {
     initiatives,
     trackerSections,
@@ -92,25 +101,30 @@ export function Dashboard() {
     bigRocksOnly: false
   });
   const [selectedInitiativeFromSearch, setSelectedInitiativeFromSearch] = useState<Initiative | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ id: string; email?: string; name?: string; initials?: string } | null>(null);
+  const [internalUser, setInternalUser] = useState<AuthUser>(null);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
 
-  // Auth: fetch current user on load
+  const currentUser = propsCurrentUser !== undefined ? propsCurrentUser : internalUser;
+
+  // Auth: fetch current user on load only when not provided by parent (e.g. AuthGate)
   useEffect(() => {
-    get<{ user: { id: string; email?: string; name?: string; initials?: string } | null }>('/api/auth/me')
-      .then((data) => setCurrentUser(data.user ?? null))
-      .catch(() => setCurrentUser(null));
-  }, []);
+    if (propsCurrentUser !== undefined) return;
+    get<{ user: AuthUser }>('/api/auth/me')
+      .then((data) => setInternalUser(data.user ?? null))
+      .catch(() => setInternalUser(null));
+  }, [propsCurrentUser]);
 
   const handleLogin = () => setShowAuthDialog(true);
 
   const handleLogout = async () => {
     try {
       await post('/api/auth/logout', {});
-      setCurrentUser(null);
+      if (propsOnLogout) propsOnLogout();
+      else setInternalUser(null);
       toast.success('Signed out');
     } catch {
-      setCurrentUser(null);
+      if (propsOnLogout) propsOnLogout();
+      else setInternalUser(null);
     }
   };
 

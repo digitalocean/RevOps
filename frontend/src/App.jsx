@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { get, post, patch, del, postForm } from './api.js'
+import { get, post, patch, del, postForm, checkApiAtUrl, getApiBaseUrl } from './api.js'
 
 // ── CONSTANTS ─────────────────────────────────────────────
 const COL_COLORS = {
@@ -78,17 +78,20 @@ export default function App() {
       }
     }).catch(() => {})
   }, [selWorkspaceId])
-  const retryApiConnection = useCallback(() => {
+  const retryApiConnection = useCallback((pastedUrl) => {
     setApiReachable(null)
-    get('/api/health')
-      .then(() => get('/api/workspaces'))
+    const doRetry = pastedUrl && pastedUrl.trim().startsWith('http')
+      ? checkApiAtUrl(pastedUrl.trim())
+      : get('/api/health').then(() => get('/api/workspaces'))
+    doRetry
       .then(data => {
         setApiReachable(true)
-        if (data && Array.isArray(data)) {
-          setWorkspaces(data)
+        const list = Array.isArray(data) ? data : []
+        if (list.length >= 0) {
+          setWorkspaces(list)
           const cur = LSGet('selWorkspaceId', null)
-          if (data.length === 0) setSelWorkspaceId(null)
-          else if (!cur || !data.some(w => w.id === cur)) setSelWorkspaceId(data[0].id)
+          if (list.length === 0) setSelWorkspaceId(null)
+          else if (!cur || !list.some(w => w.id === cur)) setSelWorkspaceId(list[0].id)
           else setSelWorkspaceId(cur)
         }
       })
@@ -382,25 +385,31 @@ export default function App() {
                 : 'Start the backend: cd backend && npm run dev. Set DATABASE_URL in backend/.env.'}
             </p>
             {typeof window !== 'undefined' && !/localhost|127\.0\.0\.1/.test(window.location?.host || '') && (
-              <div className="api-banner-actions">
-                <input
-                  type="url"
-                  className="api-banner-input"
-                  placeholder="https://your-app.ondigitalocean.app"
-                  value={apiUrlInput}
-                  onChange={e => setApiUrlInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && (e.target.value.trim() ? (localStorage.setItem('meridian_api_base', e.target.value.trim().replace(/\/$/, '')), retryApiConnection(), setApiUrlInput('')) : retryApiConnection())}
-                />
-                <button type="button" className="api-banner-btn" onClick={() => {
-                  if (apiUrlInput.trim()) {
-                    localStorage.setItem('meridian_api_base', apiUrlInput.trim().replace(/\/$/, ''));
-                    setApiUrlInput('');
-                  }
-                  retryApiConnection();
-                }}>
-                  {apiUrlInput.trim() ? 'Save & retry' : 'Retry'}
-                </button>
-              </div>
+              <>
+                <p className="api-banner-diagnostic">
+                  Requesting: <code>{getApiBaseUrl() || '(none)'}</code>
+                  {getApiBaseUrl() && (
+                    <a href={`${getApiBaseUrl()}/api/health`} target="_blank" rel="noopener noreferrer" className="api-banner-test-link">Test in new tab</a>
+                  )}
+                </p>
+                <div className="api-banner-actions">
+                  <input
+                    type="url"
+                    className="api-banner-input"
+                    placeholder="https://revops-ntkll.ondigitalocean.app"
+                    value={apiUrlInput}
+                    onChange={e => setApiUrlInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && (retryApiConnection(apiUrlInput.trim() || undefined), setApiUrlInput(''))}
+                  />
+                  <button type="button" className="api-banner-btn" onClick={() => {
+                    const url = apiUrlInput.trim()
+                    retryApiConnection(url || undefined)
+                    if (url) setApiUrlInput('')
+                  }}>
+                    {apiUrlInput.trim() ? 'Save & retry' : 'Retry'}
+                  </button>
+                </div>
+              </>
             )}
           </div>
           <button type="button" className="api-banner-dismiss" onClick={() => setApiReachable(null)} aria-label="Dismiss">×</button>

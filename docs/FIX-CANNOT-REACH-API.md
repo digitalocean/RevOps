@@ -43,11 +43,25 @@ Use your **main app URL** (the one that shows in the Apps overview) as the `api_
 
 ## Check the API
 
-In a new tab, open:
+In the red banner, use **"Test in new tab"** (or open in a new tab):
 
 `https://YOUR-APP-URL/api/health`
 
-You should see something like: `{"status":"ok","db":"connected","schema":true}`.
+You should see JSON like: `{"status":"ok","db":"connected","schema":true}`.
 
-- If that URL doesn’t load or returns an error, the **api** component or database is the problem (not the frontend).
-- If `/api/health` works but the UI still shows "Cannot reach API", repeat Steps 2–3 and open the app from the main app URL.
+- **If you see JSON** → The API is up. Try a hard refresh (Ctrl+Shift+R) or clear site data; then paste the URL again and click Save & retry.
+- **If you see an HTML page or "Error"** → The request is hitting the wrong component. On DigitalOcean, `/api` must be routed to the **api** service, not the static site. See below.
+
+## If pasting the URL still doesn’t work
+
+1. **Confirm routing**  
+   In DigitalOcean → your app → **Settings** or **App Spec**, ensure you have:
+   - Two components: **api** (service) and **web** (static site).
+   - **Ingress rules**: path prefix `/api` → **api**; path prefix `/` → **web**.  
+   The `/api` rule must be listed **before** the `/` rule so that `https://your-app.ondigitalocean.app/api/health` goes to the API, not the static site.
+
+2. **Confirm the API is running**  
+   In the app, open the **api** component. Check that the last deploy succeeded and that the **api** (not only the web) component is running. If the API failed to start (e.g. missing `DATABASE_URL`), fix that and redeploy the api component.
+
+3. **Use the exact app URL**  
+   Use the **single** URL shown at the top of your app in the Apps list (e.g. `https://revops-ntkll.ondigitalocean.app`). Don’t use a component-specific or preview URL. Paste that exact URL in the banner and click Save & retry.

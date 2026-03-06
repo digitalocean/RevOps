@@ -1,4 +1,4 @@
-const STORAGE_KEY = 'meridian_api_base';
+export const STORAGE_KEY = 'meridian_api_base';
 
 function getBase() {
   if (typeof window === 'undefined') return '';
@@ -17,6 +17,11 @@ function getBase() {
   if (v && String(v).trim()) return String(v).replace(/\/$/, '');
   if (import.meta.env.DEV) return '';
   return window.location?.origin || '';
+}
+
+/** Return the base URL we use for API calls (for display/diagnostics). */
+export function getApiBaseUrl() {
+  return getBase();
 }
 
 export async function api(path, opts = {}) {
@@ -50,6 +55,28 @@ export const get    = (path) => api(path);
 export const post   = (path, body) => api(path, { method: 'POST', body });
 export const patch  = (path, body) => api(path, { method: 'PATCH', body });
 export const del    = (path) => api(path, { method: 'DELETE' });
+
+/** Test API at a specific base URL (e.g. pasted in banner). Saves to localStorage on success. */
+export async function checkApiAtUrl(baseUrl) {
+  const base = (baseUrl || '').trim().replace(/\/$/, '');
+  if (!base || !base.startsWith('http')) throw new Error('Enter a valid URL (e.g. https://revops-ntkll.ondigitalocean.app)');
+  const healthUrl = `${base}/api/health`;
+  const res = await fetch(healthUrl, { headers: { 'Content-Type': 'application/json' } });
+  const contentType = res.headers.get('content-type') || '';
+  const text = await res.text();
+  if (!contentType.includes('application/json')) {
+    const isHtml = /^\s*<!DOCTYPE|^\s*<html/i.test(text || '');
+    if (isHtml) throw new Error('That URL returned a web page, not the API. Make sure you use the app URL where /api is routed to the API (see docs).');
+    throw new Error(`Request failed: ${res.status}. ${text?.slice(0, 60) || res.statusText}`);
+  }
+  const data = text ? JSON.parse(text) : {};
+  if (data.status !== 'ok') throw new Error(data.message || 'API not healthy');
+  try { localStorage.setItem(STORAGE_KEY, base); } catch (_) {}
+  const workspacesRes = await fetch(`${base}/api/workspaces`, { headers: { 'Content-Type': 'application/json' } });
+  const workspacesText = await workspacesRes.text();
+  const workspaces = workspacesRes.ok && workspacesText ? JSON.parse(workspacesText) : [];
+  return Array.isArray(workspaces) ? workspaces : [];
+}
 
 /** POST multipart form (e.g. audio file) — do not set Content-Type */
 export async function postForm(path, formData) {

@@ -82,17 +82,28 @@ export default function App() {
     }).catch(() => setProjects([]))
   }, [selWorkspaceId])
   useEffect(() => {
-    get('/api/db/ensure').catch(() => {}).finally(() => {
-      get('/api/workspaces').then(data => {
-        setApiReachable(true)
-        if (Array.isArray(data)) {
-          setWorkspaces(data)
-          const cur = LSGet('selWorkspaceId', null)
-          if (data.length && (!cur || !data.some(w => w.id === cur))) setSelWorkspaceId(data[0].id)
-          else if (cur) setSelWorkspaceId(cur)
-        }
-      }).catch(() => setApiReachable(false))
-    })
+    let cancelled = false
+    const loadWorkspaces = (retry = false) => {
+      get('/api/db/ensure').catch(() => {}).finally(() => {
+        if (cancelled) return
+        get('/api/workspaces').then(data => {
+          if (cancelled) return
+          setApiReachable(true)
+          if (Array.isArray(data)) {
+            setWorkspaces(data)
+            const cur = LSGet('selWorkspaceId', null)
+            if (data.length && (!cur || !data.some(w => w.id === cur))) setSelWorkspaceId(data[0].id)
+            else if (cur) setSelWorkspaceId(cur)
+          }
+        }).catch(() => {
+          if (cancelled) return
+          if (!retry) setTimeout(() => loadWorkspaces(true), 1500)
+          else setApiReachable(false)
+        })
+      })
+    }
+    loadWorkspaces()
+    return () => { cancelled = true }
   }, [])
   useEffect(() => {
     if (!selWorkspaceId) { setProjects([]); setSprints([]); setSelProjId(null); setSelSprintId(null); return }

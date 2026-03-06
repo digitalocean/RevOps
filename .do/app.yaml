@@ -1,5 +1,6 @@
-# Meridian — DigitalOcean App Platform
-# /api → API service; / → static site. Use the app's default URL (from DO dashboard) for VITE_API_URL so the frontend can reach the API.
+# Helm + Meridian — DigitalOcean App Platform (helm-deploy branch)
+# API = Meridian backend (workspaces, projects, items). Web = Helm UI (Project Intelligence) using Meridian features.
+# /api → API service; / → static site (Helm).
 
 name: meridian
 region: nyc
@@ -50,7 +51,7 @@ services:
     github:
       deploy_on_push: true
       repo: digitalocean/RevOps
-      branch: meridian
+      branch: helm-deploy
     http_port: 8080
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
@@ -71,8 +72,8 @@ static_sites:
     github:
       deploy_on_push: true
       repo: digitalocean/RevOps
-      branch: meridian
+      branch: helm-deploy
     output_dir: dist
-    source_dir: /frontend
+    source_dir: /Helm
     index_document: index.html
     catchall_document: index.html

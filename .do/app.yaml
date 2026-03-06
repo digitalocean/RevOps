@@ -20,11 +20,6 @@ ingress:
         path:
           prefix: /api
     - component:
-        name: api
-      match:
-        path:
-          prefix: /health
-    - component:
         name: web
       match:
         path:

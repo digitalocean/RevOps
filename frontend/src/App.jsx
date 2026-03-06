@@ -360,12 +360,12 @@ export default function App() {
 
   // ── VIEWS ─────────────────────────────────────────────
   const views = [
-    { id:'board',   label:'Summit Board',   icon:'fa-chart-kanban'  },
-    { id:'list',    label:'Manifest',       icon:'fa-list-ul'       },
-    { id:'gantt',   label:'Expedition Map', icon:'fa-bars-progress' },
-    { id:'tracker', label:'Field Notes',    icon:'fa-table-cells'   },
-    { id:'metrics', label:'Observatory',    icon:'fa-chart-area'    },
-    { id:'admin',   label:'Base Camp',      icon:'fa-sliders'       },
+    { id:'board',   label:'Grid',    icon:'fa-chart-kanban'  },
+    { id:'list',    label:'Manifest', icon:'fa-list-ul'       },
+    { id:'gantt',   label:'Gantt',   icon:'fa-bars-progress' },
+    { id:'tracker', label:'Trackers', icon:'fa-table-cells'   },
+    { id:'metrics', label:'Analytics', icon:'fa-chart-line'    },
+    { id:'admin',   label:'Reports',  icon:'fa-file-lines'    },
   ]
 
   const doneCount = items.filter(i => i.status === 'peak').length
@@ -422,6 +422,7 @@ export default function App() {
       <div className="app-body">
         {/* ── SIDEBAR ── */}
         <Sidebar view={view} setView={setView} crew={crew} items={items}
+          workspaces={workspaces} selWorkspaceId={selWorkspaceId} onSelectWorkspace={setSelWorkspaceId} onNewWorkspace={()=>setModal('newWorkspace')}
           projects={projects} sprints={sprints} selProjId={selProjId} selSprintId={selSprintId}
           onSelectProject={setSelProjId} onSelectSprint={setSelSprintId}
           onNewProject={()=>setModal('newProject')} onNewSprint={()=>setModal('newSprint')} />
@@ -429,9 +430,12 @@ export default function App() {
         {/* ── MAIN ── */}
         <div className="main-area">
           <div className="page-head">
+            <div className="pt-row">
+              <div className="page-title">Project Intelligence</div>
+            </div>
+            <p className="page-desc">Track strategic initiatives, OKRs, and progress across all teams.</p>
             <div className="bc">
-              <i className="fa-solid fa-house-chimney"></i>
-              <span style={{color:'var(--t3)'}}>{selProject?.name || 'Meridian'}</span>
+              <span style={{color:'var(--t3)'}}>{selProject?.name || 'Select a project'}</span>
               {selSprint && (
                 <>
                   <span className="bc-sep"> › </span>
@@ -439,23 +443,10 @@ export default function App() {
                 </>
               )}
             </div>
-            <div className="pt-row">
-              <div className="page-title">{selSprint?.name || selProject?.name || 'Select a project'}</div>
-              {selSprint && <div className="s-tag"><div className="s-dot"></div> {selSprint.status || 'Active'}</div>}
-            </div>
-            <div className="pm">
-              <div className="pmi"><i className="fa-regular fa-calendar"></i> Mar 1 – 14, 2026</div>
-              <div className="pmi">
-                <div className="prog-t"><div className="prog-f" style={{width:pct+'%'}}></div></div>
-                {pct}% complete
-              </div>
-              <div className="pmi"><i className="fa-solid fa-bolt" style={{color:'var(--gold)'}}></i> <span style={{fontWeight:600}}>{totalPts}pt</span></div>
-              <div className="pmi" style={{color:'var(--jade)'}}><i className="fa-solid fa-circle-check"></i> <span style={{fontWeight:600}}>{donePts}pt</span> done</div>
-            </div>
           </div>
 
           {/* ── ONBOARDING WALKTHROUGH ── */}
-          {apiReachable === true && !onboardingDismissed && (
+          {apiReachable === true && !onboardingDismissed && (workspaces.length === 0 || projects.length === 0 || !selProjId) && (
             <OnboardingWalkthrough
               workspaces={workspaces}
               selWorkspaceId={selWorkspaceId}
@@ -475,29 +466,35 @@ export default function App() {
             const atRisk = items.filter(i => (i.priority === 'high' || i.priority === 'critical') && !cols.find(c => c.slug === i.status)?.is_done).length
             const progPct = items.length ? Math.round((doneCount / items.length) * 100) : 0
             return (
-              <div className="kpi-grid">
-                <div className="kpi-card solved">
-                  <span className="kpi-title">Solved / Done</span>
-                  <div className="kpi-val">{doneCount}</div>
-                  <div className="kpi-ico"><i className="fa-solid fa-circle-check"/></div>
-                  <div className="kpi-prog"><div className="kpi-prog-fill" style={{width: progPct + '%', background: 'var(--jade)'}}/></div>
+              <>
+                <div className="kpi-grid">
+                  <div className="kpi-card solved">
+                    <div className="kpi-val">{doneCount}</div>
+                    <span className="kpi-title">SOLVED YTD</span>
+                    <div className="kpi-ico"><i className="fa-solid fa-circle-check"/></div>
+                  </div>
+                  <div className="kpi-card in-progress">
+                    <div className="kpi-val">{inProgress}</div>
+                    <span className="kpi-title">IN PROGRESS</span>
+                    <div className="kpi-ico"><i className="fa-regular fa-clock"/></div>
+                  </div>
+                  <div className="kpi-card at-risk">
+                    <div className="kpi-val">{atRisk}</div>
+                    <span className="kpi-title">AT RISK / BLOCKED</span>
+                    <div className="kpi-ico"><i className="fa-solid fa-triangle-exclamation"/></div>
+                  </div>
+                  <div className="kpi-card big-rocks">
+                    <div className="kpi-val">{items.length}</div>
+                    <span className="kpi-title">BIG ROCKS</span>
+                    <div className="kpi-ico"><i className="fa-solid fa-bullseye"/></div>
+                  </div>
                 </div>
-                <div className="kpi-card in-progress">
-                  <span className="kpi-title">In Progress</span>
-                  <div className="kpi-val">{inProgress}</div>
-                  <div className="kpi-ico"><i className="fa-regular fa-clock"/></div>
+                <div className="overall-progress-wrap">
+                  <span className="overall-progress-label">OVERALL PROGRESS</span>
+                  <div className="overall-progress-bar"><div className="overall-progress-fill" style={{width: progPct + '%'}}/></div>
+                  <span className="overall-progress-pct">{progPct}%</span>
                 </div>
-                <div className="kpi-card at-risk">
-                  <span className="kpi-title">At Risk / Blocked</span>
-                  <div className="kpi-val">{atRisk}</div>
-                  <div className="kpi-ico"><i className="fa-solid fa-triangle-exclamation"/></div>
-                </div>
-                <div className="kpi-card big-rocks">
-                  <span className="kpi-title">Items</span>
-                  <div className="kpi-val">{items.length}</div>
-                  <div className="kpi-ico"><i className="fa-solid fa-bullseye"/></div>
-                </div>
-              </div>
+              </>
             )
           })()}
 
@@ -509,9 +506,10 @@ export default function App() {
               </button>
             ))}
             <div className="vt-acts">
+              <button className="btn-g"><i className="fa-solid fa-filter"></i> Filter</button>
               <button className="btn-g"><i className="fa-solid fa-file-export"></i> Export</button>
               <button className="btn-g" onClick={()=>setModal('col')}><i className="fa-solid fa-table-columns"></i> Columns</button>
-              <button className="btn-p" onClick={()=>setModal('add')}><i className="fa-solid fa-mountain"></i> Summit Item</button>
+              <button className="btn-p" onClick={()=>setModal('add')}><i className="fa-solid fa-plus"></i> Add Initiative</button>
             </div>
           </div>
 
@@ -553,7 +551,7 @@ export default function App() {
         onClose={()=>setModal(null)}
         onSave={(name,type)=>{ addCustomField(name,type,cfTarget); setModal(null); showToast('✨','Field added!',`"${name}" added to ${cfTarget} fields`) }} />}
       {modal === 'newWorkspace' && <CreateWorkspaceModal onClose={()=>setModal(null)} onCreated={(id)=>{ refreshWorkspaces(); setSelWorkspaceId(id); setModal(null); showToast('✅','Team created','') }} />}
-      {modal === 'newProject' && <CreateProjectModal workspaceId={selWorkspaceId} onClose={()=>setModal(null)} onCreated={(id)=>{ refreshProjects(); setSelProjId(id); setModal(null); showToast('✅','Project created','') }} />}
+      {modal === 'newProject' && <CreateProjectModal workspaceId={selWorkspaceId} onClose={()=>setModal(null)} onCreated={(id)=>{ refreshProjects(); setSelProjId(id); setModal(null); setOnboardingDismissed(true); showToast('✅','Project created','') }} />}
       {modal === 'newSprint' && <CreateSprintModal projectId={selProjId} onClose={()=>setModal(null)} onCreated={(id)=>{ refreshSprints(); setSelSprintId(id); setModal(null); showToast('✅','Sprint created','') }} />}
 
       {/* Confetti + Toast */}
@@ -566,12 +564,18 @@ export default function App() {
   )
 }
 
-// ── Onboarding walkthrough: Team → Project → Items (sprint optional) ──
+// ── Onboarding walkthrough: Team → Project → Items (no Sprint required) ──
 function OnboardingWalkthrough({ workspaces, selWorkspaceId, projects, selProjId, onDismiss, onCreateTeam, onCreateProject, onAddItem }) {
   const step1 = workspaces.length > 0
   const step2 = projects.length > 0 && selWorkspaceId
   const step3 = selProjId
   const allDone = step1 && step2 && step3
+
+  useEffect(() => {
+    if (!allDone) return
+    const t = setTimeout(() => onDismiss(), 2200)
+    return () => clearTimeout(t)
+  }, [allDone, onDismiss])
 
   const steps = [
     { id: 1, done: step1, label: 'Create a team', sub: 'Teams hold your projects.', action: onCreateTeam, btn: 'Create team' },
@@ -634,8 +638,8 @@ function Topbar({ workspaces = [], selWorkspaceId, onSelectWorkspace, onNewWorks
           <line x1="19.5" y1="21.5" x2="23.5" y2="21.5" stroke="url(#lg)" strokeWidth="1.5" strokeLinecap="round"/>
         </svg>
         <div>
-          <div className="logo-name">Meridian</div>
-          <div className="logo-sub">Peak Performance</div>
+          <div className="logo-name">Helm</div>
+          <div className="logo-sub">Command Center</div>
         </div>
       </div>
       <div className="tb-sep"/>
@@ -651,6 +655,7 @@ function Topbar({ workspaces = [], selWorkspaceId, onSelectWorkspace, onNewWorks
         <button className="ib" onClick={onLog} title="Captain's Log (Cmd+L)"><i className="fa-solid fa-book-open-cover"/></button>
         <div className="notif-wrap"><button className="ib"><i className="fa-regular fa-bell"/></button><div className="notif-dot"/></div>
         <button className="ib"><i className="fa-solid fa-magnifying-glass"/></button>
+        <span className="tb-date">{fmtDate()}</span>
         <div className="tb-sep"/>
         <div className="user-av">RK</div>
       </div>
@@ -661,14 +666,14 @@ function Topbar({ workspaces = [], selWorkspaceId, onSelectWorkspace, onNewWorks
 // ════════════════════════════════════════════════════════
 //  SIDEBAR
 // ════════════════════════════════════════════════════════
-function Sidebar({ view, setView, crew, items, projects = [], sprints = [], selProjId, selSprintId, onSelectProject, onSelectSprint, onNewProject, onNewSprint }) {
+function Sidebar({ view, setView, crew, items, projects = [], sprints = [], selProjId, selSprintId, workspaces = [], selWorkspaceId, onSelectWorkspace, onSelectProject, onSelectSprint, onNewProject, onNewSprint, onNewWorkspace }) {
   const navItems = [
-    { id:'board',   label:'Summit Board',   icon:'fa-chart-kanban',  cnt: items.length },
-    { id:'list',    label:'Manifest',       icon:'fa-list-ul'        },
-    { id:'gantt',   label:'Expedition Map', icon:'fa-bars-progress'  },
-    { id:'tracker', label:'Field Notes',    icon:'fa-table-cells',   cnt: 3 },
-    { id:'metrics', label:'Observatory',    icon:'fa-chart-area'     },
-    { id:'admin',   label:'Base Camp',      icon:'fa-sliders',       special:'Admin' },
+    { id:'board',   label:'Dashboard',   icon:'fa-chart-kanban', cnt: items.length },
+    { id:'list',    label:'Manifest',    icon:'fa-list-ul' },
+    { id:'gantt',   label:'Gantt',       icon:'fa-bars-progress' },
+    { id:'tracker', label:'Trackers',     icon:'fa-table-cells', cnt: 3 },
+    { id:'metrics', label:'Analytics',   icon:'fa-chart-line' },
+    { id:'admin',   label:'Reports',     icon:'fa-file-lines', special:'Admin' },
   ]
   const statusColor = { online:'var(--jade)', away:'var(--sun)', offline:'var(--t4)' }
   const colors = ['#6366f1','#8b5cf6','#059669','#f59e0b','#3d9be9']
@@ -676,7 +681,18 @@ function Sidebar({ view, setView, crew, items, projects = [], sprints = [], selP
   return (
     <div className="sidebar">
       <div className="sb-sect">
-        <div className="sb-lbl">Navigate</div>
+        <div className="sb-lbl">WORKSPACES</div>
+        {workspaces.length === 0 ? <div style={{fontSize:'12px',color:'var(--t4)',padding:'8px 12px'}}>No workspaces</div> : null}
+        {workspaces.map((w, i) => (
+          <div key={w.id} className={`si${selWorkspaceId===w.id?' active':''}`} onClick={()=>onSelectWorkspace?.(w.id)}>
+            <span className="si-ico" style={{color:w.color||colors[i%colors.length],fontSize:'10px'}}>●</span> {w.name}
+          </div>
+        ))}
+        <div className="sb-add" onClick={onNewWorkspace} role="button"><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> New workspace</div>
+      </div>
+      <div className="sb-div"/>
+      <div className="sb-sect">
+        <div className="sb-lbl">VIEWS</div>
         {navItems.map(n => (
           <div key={n.id} className={`si${view===n.id?' active':''}`} onClick={()=>setView(n.id)}>
             <i className={`fa-solid ${n.icon} si-ico`}/>
@@ -688,7 +704,7 @@ function Sidebar({ view, setView, crew, items, projects = [], sprints = [], selP
       </div>
       <div className="sb-div"/>
       <div className="sb-sect">
-        <div className="sb-lbl">Projects</div>
+        <div className="sb-lbl">PROJECTS</div>
         {projects.length === 0 ? <div style={{fontSize:'12px',color:'var(--t4)',padding:'8px 12px'}}>No projects yet</div> : null}
         {projects.map((p, i) => (
           <div key={p.id} className={`si${selProjId===p.id?' active':''}`} onClick={()=>onSelectProject?.(p.id)}>
@@ -697,19 +713,22 @@ function Sidebar({ view, setView, crew, items, projects = [], sprints = [], selP
         ))}
         <div className="sb-add" onClick={onNewProject} role="button"><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> New project</div>
       </div>
-      <div className="sb-div"/>
-      <div className="sb-sect">
-        <div className="sb-lbl">Sprints</div>
-        {projectSprints.length === 0 && selProjId ? <div style={{fontSize:'12px',color:'var(--t4)',padding:'8px 12px'}}>No sprints yet</div> : null}
-        {projectSprints.map(s => (
-          <div key={s.id} className={`si${selSprintId===s.id?' active':''}`} onClick={()=>onSelectSprint?.(s.id)}>
-            <i className="fa-solid fa-mountain-sun si-ico"/>{s.name} <span className="sb-cnt">{items.length}</span>
+      {projectSprints.length > 0 && (
+        <>
+          <div className="sb-div"/>
+          <div className="sb-sect">
+            <div className="sb-lbl">SPRINTS (optional)</div>
+            {projectSprints.map(s => (
+              <div key={s.id} className={`si${selSprintId===s.id?' active':''}`} onClick={()=>onSelectSprint?.(s.id)}>
+                <i className="fa-solid fa-mountain-sun si-ico"/>{s.name} <span className="sb-cnt">{items.length}</span>
+              </div>
+            ))}
+            <div className="sb-add" onClick={onNewSprint} role="button"><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> New sprint</div>
           </div>
-        ))}
-        <div className="sb-add" onClick={onNewSprint} role="button"><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> New sprint</div>
-      </div>
+        </>
+      )}
       <div className="sb-crew-sect">
-        <div className="crew-lbl">Crew</div>
+        <div className="crew-lbl">CREW</div>
         {crew.map(c => (
           <div key={c.id} className="cm">
             <div className="cav" style={{background:c.color}}>{c.initials}</div>
@@ -756,7 +775,7 @@ function BoardView({ items, cols, onCycle, onAdd }) {
                   </div>
                 </div>
               ))}
-              <button className="add-card-btn" onClick={onAdd}><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> Summit Item</button>
+              <button className="add-card-btn" onClick={onAdd}><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> Add Initiative</button>
             </div>
           )
         })}
@@ -782,8 +801,8 @@ function ListView({ items, cols, colVis, customFields, onCycle, onAdd, onAddCol 
     { key:'Assignee', render: i => <td key="a"><div style={{display:'flex',alignItems:'center',gap:'6px'}}>
       <div className="cav-sm" style={{background:i.assignee_color||'#6366f1',width:'20px',height:'20px',fontSize:'8px'}}>{i.assignee_initials||'?'}</div>
     </div></td> },
-    { key:'Due Date', render: i => <td key="d" style={{fontSize:'11.5px',color:'var(--t3)'}}>Mar {10+Math.floor(Math.random()*4)}</td> },
-    { key:'Sprint',   render: i => <td key="sp" style={{fontSize:'11.5px',color:'var(--t3)'}}>Sprint 14</td> },
+    { key:'Due Date', render: i => <td key="d" style={{fontSize:'11.5px',color:'var(--t3)'}}>{i.due_date ? new Date(i.due_date).toLocaleDateString('en-US', { month:'short', day:'numeric' }) : '—'}</td> },
+    { key:'Sprint',   render: i => <td key="sp" style={{fontSize:'11.5px',color:'var(--t3)'}}>—</td> },
     { key:'Labels',   render: i => <td key="l" style={{fontSize:'11.5px',color:'var(--t3)'}}>—</td> },
   ]
   const visibleCols = colDef.filter(c => colVis[c.key])
@@ -792,7 +811,7 @@ function ListView({ items, cols, colVis, customFields, onCycle, onAdd, onAddCol 
       <table className="m-table">
         <thead>
           <tr>
-            {visibleCols.map(c => <th key={c.key}>{c.key}</th>)}
+            {visibleCols.map(c => <th key={c.key}>{c.key === 'Title' ? 'INITIATIVE' : c.key}</th>)}
             {customFields.map(f => <th key={f.id}>{f.name}</th>)}
             <th><button className="add-col-btn" onClick={onAddCol}><i className="fa-solid fa-plus"/> Col</button></th>
           </tr>
@@ -807,7 +826,7 @@ function ListView({ items, cols, colVis, customFields, onCycle, onAdd, onAddCol 
           ))}
         </tbody>
       </table>
-      <div className="add-row-bar" onClick={onAdd}><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> Summit Item</div>
+      <div className="add-row-bar" onClick={onAdd}><i className="fa-solid fa-plus" style={{fontSize:'10px'}}/> Add Initiative</div>
     </div>
   )
 }
@@ -1190,8 +1209,8 @@ function AddModal({ onClose, onSubmit, customFields }) {
   const [d, setD] = useState({ title:'', type:'task', priority:'medium', pts:'3', assignee:'RK', col:'backlog', desc:'' })
   const aColors = { RK:'#6366f1', SK:'#8b5cf6', AM:'#059669', PP:'#f59e0b' }
   return (
-    <Modal onClose={onClose} icon="fa-mountain" iconBg="var(--golds)" iconColor="var(--gold)" title="Summit Item" sub="Add new work to Sprint 14"
-      footer={<><button type="button" className="btn-g" onClick={onClose}>Cancel</button><button type="button" className="btn-p" onClick={()=>{ if(d.title.trim()) onSubmit({...d, assigneeColor:aColors[d.assignee]}); }}><i className="fa-solid fa-mountain"/> Summit It</button></>}>
+    <Modal onClose={onClose} icon="fa-bullseye" iconBg="var(--lavs)" iconColor="var(--lav)" title="Add Initiative" sub="Add a strategic initiative or work item"
+      footer={<><button type="button" className="btn-g" onClick={onClose}>Cancel</button><button type="button" className="btn-p" onClick={()=>{ if(d.title.trim()) onSubmit({...d, assigneeColor:aColors[d.assignee]}); }}><i className="fa-solid fa-plus"/> Add</button></>}>
       <div className="form-stack">
         <div><label className="form-label">Title</label><input className="form-input" value={d.title} onChange={e=>setD({...d,title:e.target.value})} placeholder="What needs to be climbed?"/></div>
         <div className="form-row">

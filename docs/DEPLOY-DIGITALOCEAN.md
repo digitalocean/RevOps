@@ -116,12 +116,7 @@ Health check URL: `https://your-app-url.ondigitalocean.app/api/health` — shoul
 
 If Runtime Logs show **helm-backend** and **node src/index.js**, the component is **not** running Meridian. Meridian uses **meridian-backend** and **node server.js**.
 
-**Fix:** For the **revops** (or API) component, set:
-- **Branch:** `meridian`
-- **Source Directory:** `/backend`
-- **Run Command:** `node server.js` (or leave blank to use `package.json` start script)
-
-Then **Save** → **Force Build and Deploy** (optionally **Clear Build Cache**). After the new deploy, logs should show "Meridian schema ensured." and "Meridian API running on port 8080".
+**Fix:** See **[DO-DASHBOARD-CHECKLIST.md](DO-DASHBOARD-CHECKLIST.md)** for step-by-step DigitalOcean dashboard actions. In short: either **replace the entire App Spec** with the contents of `.do/app.yaml` (Option A), or fix the **revops** component’s **Branch** = `meridian`, **Source Directory** = `backend` or `/backend`, **Run Command** = `node server.js` (Option B), then **Force Build and Deploy** with **Clear Build Cache**.
 
 ---
 

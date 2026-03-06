@@ -40,12 +40,15 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { project_id, sprint_id, type='task', title, description='', status='backlog',
-            column_id, priority='medium', points=3, assignee_id, due_date, labels=[], custom_vals={} } = req.body;
+            column_id, priority='medium', points=3, assignee_id, due_date, labels, custom_vals } = req.body;
     if (!title) return res.status(400).json({ error: 'Title required' });
+    if (!project_id) return res.status(400).json({ error: 'project_id required' });
+    const labelsArr = Array.isArray(labels) ? labels : [];
+    const customValsObj = custom_vals && typeof custom_vals === 'object' ? custom_vals : {};
     const { rows } = await pool.query(`
       INSERT INTO items(project_id,sprint_id,type,title,description,status,column_id,priority,points,assignee_id,due_date,labels,custom_vals)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *
-    `, [project_id, sprint_id, type, title, description, status, column_id, priority, points, assignee_id, due_date, labels, JSON.stringify(custom_vals)]);
+    `, [project_id, sprint_id || null, type, title, description || '', status, column_id || null, priority, points ?? 3, assignee_id || null, due_date || null, labelsArr, JSON.stringify(customValsObj)]);
     res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

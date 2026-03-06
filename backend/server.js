@@ -18,6 +18,8 @@ const pool = new Pool({
 });
 module.exports.pool = pool;
 
+let schemaEnsured = false;
+
 async function ensureSchema() {
   try {
     const sql = fs.readFileSync(path.join(__dirname, 'scripts', 'schema.sql'), 'utf8');
@@ -62,11 +64,23 @@ async function ensureSchema() {
         );
       }
     }
+    schemaEnsured = true;
     console.log('🏔  Meridian schema ensured.');
+    return true;
   } catch (err) {
     console.error('Schema init failed (server still running):', err.message);
-    // Do not exit — allow health check to pass and DB to connect later
+    return false;
   }
+}
+
+function runSchemaWithRetry() {
+  ensureSchema().then((ok) => {
+    if (ok) return;
+    setTimeout(() => ensureSchema().then((ok2) => {
+      if (ok2) return;
+      setTimeout(() => ensureSchema(), 5000);
+    }), 2000);
+  });
 }
 
 // ── Middleware ───────────────────────────────────────────
@@ -96,17 +110,25 @@ app.use('/api/columns',      require('./routes/columns'));
 app.get('/api/health', async (req, res) => {
   try {
     await pool.query('SELECT 1');
-    res.json({ status: 'ok', db: 'connected', time: new Date().toISOString() });
+    res.json({ status: 'ok', db: 'connected', schema: schemaEnsured, time: new Date().toISOString() });
   } catch (e) {
     res.status(500).json({ status: 'error', db: 'disconnected', message: e.message });
   }
 });
 
-// ── Start: listen first so port is open for health checks, then ensure schema ─
-const server = app.listen(PORT, () => {
+// ── Optional: trigger schema ensure (e.g. if DB was not ready at startup) ─
+app.get('/api/db/ensure', async (req, res) => {
+  try {
+    const ok = await ensureSchema();
+    res.json({ ok, schema: schemaEnsured });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ── Start: listen first, then ensure schema (with retry) ─
+app.listen(PORT, () => {
   console.log(`\n🏔  Meridian API running on port ${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/api/health\n`);
-});
-ensureSchema().then(() => {}).catch((e) => {
-  console.error('Schema init warning (server still running):', e.message);
+  runSchemaWithRetry();
 });

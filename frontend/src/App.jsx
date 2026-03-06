@@ -69,19 +69,21 @@ export default function App() {
   useEffect(() => { if (selProjId) LSSet('selProjId', selProjId) }, [selProjId])
   useEffect(() => { if (selSprintId) LSSet('selSprintId', selSprintId) }, [selSprintId])
 
-  // ── LOAD PROJECTS & SPRINTS FIRST ─────────────────────
+  // ── LOAD: ensure DB schema then fetch projects ─────────
   const refreshProjects = useCallback(() => {
     get('/api/projects').then(data => {
       if (Array.isArray(data)) setProjects(data)
     }).catch(()=>{})
   }, [])
   useEffect(() => {
-    get('/api/projects').then(data => {
-      if (Array.isArray(data) && data.length) {
-        setProjects(data)
-        if (!selProjId) setSelProjId(data[0].id)
-      }
-    }).catch(()=>{})
+    get('/api/db/ensure').catch(()=>{}).finally(() => {
+      get('/api/projects').then(data => {
+        if (Array.isArray(data) && data.length) {
+          setProjects(data)
+          if (!selProjId) setSelProjId(data[0].id)
+        }
+      }).catch(()=>{})
+    })
   }, [])
   const refreshSprints = useCallback(() => {
     if (!selProjId) return

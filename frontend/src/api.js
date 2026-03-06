@@ -30,8 +30,10 @@ export async function api(path, opts = {}) {
   const contentType = res.headers.get('content-type') || '';
   const text = await res.text();
   if (!contentType.includes('application/json')) {
+    const isHtml = /^\s*<!DOCTYPE|^\s*<html/i.test(text || '');
+    if (isHtml) throw new Error('Server returned a web page instead of API data. Open the app from your main app URL (DigitalOcean dashboard) or paste that URL in the red banner and click Save & retry.');
     if (!res.ok) throw new Error(text?.slice(0, 80) || res.statusText || `Request failed (${res.status})`);
-    throw new Error('API returned non-JSON (wrong server or route). Use the main app URL.');
+    throw new Error('API returned non-JSON. Use your main app URL in the banner below.');
   }
   if (!res.ok) {
     let msg = res.statusText;
@@ -57,6 +59,8 @@ export async function postForm(path, formData) {
   const text = await res.text();
   const contentType = res.headers.get('content-type') || '';
   if (!contentType.includes('application/json')) {
+    const isHtml = /^\s*<!DOCTYPE|^\s*<html/i.test(text || '');
+    if (isHtml) throw new Error('Server returned a web page instead of API data. Use your main app URL in the banner.');
     if (!res.ok) throw new Error(text?.slice(0, 80) || res.statusText || `Request failed (${res.status})`);
     throw new Error('API returned non-JSON.');
   }

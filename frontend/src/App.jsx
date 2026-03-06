@@ -49,6 +49,7 @@ export default function App() {
   const [voiceError, setVoiceError] = useState('')
   const [apiReachable, setApiReachable] = useState(null) // null = unknown, true/false after first check
   const [apiUrlInput, setApiUrlInput] = useState('')
+  const [onboardingDismissed, setOnboardingDismissed] = useState(() => LSGet('onboardingDismissed', false))
   const [adminSec,  setAdminSec]   = useState(null)
   const [trackerTab, setTrackerTab]= useState('bigrock')
   const mediaRecRef = useRef(null)
@@ -66,6 +67,7 @@ export default function App() {
   useEffect(() => { if (selProjId) LSSet('selProjId', selProjId) }, [selProjId])
   useEffect(() => { if (selSprintId) LSSet('selSprintId', selSprintId) }, [selSprintId])
   useEffect(() => { if (selWorkspaceId) LSSet('selWorkspaceId', selWorkspaceId) }, [selWorkspaceId])
+  useEffect(() => { LSSet('onboardingDismissed', onboardingDismissed) }, [onboardingDismissed])
 
   // ── LOAD: ensure schema → workspaces → projects (by workspace) ─────────
   const refreshWorkspaces = useCallback(() => {
@@ -375,7 +377,7 @@ export default function App() {
             <p className="api-banner-msg">
               <strong>Cannot reach API.</strong>{' '}
               {typeof window !== 'undefined' && !/localhost|127\.0\.0\.1/.test(window.location?.host || '')
-                ? <>Open the app using your <strong>main app URL</strong> (e.g. <code>https://revops-ntkll.ondigitalocean.app</code>), or set the API URL below and click Save &amp; retry.</>
+                ? <>If you see an HTML/Error page, the request hit the wrong server. Paste your <strong>main app URL</strong> from the DigitalOcean app dashboard below (same URL where you open the app) and click Save &amp; retry.</>
                 : 'Start the backend: cd backend && npm run dev. Set DATABASE_URL in backend/.env.'}
             </p>
             {typeof window !== 'undefined' && !/localhost|127\.0\.0\.1/.test(window.location?.host || '') && (
@@ -441,6 +443,23 @@ export default function App() {
               <div className="pmi" style={{color:'var(--jade)'}}><i className="fa-solid fa-circle-check"></i> <span style={{fontWeight:600}}>{donePts}pt</span> done</div>
             </div>
           </div>
+
+          {/* ── ONBOARDING WALKTHROUGH ── */}
+          {apiReachable === true && !onboardingDismissed && (
+            <OnboardingWalkthrough
+              workspaces={workspaces}
+              selWorkspaceId={selWorkspaceId}
+              projects={projects}
+              selProjId={selProjId}
+              sprints={sprints}
+              selSprintId={selSprintId}
+              onDismiss={() => setOnboardingDismissed(true)}
+              onCreateTeam={() => setModal('newWorkspace')}
+              onCreateProject={() => setModal('newProject')}
+              onCreateSprint={() => setModal('newSprint')}
+              onAddItem={() => setModal('add')}
+            />
+          )}
 
           {/* ── KPI SUMMARY CARDS ── */}
           {view !== 'admin' && (() => {
@@ -536,6 +555,53 @@ export default function App() {
         <div className="toast-emoji">{toast.emoji}</div>
         <div><div className="toast-title">{toast.title}</div><div className="toast-sub">{toast.sub}</div></div>
       </div>
+    </div>
+  )
+}
+
+// ── Onboarding walkthrough: Team → Project → Sprint → Items ──
+function OnboardingWalkthrough({ workspaces, selWorkspaceId, projects, selProjId, sprints, selSprintId, onDismiss, onCreateTeam, onCreateProject, onCreateSprint, onAddItem }) {
+  const step1 = workspaces.length > 0
+  const step2 = projects.length > 0 && selWorkspaceId
+  const step3 = sprints.length > 0 && selProjId
+  const step4 = selSprintId
+  const allDone = step1 && step2 && step3 && step4
+
+  const steps = [
+    { id: 1, done: step1, label: 'Create a team', sub: 'Teams hold your projects.', action: onCreateTeam, btn: 'Create team' },
+    { id: 2, done: step2, label: 'Create a project', sub: 'Projects live under a team.', action: onCreateProject, btn: 'Create project', disabled: !step1 },
+    { id: 3, done: step3, label: 'Create a sprint', sub: 'Sprints organize work in a project.', action: onCreateSprint, btn: 'Create sprint', disabled: !step2 },
+    { id: 4, done: step4, label: 'Add work items', sub: 'Stories and tasks go in a sprint.', action: onAddItem, btn: 'Add first item', disabled: !step3 },
+  ]
+
+  return (
+    <div className="onboarding-card">
+      <div className="onboarding-header">
+        <h2 className="onboarding-title"><i className="fa-solid fa-route"/> Get started in 4 steps</h2>
+        <p className="onboarding-sub">Set up your team, project, and sprint — then start adding items.</p>
+      </div>
+      <div className="onboarding-steps">
+        {steps.map((s, i) => (
+          <div key={s.id} className={`onboarding-step${s.done ? ' done' : ''}${s.disabled ? ' disabled' : ''}`}>
+            <div className="onboarding-step-num">{s.done ? <i className="fa-solid fa-circle-check"/> : s.id}</div>
+            <div className="onboarding-step-body">
+              <div className="onboarding-step-label">{s.label}</div>
+              <div className="onboarding-step-sub">{s.sub}</div>
+              {!s.done && (
+                <button type="button" className="onboarding-step-btn" onClick={s.action} disabled={s.disabled}>
+                  {s.btn}
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+      {allDone && (
+        <div className="onboarding-footer">
+          <span className="onboarding-done-msg">You're all set. Start adding items or explore the board.</span>
+          <button type="button" className="onboarding-dismiss-btn" onClick={onDismiss}>Dismiss</button>
+        </div>
+      )}
     </div>
   )
 }

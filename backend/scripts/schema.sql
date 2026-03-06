@@ -143,3 +143,18 @@ DROP TRIGGER IF EXISTS items_updated_at ON items;
 CREATE TRIGGER items_updated_at
   BEFORE UPDATE ON items
   FOR EACH ROW EXECUTE PROCEDURE update_updated_at();
+
+-- Migrations: add columns to existing tables if missing (e.g. projects had no workspace_id)
+DO $$
+DECLARE
+  first_workspace_id UUID;
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'workspace_id') THEN
+    ALTER TABLE projects ADD COLUMN workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE;
+    SELECT id INTO first_workspace_id FROM workspaces LIMIT 1;
+    IF first_workspace_id IS NOT NULL THEN
+      UPDATE projects SET workspace_id = first_workspace_id WHERE workspace_id IS NULL;
+    END IF;
+  END IF;
+END $$;

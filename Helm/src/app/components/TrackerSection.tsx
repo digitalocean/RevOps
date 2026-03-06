@@ -44,7 +44,7 @@ interface TrackerSectionProps {
   onAddItem?: () => void;
   onCreateItem?: (projectId: string, payload: { title: string; description?: string }, trackerId?: string | null) => Promise<unknown>;
   onCreateSubItem?: (parentId: string) => void;
-  onUpdateItem?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null }) => Promise<unknown>;
+  onUpdateItem?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: string | null }) => Promise<unknown>;
   onDeleteItem?: (id: string) => Promise<void>;
   onItemCompleted?: () => void;
 }
@@ -85,7 +85,7 @@ interface InitiativeRowEditableProps {
   onToggleSelect: (id: string) => void;
   crew?: { id: string; name: string; initials?: string }[];
   onAddSubItem?: (parentId: string) => void;
-  onUpdate: (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null }) => Promise<unknown>;
+  onUpdate: (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: Category }) => Promise<unknown>;
   onDelete?: (id: string) => Promise<void>;
   onItemCompleted?: () => void;
 }
@@ -159,10 +159,17 @@ function InitiativeRowEditable({
           placeholder="Title"
         />
       </td>
-      <td className="py-2 px-4 align-middle">
-        <Badge variant="outline" className={`${getCategoryColor(initiative.category)} text-xs font-medium`}>
-          {initiative.category}
-        </Badge>
+      <td className="py-2 px-4 align-middle min-w-[120px]">
+        <Select value={initiative.category} onValueChange={(v) => { setSaving(true); onUpdate(initiative.id, { category: v as Category }).finally(() => setSaving(false)); }}>
+          <SelectTrigger className={`h-8 text-xs border-gray-200 bg-white ${getCategoryColor(initiative.category)}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CATEGORIES.map((c) => (
+              <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
       <td className="py-2 px-4 align-middle w-24">
         <Select value={initiative.priority} onValueChange={(v) => handlePriorityChange(v as Priority)}>
@@ -350,7 +357,7 @@ export function TrackerSection({
   const allSelected = filteredInitiatives.length > 0 && filteredInitiatives.every((i) => selectedIds.includes(i.id));
   const someSelected = filteredInitiatives.some((i) => selectedIds.includes(i.id)) && !allSelected;
 
-  const handleUpdate = async (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null }) => {
+  const handleUpdate = async (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: Category }) => {
     if (onUpdateItem) await onUpdateItem(id, payload);
   };
 
@@ -449,6 +456,7 @@ export function TrackerSection({
       {selectedInitiative && (
         <InitiativeDetailsDialog
           initiative={selectedInitiative}
+          crew={crew}
           onClose={() => setSelectedInitiative(null)}
           onSave={onUpdateItem ? async (id, payload) => { await onUpdateItem(id, payload); setSelectedInitiative(null); } : undefined}
           onDelete={onDeleteItem ? async (id) => { await onDeleteItem(id); setSelectedInitiative(null); } : undefined}

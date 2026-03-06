@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Calendar, User, Tag, Flag, MessageSquare, Paperclip, Clock, CheckSquare, Star, TrendingUp, Save, Trash2 } from 'lucide-react';
+import { X, Calendar, User, Tag, Star, Save, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -8,94 +8,66 @@ import { Textarea } from './ui/textarea';
 import { Progress } from './ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Separator } from './ui/separator';
-import { ScrollArea } from './ui/scroll-area';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from 'sonner';
-import type { Initiative, Status, Priority } from '../data/mockData';
+import type { Initiative, Status, Priority, Category } from '../data/mockData';
 
 const STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete'];
 const PRIORITY_OPTIONS: Priority[] = ['P0', 'P1', 'P2'];
+const CATEGORY_OPTIONS: Category[] = ['Engineering', 'Design', 'Sales', 'Product', 'Operations'];
+
+interface CrewMember {
+  id: string;
+  name: string;
+  initials?: string;
+}
 
 interface InitiativeDetailsDialogProps {
   initiative: Initiative;
+  crew?: CrewMember[];
   onClose: () => void;
-  onSave?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority }) => Promise<void>;
+  onSave?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority; assignee_id?: string | null; category?: Category; due_date?: string | null }) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
 }
 
-interface Comment {
-  id: string;
-  user: string;
-  userInitials: string;
-  message: string;
-  timestamp: string;
-}
-
-interface Subtask {
-  id: string;
-  title: string;
-  completed: boolean;
-  assignee: string;
-}
-
-interface Attachment {
-  id: string;
-  name: string;
-  size: string;
-  uploadedBy: string;
-  uploadedAt: string;
-}
-
-const mockComments: Comment[] = [
-  {
-    id: '1',
-    user: 'Sarah Chen',
-    userInitials: 'SC',
-    message: 'API integration testing is progressing well. We should be ready for the next phase by end of week.',
-    timestamp: '2 hours ago'
-  },
-  {
-    id: '2',
-    user: 'Marcus Rodriguez',
-    userInitials: 'MR',
-    message: 'Great work team! Let me know if you need any additional resources.',
-    timestamp: '5 hours ago'
-  }
-];
-
-const mockSubtasks: Subtask[] = [
-  { id: '1', title: 'Complete API documentation', completed: true, assignee: 'Sarah Chen' },
-  { id: '2', title: 'Setup staging environment', completed: true, assignee: 'James Mitchell' },
-  { id: '3', title: 'Integration testing', completed: false, assignee: 'Sarah Chen' },
-  { id: '4', title: 'Security audit', completed: false, assignee: 'TBD' },
-  { id: '5', title: 'Performance optimization', completed: false, assignee: 'James Mitchell' }
-];
-
-const mockAttachments: Attachment[] = [
-  { id: '1', name: 'technical_spec.pdf', size: '2.4 MB', uploadedBy: 'Sarah Chen', uploadedAt: '2 days ago' },
-  { id: '2', name: 'migration_plan.xlsx', size: '1.1 MB', uploadedBy: 'Marcus Rodriguez', uploadedAt: '1 week ago' }
-];
-
-export function InitiativeDetailsDialog({ initiative, onClose, onSave, onDelete }: InitiativeDetailsDialogProps) {
-  const [newComment, setNewComment] = useState('');
+export function InitiativeDetailsDialog({ initiative, crew = [], onClose, onSave, onDelete }: InitiativeDetailsDialogProps) {
   const [title, setTitle] = useState(initiative.name);
   const [description, setDescription] = useState(initiative.description || '');
   const [status, setStatus] = useState<Status>(initiative.status);
   const [priority, setPriority] = useState<Priority>(initiative.priority);
+  const [assigneeId, setAssigneeId] = useState<string | null>(initiative.assignee_id ?? null);
+  const [category, setCategory] = useState<Category>(initiative.category);
+  const dueDateStr = initiative.endDate && !isNaN(initiative.endDate.getTime()) ? initiative.endDate.toISOString().slice(0, 10) : '';
+  const [dueDate, setDueDate] = useState(dueDateStr);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  const dueDateForApi = dueDate ? `${dueDate}T00:00:00.000Z` : null;
 
   useEffect(() => {
     setTitle(initiative.name);
     setDescription(initiative.description || '');
     setStatus(initiative.status);
     setPriority(initiative.priority);
-  }, [initiative.id, initiative.name, initiative.description, initiative.status, initiative.priority]);
+    setAssigneeId(initiative.assignee_id ?? null);
+    setCategory(initiative.category);
+    const d = initiative.endDate && !isNaN(initiative.endDate.getTime()) ? initiative.endDate.toISOString().slice(0, 10) : '';
+    setDueDate(d);
+  }, [initiative.id, initiative.name, initiative.description, initiative.status, initiative.priority, initiative.assignee_id, initiative.category, initiative.endDate]);
 
   const handleSave = async () => {
     if (!onSave) return;
     setSaving(true);
     try {
-      await onSave(initiative.id, { title: title.trim(), description: description.trim() || undefined, status, priority });
+      await onSave(initiative.id, {
+        title: title.trim(),
+        description: description.trim() || undefined,
+        status,
+        priority,
+        assignee_id: assigneeId,
+        category,
+        due_date: dueDateForApi,
+      });
       toast.success('Saved');
       onClose();
     } catch (e) {
@@ -120,8 +92,6 @@ export function InitiativeDetailsDialog({ initiative, onClose, onSave, onDelete 
   };
 
   const canEdit = !!onSave;
-  const completedSubtasks = mockSubtasks.filter(t => t.completed).length;
-  const totalSubtasks = mockSubtasks.length;
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
@@ -185,24 +155,6 @@ export function InitiativeDetailsDialog({ initiative, onClose, onSave, onDelete 
             <Tabs defaultValue="overview" className="w-full">
               <TabsList className="w-full justify-start">
                 <TabsTrigger value="overview">Overview</TabsTrigger>
-                <TabsTrigger value="comments">
-                  Comments
-                  <Badge variant="secondary" className="ml-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
-                    {mockComments.length}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="subtasks">
-                  Subtasks
-                  <Badge variant="secondary" className="ml-2 h-5 rounded-full px-2 flex items-center justify-center text-xs">
-                    {completedSubtasks}/{totalSubtasks}
-                  </Badge>
-                </TabsTrigger>
-                <TabsTrigger value="attachments">
-                  Files
-                  <Badge variant="secondary" className="ml-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
-                    {mockAttachments.length}
-                  </Badge>
-                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="overview" className="mt-4 space-y-4">
@@ -220,19 +172,20 @@ export function InitiativeDetailsDialog({ initiative, onClose, onSave, onDelete 
                 <Separator />
 
                 <div>
-                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Timeline</h4>
-                  <div className="space-y-2">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3">Due date</h4>
+                  {canEdit ? (
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  ) : (
                     <div className="flex items-center gap-2 text-sm">
                       <Calendar className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-600">Start:</span>
-                      <span className="text-gray-900">{initiative.startDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-600">Due:</span>
                       <span className="text-gray-900">{initiative.endDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <Separator />
@@ -247,86 +200,6 @@ export function InitiativeDetailsDialog({ initiative, onClose, onSave, onDelete 
                     <p className="text-sm text-gray-500 italic">No questions or blockers reported</p>
                   )}
                 </div>
-              </TabsContent>
-
-              <TabsContent value="comments" className="mt-4">
-                <ScrollArea className="h-[400px] pr-4">
-                  <div className="space-y-4">
-                    {mockComments.map((comment) => (
-                      <div key={comment.id} className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-xs font-semibold flex-shrink-0">
-                          {comment.userInitials}
-                        </div>
-                        <div className="flex-1">
-                          <div className="bg-gray-50 rounded-lg p-3">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-sm font-semibold text-gray-900">{comment.user}</span>
-                              <span className="text-xs text-gray-500">{comment.timestamp}</span>
-                            </div>
-                            <p className="text-sm text-gray-700">{comment.message}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-                <div className="mt-4 space-y-2">
-                  <Textarea
-                    placeholder="Add a comment..."
-                    value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
-                    className="min-h-[80px]"
-                  />
-                  <div className="flex justify-end">
-                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
-                      Post Comment
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="subtasks" className="mt-4">
-                <div className="space-y-2">
-                  {mockSubtasks.map((subtask) => (
-                    <div key={subtask.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={subtask.completed}
-                        className="w-4 h-4 rounded border-gray-300"
-                        readOnly
-                      />
-                      <span className={`flex-1 text-sm ${subtask.completed ? 'line-through text-gray-500' : 'text-gray-900'}`}>
-                        {subtask.title}
-                      </span>
-                      <span className="text-xs text-gray-500">{subtask.assignee}</span>
-                    </div>
-                  ))}
-                </div>
-                <Button variant="outline" size="sm" className="w-full mt-4">
-                  <CheckSquare className="w-4 h-4 mr-2" />
-                  Add Subtask
-                </Button>
-              </TabsContent>
-
-              <TabsContent value="attachments" className="mt-4">
-                <div className="space-y-2">
-                  {mockAttachments.map((attachment) => (
-                    <div key={attachment.id} className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                      <Paperclip className="w-4 h-4 text-gray-400" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">{attachment.name}</p>
-                        <p className="text-xs text-gray-500">
-                          {attachment.size} • Uploaded by {attachment.uploadedBy} • {attachment.uploadedAt}
-                        </p>
-                      </div>
-                      <Button variant="ghost" size="sm">Download</Button>
-                    </div>
-                  ))}
-                </div>
-                <Button variant="outline" size="sm" className="w-full mt-4">
-                  <Paperclip className="w-4 h-4 mr-2" />
-                  Upload File
-                </Button>
               </TabsContent>
             </Tabs>
           </div>
@@ -360,12 +233,26 @@ export function InitiativeDetailsDialog({ initiative, onClose, onSave, onDelete 
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-2">
                 Owner
               </label>
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-semibold">
-                  {initiative.owner.split(' ').map(n => n[0]).join('')}
+              {canEdit ? (
+                <Select value={assigneeId ?? 'unassigned'} onValueChange={(v) => setAssigneeId(v === 'unassigned' ? null : v)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Assign owner" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unassigned">— Unassigned</SelectItem>
+                    {crew.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-semibold">
+                    {(initiative.owner || '—').split(' ').map(n => n[0]).filter(Boolean).join('').slice(0, 2) || '—'}
+                  </div>
+                  <span className="text-sm text-gray-900">{initiative.owner || 'Unassigned'}</span>
                 </div>
-                <span className="text-sm text-gray-900">{initiative.owner}</span>
-              </div>
+              )}
             </div>
 
             <Separator />
@@ -375,15 +262,16 @@ export function InitiativeDetailsDialog({ initiative, onClose, onSave, onDelete 
                 Priority
               </label>
               {canEdit ? (
-                <select
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as Priority)}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-                >
-                  {PRIORITY_OPTIONS.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
+                <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITY_OPTIONS.map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               ) : (
                 <Badge variant="outline" className={`${initiative.priority === 'P0' ? 'bg-red-100 text-red-700 border-red-200' : initiative.priority === 'P1' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-blue-100 text-blue-700 border-blue-200'} text-sm`}>
                   {initiative.priority}
@@ -397,9 +285,22 @@ export function InitiativeDetailsDialog({ initiative, onClose, onSave, onDelete 
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-2">
                 Category
               </label>
-              <Badge variant="outline" className={`${initiative.category === 'Engineering' ? 'bg-purple-50 text-purple-700 border-purple-200' : initiative.category === 'Design' ? 'bg-pink-50 text-pink-700 border-pink-200' : initiative.category === 'Sales' ? 'bg-green-50 text-green-700 border-green-200' : initiative.category === 'Product' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-cyan-50 text-cyan-700 border-cyan-200'} text-sm`}>
-                {initiative.category}
-              </Badge>
+              {canEdit ? (
+                <Select value={category} onValueChange={(v) => setCategory(v as Category)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_OPTIONS.map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Badge variant="outline" className={`${initiative.category === 'Engineering' ? 'bg-purple-50 text-purple-700 border-purple-200' : initiative.category === 'Design' ? 'bg-pink-50 text-pink-700 border-pink-200' : initiative.category === 'Sales' ? 'bg-green-50 text-green-700 border-green-200' : initiative.category === 'Product' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-cyan-50 text-cyan-700 border-cyan-200'} text-sm`}>
+                  {initiative.category}
+                </Badge>
+              )}
             </div>
 
             <Separator />

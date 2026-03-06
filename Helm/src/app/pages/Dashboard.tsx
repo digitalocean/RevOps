@@ -8,8 +8,8 @@ import { GanttChart } from '../components/GanttChart';
 import { ActivityPanel } from '../components/ActivityPanel';
 import { FilterPanel } from '../components/FilterPanel';
 import { ExportMenu } from '../components/ExportMenu';
-import { TeamCapacityView } from '../components/TeamCapacityView';
-import { MilestoneTimeline } from '../components/MilestoneTimeline';
+import { CategoryPriorityStatusMetrics } from '../components/CategoryPriorityStatusMetrics';
+import { DueDateMetrics } from '../components/DueDateMetrics';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { BulkActionsBar } from '../components/BulkActionsBar';
 import { AnalyticsDashboard } from '../components/AnalyticsDashboard';
@@ -351,6 +351,7 @@ export function Dashboard() {
             ) : currentView === 'summit_board' ? (
               <SummitBoardKanban
                 initiatives={initiatives}
+                crew={crew}
                 onUpdateStatus={async (id, status) => updateItem(id, { status })}
                 onUpdateItem={updateItem}
                 onDeleteItem={deleteItem}
@@ -386,8 +387,8 @@ export function Dashboard() {
                   />
                 ))}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <TeamCapacityView crew={crew} initiatives={initiatives} />
-                  <MilestoneTimeline initiatives={initiatives} sprints={sprints} />
+                  <CategoryPriorityStatusMetrics initiatives={initiatives} />
+                  <DueDateMetrics initiatives={initiatives} />
                 </div>
               </div>
             )}
@@ -402,6 +403,7 @@ export function Dashboard() {
       {selectedInitiativeFromSearch && (
         <InitiativeDetailsDialog 
           initiative={selectedInitiativeFromSearch}
+          crew={crew}
           onClose={() => setSelectedInitiativeFromSearch(null)}
           onSave={async (id, payload) => {
             await updateItem(id, payload);

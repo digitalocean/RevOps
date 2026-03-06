@@ -31,6 +31,8 @@ const PRIORITY_MAP: Record<string, Priority> = {
   low: 'P2',
 };
 
+const CATEGORY_OPTIONS = ['Engineering', 'Design', 'Sales', 'Product', 'Operations'] as const;
+
 function mapItemToInitiative(item: {
   id: string;
   title: string;
@@ -44,14 +46,18 @@ function mapItemToInitiative(item: {
   project_id?: string | null;
   tracker_id?: string | null;
   due_date?: string | null;
+  category?: string | null;
 }): Initiative {
   const status = (item.status && STATUS_MAP[item.status]) || 'Not Started';
   const priority = (item.priority && PRIORITY_MAP[item.priority]) || 'P1';
   const endDate = item.due_date ? new Date(item.due_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  const category = item.category && CATEGORY_OPTIONS.includes(item.category as typeof CATEGORY_OPTIONS[number])
+    ? (item.category as Category)
+    : (CATEGORIES[Math.abs(item.title.length) % CATEGORIES.length]);
   return {
     id: item.id,
     name: item.title,
-    category: CATEGORIES[Math.abs(item.title.length) % CATEGORIES.length],
+    category,
     priority,
     isBigRock: (item.points ?? 0) >= 5,
     owner: item.assignee_name || item.assignee_initials || '—',
@@ -109,7 +115,7 @@ export interface MeridianDataResult {
   createSprint: (projectId: string, name: string, start_date?: string, end_date?: string) => Promise<Sprint | null>;
   createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; type?: string }, parentId?: string | null, trackerId?: string | null) => Promise<unknown>;
   createSection: (projectId: string, name: string) => Promise<{ id: string; name: string } | null>;
-  updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number }) => Promise<unknown>;
+  updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number; category?: string | null }) => Promise<unknown>;
   deleteItem: (itemId: string) => Promise<void>;
   sprints: Sprint[];
   crew: { id: string; name: string; initials: string; role: string }[];
@@ -196,6 +202,7 @@ export function useMeridianData(): MeridianDataResult {
           project_id: i.project_id as string | null,
           tracker_id: i.tracker_id as string | null,
           due_date: i.due_date as string | null,
+          category: i.category as string | null,
         })
       );
       setInitiatives(mapped);
@@ -310,6 +317,7 @@ export function useMeridianData(): MeridianDataResult {
     if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id;
     if (payload.due_date !== undefined) body.due_date = payload.due_date;
     if (payload.points !== undefined) body.points = payload.points;
+    if (payload.category !== undefined) body.category = payload.category;
     const res = await patch(apiPath(`api/items/${itemId}`), body as Record<string, string>);
     await load();
     return res;

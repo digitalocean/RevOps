@@ -162,4 +162,8 @@ BEGIN
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'items' AND column_name = 'tracker_id') THEN
     ALTER TABLE items ADD COLUMN tracker_id UUID REFERENCES trackers(id) ON DELETE SET NULL;
   END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'items')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'items' AND column_name = 'category') THEN
+    ALTER TABLE items ADD COLUMN category VARCHAR(60);
+  END IF;
 END $$;

@@ -29,14 +29,16 @@ const COLUMN_TO_STATUS: Record<string, Status> = {
 
 interface SummitBoardKanbanProps {
   initiatives: Initiative[];
+  crew: { id: string; name: string }[];
   onUpdateStatus: (itemId: string, status: Status) => Promise<unknown>;
-  onUpdateItem: (itemId: string, payload: { title?: string; description?: string; status?: Status; priority?: import('../data/mockData').Priority }) => Promise<unknown>;
+  onUpdateItem: (itemId: string, payload: Record<string, unknown>) => Promise<unknown>;
   onDeleteItem: (itemId: string) => Promise<void>;
   onAddItem: () => void;
 }
 
 export function SummitBoardKanban({
   initiatives,
+  crew = [],
   onUpdateStatus,
   onUpdateItem,
   onDeleteItem,
@@ -143,6 +145,7 @@ export function SummitBoardKanban({
       {selectedInitiative && (
         <InitiativeDetailsDialog
           initiative={selectedInitiative}
+          crew={crew}
           onClose={() => setSelectedInitiative(null)}
           onSave={async (id, payload) => {
             await onUpdateItem(id, payload);

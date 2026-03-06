@@ -12,13 +12,14 @@ const dbUrl = process.env.DATABASE_URL || '';
 if (!dbUrl.trim()) {
   console.warn('⚠️  DATABASE_URL is not set. Create backend/.env with DATABASE_URL=postgresql://user:pass@host:5432/dbname');
 }
-const isRemoteDb = dbUrl && !/@(localhost|127\.0\.0\.1)(:\d+)?\//.test(dbUrl);
-const pool = new Pool({
+const isLocalDb = /@(localhost|127\.0\.0\.1)(:\d+)?\//.test(dbUrl);
+const poolConfig = {
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' || isRemoteDb || (dbUrl && /sslmode=/.test(dbUrl))
-    ? { rejectUnauthorized: false }
-    : false,
-});
+};
+if (!isLocalDb && dbUrl.trim()) {
+  poolConfig.ssl = { rejectUnauthorized: false };
+}
+const pool = new Pool(poolConfig);
 module.exports.pool = pool;
 
 let schemaEnsured = false;

@@ -74,6 +74,27 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ── Session & Auth (must be before routes that use req.user) ─
+const session = require('express-session');
+const authRoutes = require('./routes/auth');
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'todo-dev-secret-change-in-production',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    },
+  })
+);
+app.use(authRoutes.passport.initialize());
+app.use(authRoutes.passport.session());
+
+app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes);
+
 // ── Routes ───────────────────────────────────────────────
 // Mount with /api prefix (local dev, or when platform does not trim path)
 app.use('/api/workspaces',   require('./routes/workspaces'));

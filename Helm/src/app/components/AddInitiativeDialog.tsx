@@ -63,9 +63,10 @@ export function AddInitiativeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{parentId ? 'Add sub-task' : 'Add Task'}</DialogTitle>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="space-y-1">
+          <DialogTitle className="text-xl font-semibold text-gray-900">{parentId ? 'Add sub-task' : 'Add Task'}</DialogTitle>
+          <p className="text-sm text-gray-500">Add a new task to the tracker.</p>
         </DialogHeader>
         {!projectId && (
           <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">

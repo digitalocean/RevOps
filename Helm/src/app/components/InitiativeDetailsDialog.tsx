@@ -95,8 +95,8 @@ export function InitiativeDetailsDialog({ initiative, crew = [], onClose, onSave
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200">
+      <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden rounded-2xl shadow-xl border border-gray-200">
+        <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2">
@@ -183,7 +183,11 @@ export function InitiativeDetailsDialog({ initiative, crew = [], onClose, onSave
                   ) : (
                     <div className="flex items-center gap-2 text-sm">
                       <Calendar className="w-4 h-4 text-gray-400" />
-                      <span className="text-gray-900">{initiative.endDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                      <span className="text-gray-900">
+                        {initiative.endDate && !isNaN(initiative.endDate.getTime())
+                          ? initiative.endDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                          : 'No date set'}
+                      </span>
                     </div>
                   )}
                 </div>

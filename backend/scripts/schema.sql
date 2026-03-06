@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   name          VARCHAR(120),
   avatar_url    TEXT,
   google_id     VARCHAR(120) UNIQUE,
+  password_hash VARCHAR(255),
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -211,5 +212,13 @@ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects')
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'is_personal') THEN
     ALTER TABLE projects ADD COLUMN is_personal BOOLEAN DEFAULT false;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'activity_log')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'activity_log' AND column_name = 'crew_id') THEN
+    ALTER TABLE activity_log ADD COLUMN crew_id UUID REFERENCES crew(id) ON DELETE SET NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'password_hash') THEN
+    ALTER TABLE users ADD COLUMN password_hash VARCHAR(255);
   END IF;
 END $$;

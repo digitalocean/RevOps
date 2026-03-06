@@ -19,33 +19,45 @@ const COLUMN_IDS = [
 
 const STORAGE_KEY_PREFIX = 'todo_visible_columns_';
 
-function loadVisibleColumns(projectId: string | null): Set<string> {
+function storageKey(projectId: string | null, userId?: string | null): string {
+  if (!projectId) return '';
+  return userId ? `${STORAGE_KEY_PREFIX}${userId}_${projectId}` : `${STORAGE_KEY_PREFIX}${projectId}`;
+}
+
+function loadVisibleColumns(projectId: string | null, userId?: string | null): Set<string> {
   if (typeof window === 'undefined' || !projectId) return new Set(COLUMN_IDS.map((c) => c.id));
   try {
-    const raw = localStorage.getItem(`${STORAGE_KEY_PREFIX}${projectId}`);
-    if (raw) {
-      const arr = JSON.parse(raw) as string[];
+    const key = storageKey(projectId, userId);
+    const fallbackKey = userId ? storageKey(projectId, null) : '';
+    const raw = key ? localStorage.getItem(key) : null;
+    const rawFallback = fallbackKey ? localStorage.getItem(fallbackKey) : null;
+    const rawToUse = raw || rawFallback;
+    if (rawToUse) {
+      const arr = JSON.parse(rawToUse) as string[];
       return new Set(Array.isArray(arr) ? arr : COLUMN_IDS.map((c) => c.id));
     }
   } catch (_) {}
   return new Set(COLUMN_IDS.map((c) => c.id));
 }
 
-function saveVisibleColumns(projectId: string | null, visible: Set<string>) {
+function saveVisibleColumns(projectId: string | null, visible: Set<string>, userId?: string | null) {
   if (typeof window === 'undefined' || !projectId) return;
   try {
-    localStorage.setItem(`${STORAGE_KEY_PREFIX}${projectId}`, JSON.stringify([...visible]));
+    const key = storageKey(projectId, userId);
+    if (key) localStorage.setItem(key, JSON.stringify([...visible]));
   } catch (_) {}
 }
 
 interface ColumnsPopoverProps {
   projectId: string | null;
+  userId?: string | null;
   visibleColumns: Set<string>;
   onVisibleColumnsChange: (visible: Set<string>) => void;
 }
 
 export function ColumnsPopover({
   projectId,
+  userId = null,
   visibleColumns,
   onVisibleColumnsChange,
 }: ColumnsPopoverProps) {
@@ -53,17 +65,17 @@ export function ColumnsPopover({
 
   useEffect(() => {
     if (projectId) {
-      const saved = loadVisibleColumns(projectId);
+      const saved = loadVisibleColumns(projectId, userId);
       onVisibleColumnsChange(saved);
     }
-  }, [projectId]);
+  }, [projectId, userId]);
 
   const toggle = (id: string) => {
     const next = new Set(visibleColumns);
     if (next.has(id)) next.delete(id);
     else next.add(id);
     onVisibleColumnsChange(next);
-    if (projectId) saveVisibleColumns(projectId, next);
+    if (projectId) saveVisibleColumns(projectId, next, userId);
   };
 
   return (
@@ -86,7 +98,7 @@ export function ColumnsPopover({
             </label>
           ))}
         </div>
-        <p className="text-xs text-gray-400 mt-2">Saved per project. Refresh to apply.</p>
+        <p className="text-xs text-gray-400 mt-2">Saved per project. Persists after login and refresh.</p>
       </PopoverContent>
     </Popover>
   );

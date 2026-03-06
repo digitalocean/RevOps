@@ -29,6 +29,7 @@ export async function api<T = unknown>(path: string, opts: RequestInit = {}): Pr
   const base = getBase();
   const url = base ? `${base}${path}` : path;
   const res = await fetch(url, {
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...opts.headers } as HeadersInit,
     ...opts,
     body: opts.body ? JSON.stringify(opts.body) : undefined,

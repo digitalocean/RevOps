@@ -56,11 +56,11 @@ export function NewSectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>New section</DialogTitle>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="space-y-1">
+          <DialogTitle className="text-xl font-semibold text-gray-900">+ Tracker</DialogTitle>
+          <p className="text-sm text-gray-500">Add a tracker to group tasks.</p>
         </DialogHeader>
-        <p className="text-sm text-gray-500">Add a tracker to group tasks.</p>
         <div className="space-y-4">
           <div>
             <Label htmlFor="section-name">Section name</Label>

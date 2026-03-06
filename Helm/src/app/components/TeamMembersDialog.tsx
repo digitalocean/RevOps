@@ -99,8 +99,9 @@ export function TeamMembersDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Team members</DialogTitle>
+        <DialogHeader className="space-y-1">
+          <DialogTitle className="text-xl font-semibold text-gray-900">Team members</DialogTitle>
+          <p className="text-sm text-gray-500">Add and manage crew in this workspace.</p>
         </DialogHeader>
         {!workspaceId && (
           <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">

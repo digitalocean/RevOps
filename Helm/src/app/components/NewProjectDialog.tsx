@@ -52,9 +52,10 @@ export function NewProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>New project</DialogTitle>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader className="space-y-1">
+          <DialogTitle className="text-xl font-semibold text-gray-900">New project</DialogTitle>
+          <p className="text-sm text-gray-500">Create a project in the current workspace.</p>
         </DialogHeader>
         {!selectedWorkspaceId && (
           <p className="text-sm text-amber-700 bg-amber-50 p-2 rounded">

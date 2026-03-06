@@ -27,11 +27,13 @@ import { FieldNotesView } from '../components/FieldNotesView';
 import { ColumnsPopover } from '../components/ColumnsPopover';
 import { NewSectionDialog } from '../components/NewSectionDialog';
 import { CompletionCelebration } from '../components/CompletionCelebration';
+import { AuthDialog } from '../components/AuthDialog';
 import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { HelpCircle, ChevronUp } from 'lucide-react';
 import { useMeridianData } from '../data/useMeridianData';
 import type { Status, Priority, Category, Initiative } from '../data/mockData';
+import { get, post } from '../api/meridian';
 
 const VIEW_TABS: { id: NavView; label: string }[] = [
   { id: 'manifest', label: 'Trackers' },
@@ -90,6 +92,27 @@ export function Dashboard() {
     bigRocksOnly: false
   });
   const [selectedInitiativeFromSearch, setSelectedInitiativeFromSearch] = useState<Initiative | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string; email?: string; name?: string; initials?: string } | null>(null);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
+
+  // Auth: fetch current user on load
+  useEffect(() => {
+    get<{ user: { id: string; email?: string; name?: string; initials?: string } | null }>('/api/auth/me')
+      .then((data) => setCurrentUser(data.user ?? null))
+      .catch(() => setCurrentUser(null));
+  }, []);
+
+  const handleLogin = () => setShowAuthDialog(true);
+
+  const handleLogout = async () => {
+    try {
+      await post('/api/auth/logout', {});
+      setCurrentUser(null);
+      toast.success('Signed out');
+    } catch {
+      setCurrentUser(null);
+    }
+  };
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -260,9 +283,9 @@ export function Dashboard() {
           selectedProjectName={selectedProject?.name}
           sprintLabel={selectedSprint ? `${selectedSprint.start_date || ''} – ${selectedSprint.end_date || ''}` : undefined}
           progressPercent={progressPercent}
-          currentUser={null}
-          onLogin={() => toast.info('Google sign-in coming soon')}
-          onLogout={() => toast.info('Signed out')}
+          currentUser={currentUser}
+          onLogin={handleLogin}
+          onLogout={handleLogout}
         />
         <KPIStatsBar kpiData={kpiData} />
         
@@ -310,6 +333,7 @@ export function Dashboard() {
                     <ExportMenu />
                     <ColumnsPopover
                       projectId={selectedProjectId}
+                      userId={currentUser?.id}
                       visibleColumns={visibleColumns}
                       onVisibleColumnsChange={setVisibleColumns}
                     />
@@ -483,9 +507,15 @@ export function Dashboard() {
         open={showNewProject}
         onOpenChange={setShowNewProject}
         selectedWorkspaceId={selectedWorkspaceId}
-        onCreate={async (workspaceId, name) => {
-          await createProject(workspaceId, name);
+        onCreate={async (workspaceId, name, isPersonal) => {
+          await createProject(workspaceId, name, isPersonal);
         }}
+      />
+
+      <AuthDialog
+        open={showAuthDialog}
+        onOpenChange={setShowAuthDialog}
+        onSuccess={(user) => setCurrentUser(user)}
       />
 
       <NewSprintDialog

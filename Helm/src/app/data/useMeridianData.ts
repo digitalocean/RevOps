@@ -309,7 +309,7 @@ export function useMeridianData(): MeridianDataResult {
 
   const updateItem = useCallback(async (
     itemId: string,
-    payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number }
+    payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number; category?: string | null }
   ): Promise<unknown> => {
     const body: Record<string, unknown> = {};
     if (payload.title !== undefined) body.title = payload.title;

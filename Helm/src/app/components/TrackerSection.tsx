@@ -164,7 +164,7 @@ function InitiativeRowEditable({
           <SelectTrigger className={`h-8 text-xs border-gray-200 bg-white ${getCategoryColor(initiative.category)}`}>
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[110]">
             {CATEGORIES.map((c) => (
               <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
             ))}
@@ -176,7 +176,7 @@ function InitiativeRowEditable({
           <SelectTrigger className="h-8 text-xs border-gray-200 bg-white">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[110]">
             {PRIORITY_OPTIONS.map((p) => (
               <SelectItem key={p} value={p} className="text-xs">{p}</SelectItem>
             ))}
@@ -191,7 +191,7 @@ function InitiativeRowEditable({
           <SelectTrigger className="h-8 text-xs border-gray-200 bg-white">
             <SelectValue placeholder="Owner" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[110]">
             <SelectItem value="unassigned" className="text-xs">— Unassigned</SelectItem>
             {crew.map((c) => (
               <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
@@ -204,7 +204,7 @@ function InitiativeRowEditable({
           <SelectTrigger className={`h-8 text-xs border-0 ${getStatusColor(initiative.status)} text-white`}>
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="z-[110]">
             {STATUS_OPTIONS.map((s) => (
               <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
             ))}
@@ -232,17 +232,16 @@ function InitiativeRowEditable({
               <MoreHorizontal className="w-4 h-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onOpenDetails(initiative); }}>View details</DropdownMenuItem>
+          <DropdownMenuContent align="end" className="z-[100]" onCloseAutoFocus={(e) => e.preventDefault()}>
+            <DropdownMenuItem onSelect={() => onOpenDetails(initiative)}>View details</DropdownMenuItem>
             {onAddSubItem && (
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onAddSubItem(initiative.id); }}>Add sub-item</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => onAddSubItem(initiative.id)}>Add sub-item</DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
             {onDelete && (
               <DropdownMenuItem
-                className="text-red-600"
-                onSelect={(e) => {
-                  e.preventDefault();
+                className="text-red-600 focus:text-red-700"
+                onSelect={() => {
                   if (confirm('Delete this item?')) onDelete(initiative.id);
                 }}
               >

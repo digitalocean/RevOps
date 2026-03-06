@@ -29,12 +29,9 @@ If you use **Edit your App Spec** in the dashboard:
 1. Paste or sync from the repo the contents of **`.do/app.yaml`**.
 2. **Replace these** with your values:
    - **`github.repo`** – your GitHub repo (e.g. `your-username/agileops-full`).
-   - **`github.branch`** – branch to deploy (e.g. `main`).
-   - **`VITE_API_URL`** (under `static_sites.web.envs`) – your app’s public URL with **no trailing slash**, e.g.  
-     `https://meridian-xxxxx.ondigitalocean.app`  
-     (You can set this after the first deploy; use the URL DigitalOcean gives the app.)
-
-3. Save and deploy.
+   - **`github.branch`** – branch to deploy (e.g. `meridian` or `main`).
+3. **Do not set `VITE_API_URL`** for the web component. The spec uses **same-origin**: `/` → web, `/api` → api. The frontend is built without `VITE_API_URL`, so at runtime it uses `window.location.origin` and calls `/api/...` on the same domain. That works with the ingress and avoids "Cannot reach API" from a wrong or stale URL.
+4. Save and deploy.
 
 ---
 
@@ -54,12 +51,8 @@ Optional:
 
 #### Web (frontend) component
 
-| Variable        | Scope     | Value / Notes |
-|-----------------|-----------|----------------|
-| **`VITE_API_URL`** | **BUILD_TIME** | Your app URL, **no trailing slash**, e.g. `https://meridian-xxxxx.ondigitalocean.app` |
-
-- **BUILD_TIME** is required so the frontend is built with the correct API base URL.
-- If this is wrong or missing, the UI may load but API calls will fail or go to the wrong host.
+- **`NPM_CONFIG_PRODUCTION`** = `false` (BUILD_TIME) so devDependencies install during build.
+- **Do not set `VITE_API_URL`** when using the default ingress (same app URL for web and `/api`). The app uses same-origin requests so `/api` is routed to the API. Only set `VITE_API_URL` (BUILD_TIME) if your API is on a **different** URL.
 
 #### Database (db)
 

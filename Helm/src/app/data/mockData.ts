@@ -20,6 +20,8 @@ export interface Initiative {
   timeSpent?: number;
   estimatedTime?: number;
   riskLevel?: 'low' | 'medium' | 'high';
+  /** Section (tracker) this item belongs to; null = uncategorized */
+  tracker_id?: string | null;
 }
 
 export interface TrackerSection {

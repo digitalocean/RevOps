@@ -38,16 +38,16 @@ router.get('/:id', async (req, res) => {
 // POST create item
 router.post('/', async (req, res) => {
   try {
-    const { project_id, sprint_id, parent_id, type='task', title, description='', status='not_started',
+    const { project_id, sprint_id, parent_id, tracker_id, type='task', title, description='', status='not_started',
             column_id, priority='medium', points=3, assignee_id, due_date, labels, custom_vals } = req.body;
     if (!title) return res.status(400).json({ error: 'Title required' });
     if (!project_id) return res.status(400).json({ error: 'project_id required' });
     const labelsArr = Array.isArray(labels) ? labels : [];
     const customValsObj = custom_vals && typeof custom_vals === 'object' ? custom_vals : {};
     const { rows } = await pool.query(`
-      INSERT INTO items(project_id,sprint_id,parent_id,type,title,description,status,column_id,priority,points,assignee_id,due_date,labels,custom_vals)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *
-    `, [project_id, sprint_id || null, parent_id || null, type, title, description || '', status, column_id || null, priority, points ?? 3, assignee_id || null, due_date || null, labelsArr, JSON.stringify(customValsObj)]);
+      INSERT INTO items(project_id,sprint_id,parent_id,tracker_id,type,title,description,status,column_id,priority,points,assignee_id,due_date,labels,custom_vals)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *
+    `, [project_id, sprint_id || null, parent_id || null, tracker_id || null, type, title, description || '', status, column_id || null, priority, points ?? 3, assignee_id || null, due_date || null, labelsArr, JSON.stringify(customValsObj)]);
     res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -55,7 +55,7 @@ router.post('/', async (req, res) => {
 // PATCH update item
 router.patch('/:id', async (req, res) => {
   try {
-    const allowed = ['type','title','description','status','column_id','priority','points','assignee_id','due_date','labels','custom_vals','sort_order','parent_id'];
+    const allowed = ['type','title','description','status','column_id','priority','points','assignee_id','due_date','labels','custom_vals','sort_order','parent_id','tracker_id'];
     const fields = Object.keys(req.body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
     const sets  = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');

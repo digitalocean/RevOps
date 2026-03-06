@@ -16,7 +16,9 @@ interface AddInitiativeDialogProps {
   onOpenChange: (open: boolean) => void;
   projectId: string | null;
   parentId?: string | null;
-  onCreate: (projectId: string, payload: { title: string; description?: string }, parentId?: string | null) => Promise<unknown>;
+  /** When adding from a section, pass its tracker id so the item is created in that section */
+  trackerId?: string | null;
+  onCreate: (projectId: string, payload: { title: string; description?: string }, parentId?: string | null, trackerId?: string | null) => Promise<unknown>;
 }
 
 export function AddInitiativeDialog({
@@ -24,6 +26,7 @@ export function AddInitiativeDialog({
   onOpenChange,
   projectId,
   parentId = null,
+  trackerId = null,
   onCreate,
 }: AddInitiativeDialogProps) {
   const [title, setTitle] = useState('');
@@ -44,7 +47,7 @@ export function AddInitiativeDialog({
     setError(null);
     setSubmitting(true);
     try {
-      await onCreate(projectId, { title: t, description: description.trim() || undefined }, parentId || undefined);
+      await onCreate(projectId, { title: t, description: description.trim() || undefined }, parentId || undefined, trackerId || undefined);
       setTitle('');
       setDescription('');
       onOpenChange(false);

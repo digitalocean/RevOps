@@ -25,6 +25,7 @@ import { ObservatoryView } from '../components/ObservatoryView';
 import { SummitBoardKanban } from '../components/SummitBoardKanban';
 import { FieldNotesView } from '../components/FieldNotesView';
 import { ColumnsPopover } from '../components/ColumnsPopover';
+import { NewSectionDialog } from '../components/NewSectionDialog';
 import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { HelpCircle, ChevronUp } from 'lucide-react';
@@ -60,6 +61,7 @@ export function Dashboard() {
     createProject,
     createSprint,
     createItem,
+    createSection,
     updateItem,
     deleteItem,
   } = useMeridianData();
@@ -72,7 +74,9 @@ export function Dashboard() {
   const [showCustomFields, setShowCustomFields] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [showNewSprint, setShowNewSprint] = useState(false);
+  const [showNewSection, setShowNewSection] = useState(false);
   const [addInitiativeParentId, setAddInitiativeParentId] = useState<string | null>(null);
+  const [addInitiativeTrackerId, setAddInitiativeTrackerId] = useState<string | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate']));
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [filters, setFilters] = useState({
@@ -286,14 +290,26 @@ export function Dashboard() {
                   </>
                 )}
                 {(currentView === 'summit_board' || currentView === 'manifest') && (
-                  <Button
-                    type="button"
-                    className="gap-2 bg-gray-900 hover:bg-gray-800 text-white"
-                    onClick={() => { setAddInitiativeParentId(null); setShowAddInitiative(true); }}
-                  >
-                    <ChevronUp className="w-4 h-4" />
-                    Summit Item
-                  </Button>
+                  <>
+                    {currentView === 'manifest' && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowNewSection(true)}
+                      >
+                        Add section
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      className="gap-2 bg-gray-900 hover:bg-gray-800 text-white"
+                      onClick={() => { setAddInitiativeParentId(null); setAddInitiativeTrackerId(null); setShowAddInitiative(true); }}
+                    >
+                      <ChevronUp className="w-4 h-4" />
+                      Add work item
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -320,9 +336,6 @@ export function Dashboard() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-lg font-semibold text-gray-900">Manifest</h3>
-                  <Button type="button" size="sm" onClick={() => { setAddInitiativeParentId(null); setShowAddInitiative(true); }}>
-                    Add work item
-                  </Button>
                 </div>
                 {trackerSections.map((section) => (
                   <TrackerSection
@@ -332,10 +345,14 @@ export function Dashboard() {
                     filters={filters}
                     selectedIds={selectedIds}
                     onSelectionChange={setSelectedIds}
-                    onAddItem={() => { setAddInitiativeParentId(null); setShowAddInitiative(true); }}
+                    onAddItem={() => {
+                      setAddInitiativeParentId(null);
+                      setAddInitiativeTrackerId(section.id === 'uncategorized' ? null : section.id);
+                      setShowAddInitiative(true);
+                    }}
                     onUpdateItem={updateItem}
                     onDeleteItem={deleteItem}
-                    onCreateSubItem={(parentId) => { setAddInitiativeParentId(parentId); setShowAddInitiative(true); }}
+                    onCreateSubItem={(parentId) => { setAddInitiativeParentId(parentId); setAddInitiativeTrackerId(null); setShowAddInitiative(true); }}
                   />
                 ))}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -390,12 +407,23 @@ export function Dashboard() {
 
       <AddInitiativeDialog
         open={showAddInitiative}
-        onOpenChange={(open) => { setShowAddInitiative(open); if (!open) setAddInitiativeParentId(null); }}
+        onOpenChange={(open) => {
+          setShowAddInitiative(open);
+          if (!open) { setAddInitiativeParentId(null); setAddInitiativeTrackerId(null); }
+        }}
         projectId={selectedProjectId}
         parentId={addInitiativeParentId}
-        onCreate={async (projectId, payload, parentId) => {
-          await createItem(projectId, payload, parentId ?? undefined);
+        trackerId={addInitiativeTrackerId}
+        onCreate={async (projectId, payload, parentId, trackerId) => {
+          await createItem(projectId, payload, parentId ?? undefined, trackerId ?? undefined);
         }}
+      />
+
+      <NewSectionDialog
+        open={showNewSection}
+        onOpenChange={setShowNewSection}
+        projectId={selectedProjectId}
+        onCreate={createSection}
       />
 
       <TeamMembersDialog

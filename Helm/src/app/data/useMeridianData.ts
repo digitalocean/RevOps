@@ -40,6 +40,7 @@ function mapItemToInitiative(item: {
   points?: number | null;
   assignee_initials?: string | null;
   project_id?: string | null;
+  tracker_id?: string | null;
 }): Initiative {
   const status = (item.status && STATUS_MAP[item.status]) || 'Not Started';
   const priority = (item.priority && PRIORITY_MAP[item.priority]) || 'P1';
@@ -56,6 +57,7 @@ function mapItemToInitiative(item: {
     startDate: new Date(),
     endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     progress: status === 'Complete' ? 100 : status === 'Not Started' ? 0 : 50,
+    tracker_id: item.tracker_id ?? null,
   };
 }
 
@@ -100,7 +102,8 @@ export interface MeridianDataResult {
   createWorkspace: (name: string) => Promise<Workspace | null>;
   createProject: (workspaceId: string, name: string) => Promise<Project | null>;
   createSprint: (projectId: string, name: string, start_date?: string, end_date?: string) => Promise<Sprint | null>;
-  createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; type?: string }, parentId?: string | null) => Promise<unknown>;
+  createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; type?: string }, parentId?: string | null, trackerId?: string | null) => Promise<unknown>;
+  createSection: (projectId: string, name: string) => Promise<{ id: string; name: string } | null>;
   updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string }) => Promise<unknown>;
   deleteItem: (itemId: string) => Promise<void>;
   sprints: Sprint[];
@@ -160,9 +163,10 @@ export function useMeridianData(): MeridianDataResult {
         setFromApi(true);
         return;
       }
-      const [sprintsRes, itemsRes] = await Promise.all([
+      const [sprintsRes, itemsRes, trackersRes] = await Promise.all([
         get<Sprint[]>(`${apiPath('api/sprints')}?project_id=${pid}`).catch(() => []),
         get<unknown[]>(`${apiPath('api/items')}?project_id=${pid}`).catch(() => []),
+        get<{ id: string; name: string; sort_order?: number }[]>(`${apiPath('api/trackers')}?project_id=${pid}`).catch(() => []),
       ]);
       setSprints(Array.isArray(sprintsRes) ? sprintsRes : []);
       const itemList = Array.isArray(itemsRes) ? itemsRes : [];
@@ -176,10 +180,21 @@ export function useMeridianData(): MeridianDataResult {
           points: i.points as number | null,
           assignee_initials: i.assignee_initials as string | null,
           project_id: i.project_id as string | null,
+          tracker_id: i.tracker_id as string | null,
         })
       );
       setInitiatives(mapped);
-      setSections([{ id: 'from-api', title: 'Work items', initiatives: mapped }]);
+      const trackers = Array.isArray(trackersRes) ? trackersRes : [];
+      const uncategorized = mapped.filter((init) => !init.tracker_id);
+      const sectionList: TrackerSection[] = [
+        { id: 'uncategorized', title: 'Work items', initiatives: uncategorized },
+        ...trackers.map((t) => ({
+          id: t.id,
+          title: t.name,
+          initiatives: mapped.filter((init) => init.tracker_id === t.id),
+        })),
+      ];
+      setSections(sectionList);
       setFromApi(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
@@ -228,7 +243,8 @@ export function useMeridianData(): MeridianDataResult {
   const createItem = useCallback(async (
     projectId: string,
     payload: { title: string; description?: string; priority?: string; type?: string },
-    parentId?: string | null
+    parentId?: string | null,
+    trackerId?: string | null
   ): Promise<unknown> => {
     const body: Record<string, unknown> = {
       project_id: projectId,
@@ -239,9 +255,22 @@ export function useMeridianData(): MeridianDataResult {
       status: 'not_started',
     };
     if (parentId) body.parent_id = parentId;
+    if (trackerId) body.tracker_id = trackerId;
     const res = await post(apiPath('api/items'), body);
     await load();
     return res;
+  }, [load]);
+
+  const createSection = useCallback(async (
+    projectId: string,
+    name: string
+  ): Promise<{ id: string; name: string } | null> => {
+    const t = await post<{ id: string; name: string }>(apiPath('api/trackers'), {
+      project_id: projectId,
+      name: name.trim(),
+    });
+    await load();
+    return t ?? null;
   }, [load]);
 
   const statusToSlug: Record<string, string> = {
@@ -283,6 +312,7 @@ export function useMeridianData(): MeridianDataResult {
   return {
     initiatives,
     trackerSections: sections,
+    createSection,
     kpiData: fromApi
       ? { solvedYTD: done, inProgress, atRiskBlocked: atRisk, bigRocksCount: bigRocks, overallProgress, totalItems: total }
       : { ...mockKpiData, totalItems: mockKpiData.totalItems ?? 0 },

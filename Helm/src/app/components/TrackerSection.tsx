@@ -244,7 +244,7 @@ export function TrackerSection({ section, viewMode, filters, selectedIds, onSele
               }}
             >
               <Plus className="w-4 h-4" />
-              Add item
+              Add work item
             </Button>
           </div>
         </div>

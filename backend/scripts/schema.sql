@@ -157,4 +157,9 @@ BEGIN
       UPDATE projects SET workspace_id = first_workspace_id WHERE workspace_id IS NULL;
     END IF;
   END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'items')
+     AND EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'trackers')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'items' AND column_name = 'tracker_id') THEN
+    ALTER TABLE items ADD COLUMN tracker_id UUID REFERENCES trackers(id) ON DELETE SET NULL;
+  END IF;
 END $$;

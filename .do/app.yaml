@@ -58,6 +58,9 @@ static_sites:
     build_command: npm install && npm run build
     environment_slug: node-js
     envs:
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
+        scope: BUILD_TIME
       - key: VITE_API_URL
         value: https://revops-ntkll.ondigitalocean.app
         scope: BUILD_TIME

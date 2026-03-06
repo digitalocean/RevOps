@@ -74,15 +74,17 @@ app.use('/api/custom-fields',require('./routes/customFields'));
 app.use('/api/voice',        require('./routes/voice'));
 app.use('/api/columns',      require('./routes/columns'));
 
-// ── Health Check ─────────────────────────────────────────
-app.get('/api/health', async (req, res) => {
+// ── Health Check (both /api/health and /health for platform checks) ─
+const healthHandler = async (req, res) => {
   try {
     await pool.query('SELECT 1');
     res.json({ status: 'ok', db: 'connected', schema: schemaEnsured, time: new Date().toISOString() });
   } catch (e) {
     res.status(500).json({ status: 'error', db: 'disconnected', message: e.message });
   }
-});
+};
+app.get('/api/health', healthHandler);
+app.get('/health', healthHandler);
 
 // ── Optional: trigger schema ensure (e.g. if DB was not ready at startup) ─
 app.get('/api/db/ensure', async (req, res) => {

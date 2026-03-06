@@ -34,8 +34,8 @@ export function NavigationSidebar() {
             <Anchor className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-xl text-gray-900">Helm</h1>
-            <p className="text-xs text-gray-500">Command Center</p>
+            <h1 className="font-bold text-xl text-gray-900">Meridian</h1>
+            <p className="text-xs text-gray-500">Project Intelligence</p>
           </div>
         </div>
       </div>

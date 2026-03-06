@@ -1,11 +1,11 @@
-# Meridian — Peak Performance
+# Meridian — Project Intelligence
 
-Project and sprint management with Summit Board, Expeditions, Field Notes, and Captain's Log.
+Project and initiative management with Dashboard, Gantt, Analytics, and Meridian API.
 
 ## Stack
 
-- **Frontend**: React 18 + Vite
-- **Backend**: Node.js + Express
+- **Web (Meridian UI)**: React 18 + Vite + Tailwind 4 + Radix UI — lives in **`/Helm`**
+- **API**: Node.js + Express — **`/backend`**
 - **Database**: PostgreSQL (schema applied on server startup)
 
 ## Quick start
@@ -15,27 +15,23 @@ Project and sprint management with Summit Board, Expeditions, Field Notes, and C
 cd backend
 npm install
 cp .env.example .env   # set DATABASE_URL
-npm start              # runs schema init then http://localhost:4000
+npm start              # http://localhost:4000 (or PORT from env)
 
-# Frontend (new terminal)
-cd frontend
+# Meridian UI (new terminal)
+cd Helm
 npm install
-npm run dev            # http://localhost:5173 (proxies /api to backend)
+npm run dev            # http://localhost:5173
 ```
 
-No seed data — create **teams** (workspaces), then **projects**, then **sprints** from the UI. On first run, one workspace "My Team" is created if the table is empty. If the UI shows "Cannot reach API", start the backend and set `DATABASE_URL` in `backend/.env` (copy from `backend/.env.example`).
+Set `VITE_API_URL` to your API URL when building for production, or use `?api_url=...` in the browser. No seed data — create workspaces, projects, and items from the UI.
 
 ## Scripts
 
-| Location  | Scripts |
-|----------|---------|
-| **backend**  | `npm start`, `npm run dev`, `npm run db:init`, `npm run db:seed` |
-| **frontend** | `npm run dev`, `npm run build`, `npm run preview` |
-
-## Push to GitHub
-
-See **`docs/PUSH-TO-GITHUB.md`** for steps to push Meridian code to GitHub (branch `meridian`).
+| Location   | Scripts |
+|-----------|---------|
+| **backend** | `npm start`, `npm run dev` |
+| **Helm** (Meridian UI) | `npm run dev`, `npm run build`, `npm run preview` |
 
 ## Deploy (DigitalOcean)
 
-Use `.do/app.yaml`. Set `VITE_API_URL` to your app URL (BUILD_TIME) on the static site so the frontend can reach the API. See `docs/DEPLOY-DIGITALOCEAN.md` for details.
+Use `.do/app.yaml`. The **web** component builds from **`/Helm`** (Meridian UI). Set `VITE_API_URL` to your app URL (BUILD_TIME). See `docs/DEPLOY-DIGITALOCEAN.md` for details.

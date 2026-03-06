@@ -1,5 +1,5 @@
 /**
- * Meridian API client — workspaces, projects, items (Helm initiatives).
+ * Meridian API client — workspaces, projects, items (initiatives).
  * Set VITE_API_URL at build time or use ?api_url= in the URL for the app base.
  */
 const STORAGE_KEY = 'meridian_api_base';

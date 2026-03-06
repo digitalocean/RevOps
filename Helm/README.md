@@ -1,17 +1,18 @@
-# Helm — Project Intelligence UI
+# Meridian — Project Intelligence UI
 
-Helm is the frontend for the **helm-deploy** branch. It uses the **Meridian API** (workspaces, projects, items) for real data when available.
+This folder is the **Meridian** web app (UI). It uses the **Meridian API** (workspaces, projects, items) for real data when available.
 
-## Build
+## Build & run
 
 ```bash
 npm install
-npm run build
+npm run dev    # local dev
+npm run build  # production build
 ```
 
 Output: `dist/`
 
-## Meridian integration
+## Meridian API
 
 - **API base URL**: Set `VITE_API_URL` at build time (e.g. your DigitalOcean app URL), or use `?api_url=https://your-app.ondigitalocean.app` in the browser.
 - When the API is reachable, work items from Meridian (workspaces, projects, items) are shown as initiatives in the grid and Gantt views.
@@ -19,4 +20,4 @@ Output: `dist/`
 
 ## Deploy (DigitalOcean)
 
-On the **helm-deploy** branch, the app spec (`.do/app.yaml`) builds this folder as the static site (`source_dir: /Helm`). The API component remains the Meridian backend (`/backend`). Push to `helm-deploy` to deploy.
+The app spec (`.do/app.yaml`) builds **this folder** (`/Helm`) as the static site. The API component is the Meridian backend (`/backend`). Push to `main` to deploy.

@@ -1,6 +1,6 @@
 # Meridian — DigitalOcean App Platform
-# API = Meridian backend. Web = exact Helm UI (frontend folder is the Helm app).
-# /api → API service; / → static site (Helm UI from frontend).
+# API = Meridian backend (/backend). Web = Meridian UI built from /Helm (full Helm app, branded Meridian).
+# /api → API service; / → static site (Meridian).
 
 name: meridian
 region: nyc
@@ -51,7 +51,7 @@ services:
     github:
       deploy_on_push: true
       repo: digitalocean/RevOps
-      branch: helm-deploy
+      branch: main
     http_port: 8080
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
@@ -72,8 +72,8 @@ static_sites:
     github:
       deploy_on_push: true
       repo: digitalocean/RevOps
-      branch: helm-deploy
+      branch: main
     output_dir: dist
-    source_dir: /frontend
+    source_dir: /Helm
     index_document: index.html
     catchall_document: index.html

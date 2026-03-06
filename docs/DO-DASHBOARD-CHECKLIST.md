@@ -12,12 +12,12 @@ This makes the live app match the repo and fixes wrong component names/source.
 2. Go to **Settings** (left or top).
 3. Find **App Spec** → click **Edit** (or **Download** then **Edit**).
 4. **Select all** existing YAML and **delete** it.
-5. Open the file **`.do/app.yaml`** from your repo (branch **meridian**) and **copy the entire contents**.
+5. Open the file **`.do/app.yaml`** from your repo (branch **main**) and **copy the entire contents**.
 6. **Paste** into the App Spec editor in the dashboard.
 7. **Important:** In the pasted spec, update the **web** component’s `VITE_API_URL` to your **actual** app URL (e.g. `https://your-app-xxxx.ondigitalocean.app`). Replace `https://revops-ntkll.ondigitalocean.app` if your URL is different.
 8. Click **Save** (or **Update**). This will **recreate** components from the spec:
    - **api** (Web Service, source `/backend`)
-   - **web** (Static Site, source `/frontend`)
+   - **web** (Static Site, source `/Helm`)
    - **db** (Database)
    The old **revops** component may disappear and be replaced by **api**.
 9. Go to **Activity** → **Force Build and Deploy** → enable **Clear Build Cache** → deploy.

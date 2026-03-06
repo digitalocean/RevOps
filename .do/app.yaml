@@ -1,5 +1,5 @@
 # Meridian — DigitalOcean App Platform
-# frontend/ and backend/ are the Meridian app. /api → API service; / → static site.
+# /api → API service; / → static site. Use the app's default URL (from DO dashboard) for VITE_API_URL so the frontend can reach the API.
 
 name: meridian
 region: nyc

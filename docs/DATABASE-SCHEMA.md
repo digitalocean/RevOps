@@ -24,9 +24,7 @@ Schema is in **`backend/scripts/schema.sql`**. It runs **automatically on API st
 
 ## Bootstrap (on first run)
 
-When the schema runs, it creates **only** (if the table is empty):
-
-- One **workspace** (`My Team`, slug `my-team`).
+When the schema runs, it **only creates tables**. No seed data is inserted. Create your first workspace from the app (topbar → “New team”).
 
 No projects or sprints are created. Create teams (workspaces), then projects, then sprints from the UI.
 
@@ -38,7 +36,7 @@ To start from scratch (e.g. in production), run in order (e.g. via `psql` or a D
 TRUNCATE voice_recordings, tracker_rows, trackers, log_entries, column_prefs, items, board_columns, sprints, projects, custom_fields, crew, workspaces RESTART IDENTITY CASCADE;
 ```
 
-Then restart the API (or call `GET /api/db/ensure`). One workspace `My Team` will be re-created if the table is empty.
+Then restart the API (or call `GET /api/db/ensure`). Create a workspace from the app (topbar → “New team”) to get started.
 
 ## If data is not persisting
 

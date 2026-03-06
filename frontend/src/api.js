@@ -27,8 +27,13 @@ export async function api(path, opts = {}) {
     ...opts,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
+  const contentType = res.headers.get('content-type') || '';
+  const text = await res.text();
+  if (!contentType.includes('application/json')) {
+    if (!res.ok) throw new Error(text?.slice(0, 80) || res.statusText || `Request failed (${res.status})`);
+    throw new Error('API returned non-JSON (wrong server or route). Use the main app URL.');
+  }
   if (!res.ok) {
-    const text = await res.text();
     let msg = res.statusText;
     try {
       const j = text ? JSON.parse(text) : {};
@@ -36,7 +41,6 @@ export async function api(path, opts = {}) {
     } catch (_) {}
     throw new Error(msg || `Request failed (${res.status})`);
   }
-  const text = await res.text();
   return text ? JSON.parse(text) : {};
 }
 
@@ -50,12 +54,16 @@ export async function postForm(path, formData) {
   const base = getBase();
   const url = base ? `${base}${path}` : path;
   const res = await fetch(url, { method: 'POST', body: formData });
+  const text = await res.text();
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    if (!res.ok) throw new Error(text?.slice(0, 80) || res.statusText || `Request failed (${res.status})`);
+    throw new Error('API returned non-JSON.');
+  }
   if (!res.ok) {
-    const text = await res.text();
     let msg = res.statusText;
     try { const j = text ? JSON.parse(text) : {}; if (j.error) msg = j.error; } catch (_) {}
     throw new Error(msg || `Request failed (${res.status})`);
   }
-  const text = await res.text();
   return text ? JSON.parse(text) : {};
 }

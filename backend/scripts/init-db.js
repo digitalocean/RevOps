@@ -18,10 +18,7 @@ async function initDB() {
   try {
     const sql = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
     await client.query(sql);
-    await client.query(
-      `INSERT INTO workspaces (name, slug) SELECT 'My Team', 'my-team' WHERE NOT EXISTS (SELECT 1 FROM workspaces LIMIT 1)`
-    );
-    console.log('✅  Schema applied and default workspace ensured.\n');
+    console.log('✅  Schema applied. No seed data — create workspaces from the app.\n');
   } catch (e) {
     console.error('❌  DB init failed:', e.message);
     process.exit(1);

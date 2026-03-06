@@ -78,15 +78,19 @@ export default function App() {
   }, [selWorkspaceId])
   const retryApiConnection = useCallback(() => {
     setApiReachable(null)
-    get('/api/workspaces').then(data => {
-      setApiReachable(true)
-      if (Array.isArray(data)) {
-        setWorkspaces(data)
-        const cur = LSGet('selWorkspaceId', null)
-        if (data.length && (!cur || !data.some(w => w.id === cur))) setSelWorkspaceId(data[0].id)
-        else if (cur) setSelWorkspaceId(cur)
-      }
-    }).catch(() => setApiReachable(false))
+    get('/api/health')
+      .then(() => get('/api/workspaces'))
+      .then(data => {
+        setApiReachable(true)
+        if (data && Array.isArray(data)) {
+          setWorkspaces(data)
+          const cur = LSGet('selWorkspaceId', null)
+          if (data.length === 0) setSelWorkspaceId(null)
+          else if (!cur || !data.some(w => w.id === cur)) setSelWorkspaceId(data[0].id)
+          else setSelWorkspaceId(cur)
+        }
+      })
+      .catch(() => setApiReachable(false))
   }, [])
   const refreshProjects = useCallback(() => {
     if (!selWorkspaceId) { setProjects([]); return }
@@ -97,23 +101,27 @@ export default function App() {
   useEffect(() => {
     let cancelled = false
     const loadWorkspaces = (retry = false) => {
-      get('/api/db/ensure').catch(() => {}).finally(() => {
-        if (cancelled) return
-        get('/api/workspaces').then(data => {
+      get('/api/health')
+        .then(() => {
+          if (cancelled) return
+          return get('/api/workspaces')
+        })
+        .then(data => {
           if (cancelled) return
           setApiReachable(true)
-          if (Array.isArray(data)) {
+          if (data && Array.isArray(data)) {
             setWorkspaces(data)
             const cur = LSGet('selWorkspaceId', null)
-            if (data.length && (!cur || !data.some(w => w.id === cur))) setSelWorkspaceId(data[0].id)
-            else if (cur) setSelWorkspaceId(cur)
+            if (data.length === 0) setSelWorkspaceId(null)
+            else if (!cur || !data.some(w => w.id === cur)) setSelWorkspaceId(data[0].id)
+            else setSelWorkspaceId(cur)
           }
-        }).catch(() => {
+        })
+        .catch(() => {
           if (cancelled) return
-          if (!retry) setTimeout(() => loadWorkspaces(true), 1500)
+          if (!retry) setTimeout(() => loadWorkspaces(true), 2000)
           else setApiReachable(false)
         })
-      })
     }
     loadWorkspaces()
     return () => { cancelled = true }
@@ -375,7 +383,7 @@ export default function App() {
                 <input
                   type="url"
                   className="api-banner-input"
-                  placeholder="https://revops-ntkll.ondigitalocean.app"
+                  placeholder="https://your-app.ondigitalocean.app"
                   value={apiUrlInput}
                   onChange={e => setApiUrlInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && (e.target.value.trim() ? (localStorage.setItem('meridian_api_base', e.target.value.trim().replace(/\/$/, '')), retryApiConnection(), setApiUrlInput('')) : retryApiConnection())}
@@ -998,13 +1006,17 @@ function AdminView({ customFields, adminSec, setAdminSec, onAddField, onDelField
       <div className="scroll">
         <button className="ph-back" onClick={()=>setAdminSec(null)}><i className="fa-solid fa-arrow-left"/> Back</button>
         <div style={{fontSize:'18px',fontWeight:700,color:'var(--t1)',marginBottom:'16px'}}>Crew Management</div>
-        {[{n:'Raj Kumar',i:'RK',c:'#6366f1',r:'Lead Developer'},{n:'Sara Kim',i:'SK',c:'#8b5cf6',r:'Architect'},{n:'Aman Mehta',i:'AM',c:'#059669',r:'Developer'},{n:'Priya Patel',i:'PP',c:'#f59e0b',r:'QA Engineer'}].map((m,idx)=>(
-          <div key={idx} className="field-item">
-            <div className="cav" style={{background:m.c}}>{m.i}</div>
-            <div style={{flex:1}}><div style={{fontSize:'13px',fontWeight:500,color:'var(--t1)'}}>{m.n}</div><div style={{fontSize:'11px',color:'var(--t3)',marginTop:'2px'}}>{m.r}</div></div>
-            <button className="btn-g" style={{fontSize:'11px',padding:'4px 10px'}}>Edit</button>
-          </div>
-        ))}
+        {crew.length === 0 ? (
+          <p style={{fontSize:'13px',color:'var(--t3)',marginBottom:'12px'}}>No crew members yet. Add members via the API or seed your database.</p>
+        ) : (
+          crew.map(m => (
+            <div key={m.id} className="field-item">
+              <div className="cav" style={{background: m.color || '#6366f1'}}>{m.initials || (m.name || '').slice(0,2).toUpperCase()}</div>
+              <div style={{flex:1}}><div style={{fontSize:'13px',fontWeight:500,color:'var(--t1)'}}>{m.name}</div><div style={{fontSize:'11px',color:'var(--t3)',marginTop:'2px'}}>{m.role || 'Member'}</div></div>
+              <button className="btn-g" style={{fontSize:'11px',padding:'4px 10px'}}>Edit</button>
+            </div>
+          ))
+        )}
         <button className="add-field-btn"><i className="fa-solid fa-plus"/> Add Crew Member</button>
       </div>
     )
@@ -1015,13 +1027,7 @@ function AdminView({ customFields, adminSec, setAdminSec, onAddField, onDelField
       <div className="scroll">
         <button className="ph-back" onClick={()=>setAdminSec(null)}><i className="fa-solid fa-arrow-left"/> Back</button>
         <div style={{fontSize:'18px',fontWeight:700,color:'var(--t1)',marginBottom:'16px'}}>Integrations</div>
-        {[{name:'Slack',icon:'fa-slack',bg:'rgba(74,21,75,.3)',c:'#e01e5a',status:'Coming soon'},{name:'GitHub',icon:'fa-github',bg:'rgba(36,41,47,.5)',c:'#fff',status:'Coming soon'},{name:'Jira',icon:'fa-jira',bg:'rgba(0,82,204,.2)',c:'#0052cc',status:'Coming soon'}].map((int,i)=>(
-          <div key={i} className="field-item">
-            <div className="field-ico" style={{background:int.bg}}><i className={`fa-brands ${int.icon}`} style={{color:int.c}}/></div>
-            <span className="field-nm">{int.name}</span>
-            <span className="field-type-lbl">{int.status}</span>
-          </div>
-        ))}
+        <p style={{fontSize:'13px',color:'var(--t3)'}}>No integrations configured. Connect Slack, GitHub, or other tools when available.</p>
       </div>
     )
   }

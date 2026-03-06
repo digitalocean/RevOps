@@ -28,6 +28,19 @@ If the Meridian UI shows **"Cannot reach API"** after deployment, set the API UR
 
 Open the app using the **same** URL you set (e.g. `https://meridian-abc12.ondigitalocean.app`). The "Cannot reach API" banner should go away.
 
+## Quick fix without redeploy (runtime)
+
+If you already see the banner and don’t want to redeploy yet:
+
+1. In the red banner, type your **main app URL** in the input (e.g. `https://revops-ntkll.ondigitalocean.app`).
+2. Click **Save & retry**. The app will store the URL and retry; the banner should disappear if the API is reachable at that URL.
+
+Or open the app with the API URL in the address bar:
+
+`https://your-static-site-url.ondigitalocean.app/?api_url=https://revops-ntkll.ondigitalocean.app`
+
+Use your **main app URL** (the one that shows in the Apps overview) as the `api_url` value. The app will remember it for next time.
+
 ## Check the API
 
 In a new tab, open:

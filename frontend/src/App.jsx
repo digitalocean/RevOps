@@ -48,6 +48,7 @@ export default function App() {
   const [voiceType, setVoiceType]  = useState('note')
   const [voiceError, setVoiceError] = useState('')
   const [apiReachable, setApiReachable] = useState(null) // null = unknown, true/false after first check
+  const [apiUrlInput, setApiUrlInput] = useState('')
   const [adminSec,  setAdminSec]   = useState(null)
   const [trackerTab, setTrackerTab]= useState('bigrock')
   const mediaRecRef = useRef(null)
@@ -75,6 +76,18 @@ export default function App() {
       }
     }).catch(() => {})
   }, [selWorkspaceId])
+  const retryApiConnection = useCallback(() => {
+    setApiReachable(null)
+    get('/api/workspaces').then(data => {
+      setApiReachable(true)
+      if (Array.isArray(data)) {
+        setWorkspaces(data)
+        const cur = LSGet('selWorkspaceId', null)
+        if (data.length && (!cur || !data.some(w => w.id === cur))) setSelWorkspaceId(data[0].id)
+        else if (cur) setSelWorkspaceId(cur)
+      }
+    }).catch(() => setApiReachable(false))
+  }, [])
   const refreshProjects = useCallback(() => {
     if (!selWorkspaceId) { setProjects([]); return }
     get(`/api/projects?workspace_id=${selWorkspaceId}`).then(data => {
@@ -350,12 +363,35 @@ export default function App() {
     <div className="app-shell">
       {apiReachable === false && (
         <div className="api-banner" role="alert">
-          <span>
-            <strong>Cannot reach API.</strong>{' '}
-            {typeof window !== 'undefined' && !/localhost|127\.0\.0\.1/.test(window.location?.host || '')
-              ? 'Open your app using its main URL (e.g. https://your-app.ondigitalocean.app). Redeploy the web component after any env changes.'
-              : 'Start the backend: cd backend && npm run dev. Set DATABASE_URL in backend/.env.'}
-          </span>
+          <div className="api-banner-content">
+            <p className="api-banner-msg">
+              <strong>Cannot reach API.</strong>{' '}
+              {typeof window !== 'undefined' && !/localhost|127\.0\.0\.1/.test(window.location?.host || '')
+                ? <>Open the app using your <strong>main app URL</strong> (e.g. <code>https://revops-ntkll.ondigitalocean.app</code>), or set the API URL below and click Save &amp; retry.</>
+                : 'Start the backend: cd backend && npm run dev. Set DATABASE_URL in backend/.env.'}
+            </p>
+            {typeof window !== 'undefined' && !/localhost|127\.0\.0\.1/.test(window.location?.host || '') && (
+              <div className="api-banner-actions">
+                <input
+                  type="url"
+                  className="api-banner-input"
+                  placeholder="https://revops-ntkll.ondigitalocean.app"
+                  value={apiUrlInput}
+                  onChange={e => setApiUrlInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && (e.target.value.trim() ? (localStorage.setItem('meridian_api_base', e.target.value.trim().replace(/\/$/, '')), retryApiConnection(), setApiUrlInput('')) : retryApiConnection())}
+                />
+                <button type="button" className="api-banner-btn" onClick={() => {
+                  if (apiUrlInput.trim()) {
+                    localStorage.setItem('meridian_api_base', apiUrlInput.trim().replace(/\/$/, ''));
+                    setApiUrlInput('');
+                  }
+                  retryApiConnection();
+                }}>
+                  {apiUrlInput.trim() ? 'Save & retry' : 'Retry'}
+                </button>
+              </div>
+            )}
+          </div>
           <button type="button" className="api-banner-dismiss" onClick={() => setApiReachable(null)} aria-label="Dismiss">×</button>
         </div>
       )}

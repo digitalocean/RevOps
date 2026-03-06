@@ -1,10 +1,22 @@
+const STORAGE_KEY = 'meridian_api_base';
+
 function getBase() {
+  if (typeof window === 'undefined') return '';
+  const urlParams = new URLSearchParams(window.location.search);
+  const fromQuery = urlParams.get('api_url') || urlParams.get('api_base');
+  if (fromQuery && fromQuery.startsWith('http')) {
+    const base = fromQuery.replace(/\/$/, '');
+    try { localStorage.setItem(STORAGE_KEY, base); } catch (_) {}
+    return base;
+  }
+  try {
+    const fromStorage = localStorage.getItem(STORAGE_KEY);
+    if (fromStorage && fromStorage.startsWith('http')) return fromStorage.replace(/\/$/, '');
+  } catch (_) {}
   const v = import.meta.env.VITE_API_URL;
   if (v && String(v).trim()) return String(v).replace(/\/$/, '');
   if (import.meta.env.DEV) return '';
-  // Production: use same origin so /api hits the same app (DO ingress routes /api to API service)
-  if (typeof window !== 'undefined' && window.location?.origin) return window.location.origin;
-  return '';
+  return window.location?.origin || '';
 }
 
 export async function api(path, opts = {}) {

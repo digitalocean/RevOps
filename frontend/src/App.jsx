@@ -158,9 +158,10 @@ export default function App() {
     get(`/api/log?project_id=${selProjId}`).then(data => { setLog(Array.isArray(data) ? data : []) }).catch(()=>setLog([]))
   }, [selProjId])
   useEffect(() => {
-    if (!selSprintId) { setItems([]); return }
-    get(`/api/items?sprint_id=${selSprintId}`).then(data => { setItems(Array.isArray(data) ? data : []) }).catch(()=>setItems([]))
-  }, [selSprintId])
+    if (!selProjId) { setItems([]); return }
+    const q = selSprintId ? `project_id=${selProjId}&sprint_id=${selSprintId}` : `project_id=${selProjId}`
+    get(`/api/items?${q}`).then(data => { setItems(Array.isArray(data) ? data : []) }).catch(()=>setItems([]))
+  }, [selProjId, selSprintId])
   useEffect(() => {
     get('/api/crew').then(data => { if(Array.isArray(data) && data.length) setCrew(data) }).catch(()=>{})
   }, [])
@@ -200,8 +201,8 @@ export default function App() {
 
   // ── ITEMS ─────────────────────────────────────────────
   const addItem = async (data) => {
-    if (!selProjId || !selSprintId) {
-      showToast('⚠️', 'Select a project and sprint', 'Pick one from the sidebar first.')
+    if (!selProjId) {
+      showToast('⚠️', 'Select a project', 'Pick a project from the sidebar first.')
       return
     }
     const colSlug = data.col || 'backlog'
@@ -222,7 +223,7 @@ export default function App() {
     try {
       const saved = await post('/api/items', {
         project_id: selProjId,
-        sprint_id: selSprintId,
+        sprint_id: selSprintId || null,
         column_id: col?.id || null,
         title: data.title,
         type: data.type || 'task',
@@ -308,9 +309,9 @@ export default function App() {
       setTranscript('')
       return
     }
-    if (!selProjId || !selSprintId) {
-      setVoiceError('Select a project and sprint to create a task')
-      showToast('⚠️', 'Select project & sprint', 'Choose them from the sidebar first.')
+    if (!selProjId) {
+      setVoiceError('Select a project to create a task')
+      showToast('⚠️', 'Select a project', 'Choose one from the sidebar first.')
       return
     }
     try {
@@ -318,7 +319,7 @@ export default function App() {
         transcript: t,
         item_type: voiceType,
         project_id: selProjId,
-        sprint_id: selSprintId,
+        sprint_id: selSprintId || null,
       })
       if (result.type === 'item' && result.item) {
         setItems(prev => [...prev, { ...result.item, assignee_initials: '', assignee_color: '#6366f1' }])
@@ -377,7 +378,7 @@ export default function App() {
             <p className="api-banner-msg">
               <strong>Cannot reach API.</strong>{' '}
               {typeof window !== 'undefined' && !/localhost|127\.0\.0\.1/.test(window.location?.host || '')
-                ? <>If you see an HTML/Error page, the request hit the wrong server. Paste your <strong>main app URL</strong> from the DigitalOcean app dashboard below (same URL where you open the app) and click Save &amp; retry.</>
+                ? <>Paste your <strong>main app URL</strong> below (DigitalOcean → Apps → your app → copy the URL at the top). Then click Save &amp; retry.</>
                 : 'Start the backend: cd backend && npm run dev. Set DATABASE_URL in backend/.env.'}
             </p>
             {typeof window !== 'undefined' && !/localhost|127\.0\.0\.1/.test(window.location?.host || '') && (
@@ -451,12 +452,9 @@ export default function App() {
               selWorkspaceId={selWorkspaceId}
               projects={projects}
               selProjId={selProjId}
-              sprints={sprints}
-              selSprintId={selSprintId}
               onDismiss={() => setOnboardingDismissed(true)}
               onCreateTeam={() => setModal('newWorkspace')}
               onCreateProject={() => setModal('newProject')}
-              onCreateSprint={() => setModal('newSprint')}
               onAddItem={() => setModal('add')}
             />
           )}
@@ -559,26 +557,24 @@ export default function App() {
   )
 }
 
-// ── Onboarding walkthrough: Team → Project → Sprint → Items ──
-function OnboardingWalkthrough({ workspaces, selWorkspaceId, projects, selProjId, sprints, selSprintId, onDismiss, onCreateTeam, onCreateProject, onCreateSprint, onAddItem }) {
+// ── Onboarding walkthrough: Team → Project → Items (sprint optional) ──
+function OnboardingWalkthrough({ workspaces, selWorkspaceId, projects, selProjId, onDismiss, onCreateTeam, onCreateProject, onAddItem }) {
   const step1 = workspaces.length > 0
   const step2 = projects.length > 0 && selWorkspaceId
-  const step3 = sprints.length > 0 && selProjId
-  const step4 = selSprintId
-  const allDone = step1 && step2 && step3 && step4
+  const step3 = selProjId
+  const allDone = step1 && step2 && step3
 
   const steps = [
     { id: 1, done: step1, label: 'Create a team', sub: 'Teams hold your projects.', action: onCreateTeam, btn: 'Create team' },
     { id: 2, done: step2, label: 'Create a project', sub: 'Projects live under a team.', action: onCreateProject, btn: 'Create project', disabled: !step1 },
-    { id: 3, done: step3, label: 'Create a sprint', sub: 'Sprints organize work in a project.', action: onCreateSprint, btn: 'Create sprint', disabled: !step2 },
-    { id: 4, done: step4, label: 'Add work items', sub: 'Stories and tasks go in a sprint.', action: onAddItem, btn: 'Add first item', disabled: !step3 },
+    { id: 3, done: step3, label: 'Add work items', sub: 'Add stories and tasks to your project. Sprints are optional.', action: onAddItem, btn: 'Add first item', disabled: !step2 },
   ]
 
   return (
     <div className="onboarding-card">
       <div className="onboarding-header">
-        <h2 className="onboarding-title"><i className="fa-solid fa-route"/> Get started in 4 steps</h2>
-        <p className="onboarding-sub">Set up your team, project, and sprint — then start adding items.</p>
+        <h2 className="onboarding-title"><i className="fa-solid fa-route"/> Get started in 3 steps</h2>
+        <p className="onboarding-sub">Set up your team and project — then start adding items.</p>
       </div>
       <div className="onboarding-steps">
         {steps.map((s, i) => (

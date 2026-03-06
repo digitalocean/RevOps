@@ -44,7 +44,6 @@ router.post('/create', async (req, res) => {
     if (!transcript || !transcript.trim()) return res.status(400).json({ error: 'Transcript is required' });
     if (item_type !== 'note') {
       if (!project_id) return res.status(400).json({ error: 'Select a project first' });
-      if (!sprint_id) return res.status(400).json({ error: 'Select a sprint first' });
     }
 
     let result = null;
@@ -77,7 +76,7 @@ router.post('/create', async (req, res) => {
       } else {
         const { rows } = await pool.query(
           `INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,$6,$7,'backlog') RETURNING *`,
-          [project_id, sprint_id, parsed.type || item_type, parsed.title, parsed.description, parsed.priority || 'medium', parsed.points || 3]
+          [project_id, sprint_id || null, parsed.type || item_type, parsed.title, parsed.description, parsed.priority || 'medium', parsed.points || 3]
         );
         result = { type: 'item', item: rows[0] };
       }
@@ -94,7 +93,7 @@ router.post('/create', async (req, res) => {
         const itemType = (item_type === 'story' ? 'story' : 'task');
         const { rows } = await pool.query(
           `INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,'medium',3,'backlog') RETURNING *`,
-          [project_id, sprint_id, itemType, title, transcript]
+          [project_id, sprint_id || null, itemType, title, transcript]
         );
         result = { type: 'item', item: rows[0], mode: 'demo' };
       }

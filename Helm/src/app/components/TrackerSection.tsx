@@ -1,18 +1,24 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, MoreHorizontal, MessageSquare, Paperclip, Clock, Star } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, MoreHorizontal, Clock, Star, Loader2, Check, X } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { Checkbox } from './ui/checkbox';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
+import { Input } from './ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuSeparator 
+  DropdownMenuSeparator,
 } from './ui/dropdown-menu';
 import { InitiativeDetailsDialog } from './InitiativeDetailsDialog';
 import type { Initiative, Priority, Status, Category, TrackerSection as TrackerSectionType } from '../data/mockData';
+
+const STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete'];
+const PRIORITY_OPTIONS: Priority[] = ['P0', 'P1', 'P2'];
+const CATEGORIES: Category[] = ['Engineering', 'Design', 'Sales', 'Product', 'Operations'];
 
 interface TrackerSectionProps {
   section: TrackerSectionType;
@@ -26,10 +32,13 @@ interface TrackerSectionProps {
   };
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
+  projectId: string | null;
   onAddItem?: () => void;
+  onCreateItem?: (projectId: string, payload: { title: string; description?: string }, trackerId?: string | null) => Promise<unknown>;
   onCreateSubItem?: (parentId: string) => void;
   onUpdateItem?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority }) => Promise<unknown>;
   onDeleteItem?: (id: string) => Promise<void>;
+  onItemCompleted?: () => void;
 }
 
 function getPriorityColor(priority: Priority): string {
@@ -45,7 +54,7 @@ function getStatusColor(status: Status): string {
     case 'On Track': return 'bg-green-500 text-white hover:bg-green-600';
     case 'At Risk': return 'bg-yellow-500 text-white hover:bg-yellow-600';
     case 'In Review': return 'bg-purple-500 text-white hover:bg-purple-600';
-    case 'Complete': return 'bg-blue-500 text-white hover:bg-blue-600';
+    case 'Complete': return 'bg-emerald-500 text-white hover:bg-emerald-600';
     case 'Blocked': return 'bg-red-500 text-white hover:bg-red-600';
     case 'Not Started': return 'bg-gray-300 text-gray-700 hover:bg-gray-400';
   }
@@ -61,109 +70,137 @@ function getCategoryColor(category: Category): string {
   }
 }
 
-interface InitiativeRowProps {
+interface InitiativeRowEditableProps {
   initiative: Initiative;
   onOpenDetails: (initiative: Initiative) => void;
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
   onAddSubItem?: (parentId: string) => void;
+  onUpdate: (id: string, payload: { title?: string; status?: Status; priority?: Priority }) => Promise<unknown>;
+  onDelete?: (id: string) => Promise<void>;
+  onItemCompleted?: () => void;
 }
 
-function InitiativeRow({ initiative, onOpenDetails, isSelected, onToggleSelect, onAddSubItem }: InitiativeRowProps) {
-  const [isHovered, setIsHovered] = useState(false);
+function InitiativeRowEditable({
+  initiative,
+  onOpenDetails,
+  isSelected,
+  onToggleSelect,
+  onAddSubItem,
+  onUpdate,
+  onDelete,
+  onItemCompleted,
+}: InitiativeRowEditableProps) {
+  const [title, setTitle] = useState(initiative.name);
+  const [saving, setSaving] = useState(false);
+
+  const handleTitleBlur = () => {
+    const t = title.trim();
+    if (t !== initiative.name && t) {
+      setSaving(true);
+      onUpdate(initiative.id, { title: t }).finally(() => setSaving(false));
+    }
+  };
+
+  const handleStatusChange = async (status: Status) => {
+    const wasComplete = initiative.status === 'Complete';
+    setSaving(true);
+    try {
+      await onUpdate(initiative.id, { status });
+      if (!wasComplete && status === 'Complete') onItemCompleted?.();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePriorityChange = (priority: Priority) => {
+    setSaving(true);
+    onUpdate(initiative.id, { priority }).finally(() => setSaving(false));
+  };
 
   return (
-    <tr 
-      className={`border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer ${
-        isSelected ? 'bg-blue-50' : ''
-      }`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onClick={() => onOpenDetails(initiative)}
-    >
-      <td className="py-3 px-4 w-12" onClick={(e) => e.stopPropagation()}>
-        <Checkbox 
-          checked={isSelected}
-          onCheckedChange={() => onToggleSelect(initiative.id)}
+    <tr className={`border-b border-gray-100 hover:bg-gray-50/50 ${isSelected ? 'bg-blue-50' : ''}`}>
+      <td className="py-2 px-4 w-12 align-middle">
+        <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(initiative.id)} />
+      </td>
+      <td className="py-2 px-4 w-12 align-middle">
+        {initiative.isBigRock ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : <div className="w-4 h-4" />}
+      </td>
+      <td className="py-2 px-4 align-middle min-w-[180px]">
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onBlur={handleTitleBlur}
+          className="h-8 text-sm font-medium border-gray-200 bg-white"
+          placeholder="Title"
         />
       </td>
-      <td className="py-3 px-4 w-12">
-        <div className="flex items-center justify-center">
-          {initiative.isBigRock ? (
-            <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
-          ) : (
-            <div className="w-4 h-4" />
-          )}
-        </div>
-      </td>
-      <td className="py-3 px-4">
-        <div className="flex items-center gap-2">
-          <span className="font-medium text-gray-900 text-sm">{initiative.name}</span>
-          {isHovered && (
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={(e) => { e.stopPropagation(); }}>
-                <MessageSquare className="w-3 h-3 text-gray-400" />
-              </Button>
-              <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={(e) => { e.stopPropagation(); }}>
-                <Paperclip className="w-3 h-3 text-gray-400" />
-              </Button>
-            </div>
-          )}
-        </div>
-      </td>
-      <td className="py-3 px-4">
+      <td className="py-2 px-4 align-middle">
         <Badge variant="outline" className={`${getCategoryColor(initiative.category)} text-xs font-medium`}>
           {initiative.category}
         </Badge>
       </td>
-      <td className="py-3 px-4">
-        <Badge variant="outline" className={`${getPriorityColor(initiative.priority)} text-xs font-semibold`}>
-          {initiative.priority}
-        </Badge>
+      <td className="py-2 px-4 align-middle w-24">
+        <Select value={initiative.priority} onValueChange={(v) => handlePriorityChange(v as Priority)}>
+          <SelectTrigger className="h-8 text-xs border-gray-200 bg-white">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PRIORITY_OPTIONS.map((p) => (
+              <SelectItem key={p} value={p} className="text-xs">{p}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
-      <td className="py-3 px-4">
+      <td className="py-2 px-4 align-middle">
+        <span className="text-sm text-gray-600">{initiative.owner}</span>
+      </td>
+      <td className="py-2 px-4 align-middle w-36">
+        <Select value={initiative.status} onValueChange={(v) => handleStatusChange(v as Status)}>
+          <SelectTrigger className={`h-8 text-xs border-0 ${getStatusColor(initiative.status)} text-white`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((s) => (
+              <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </td>
+      <td className="py-2 px-4 align-middle">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-semibold">
-            {initiative.owner.split(' ').map(n => n[0]).join('')}
-          </div>
-          <span className="text-sm text-gray-700">{initiative.owner}</span>
+          <Progress value={initiative.progress} className="w-20 h-1.5" />
+          <span className="text-xs text-gray-600 w-8">{initiative.progress}%</span>
         </div>
       </td>
-      <td className="py-3 px-4">
-        <Badge className={`${getStatusColor(initiative.status)} text-xs font-medium border-0`}>
-          {initiative.status}
-        </Badge>
+      <td className="py-2 px-4 align-middle text-xs text-gray-500">
+        <Clock className="w-3 h-3 inline mr-1" />
+        {initiative.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
       </td>
-      <td className="py-3 px-4">
-        <div className="flex items-center gap-2">
-          <Progress value={initiative.progress} className="w-24 h-2" />
-          <span className="text-xs text-gray-600 font-medium w-10">{initiative.progress}%</span>
-        </div>
-      </td>
-      <td className="py-3 px-4">
-        <div className="flex items-center gap-1 text-xs text-gray-500">
-          <Clock className="w-3 h-3" />
-          <span>{initiative.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-        </div>
-      </td>
-      <td className="py-3 px-4">
+      <td className="py-2 px-4 align-middle w-12">
         <DropdownMenu>
-          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+          <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
               <MoreHorizontal className="w-4 h-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onOpenDetails(initiative); }}>View Details</DropdownMenuItem>
+            <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onOpenDetails(initiative); }}>View details</DropdownMenuItem>
             {onAddSubItem && (
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onAddSubItem(initiative.id); }}>
-                Add sub-item
+              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onAddSubItem(initiative.id); }}>Add sub-item</DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            {onDelete && (
+              <DropdownMenuItem
+                className="text-red-600"
+                onSelect={(e) => {
+                  e.preventDefault();
+                  if (confirm('Delete this item?')) onDelete(initiative.id);
+                }}
+              >
+                Delete
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem>Add Comment</DropdownMenuItem>
-            <DropdownMenuItem>Attach File</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </td>
@@ -171,16 +208,83 @@ function InitiativeRow({ initiative, onOpenDetails, isSelected, onToggleSelect, 
   );
 }
 
-export function TrackerSection({ section, viewMode, filters, selectedIds, onSelectionChange, onAddItem, onCreateSubItem, onUpdateItem, onDeleteItem }: TrackerSectionProps) {
+interface NewRowFormProps {
+  projectId: string | null;
+  sectionId: string;
+  trackerId: string | null;
+  onSave: (projectId: string, payload: { title: string; description?: string }, trackerId?: string | null) => Promise<unknown>;
+  onCancel: () => void;
+}
+
+function NewRowForm({ projectId, sectionId, trackerId, onSave, onCancel }: NewRowFormProps) {
+  const [title, setTitle] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    const t = title.trim();
+    if (!t || !projectId) return;
+    setSaving(true);
+    try {
+      await onSave(projectId, { title: t }, sectionId === 'uncategorized' ? null : sectionId);
+      setTitle('');
+      onCancel();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <tr className="bg-blue-50/50 border-b border-blue-100">
+      <td className="py-2 px-4 w-12" />
+      <td className="py-2 px-4 w-12" />
+      <td className="py-2 px-4 align-middle min-w-[180px]">
+        <Input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+          className="h-8 text-sm border-blue-200 bg-white"
+          placeholder="Enter title..."
+          autoFocus
+        />
+      </td>
+      <td colSpan={5} className="py-2 px-4 align-middle">
+        <div className="flex items-center gap-2">
+          <Button type="button" size="sm" className="h-8 gap-1" onClick={handleSave} disabled={!title.trim() || !projectId || saving}>
+            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+            Save
+          </Button>
+          <Button type="button" size="sm" variant="ghost" className="h-8 gap-1" onClick={onCancel} disabled={saving}>
+            <X className="w-3 h-3" />
+            Cancel
+          </Button>
+        </div>
+      </td>
+      <td className="py-2 px-4" />
+    </tr>
+  );
+}
+
+export function TrackerSection({
+  section,
+  viewMode,
+  filters,
+  selectedIds,
+  onSelectionChange,
+  projectId,
+  onAddItem,
+  onCreateItem,
+  onCreateSubItem,
+  onUpdateItem,
+  onDeleteItem,
+  onItemCompleted,
+}: TrackerSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedInitiative, setSelectedInitiative] = useState<Initiative | null>(null);
+  const [showNewRow, setShowNewRow] = useState(false);
 
-  if (viewMode === 'gantt') {
-    return null;
-  }
+  if (viewMode === 'gantt') return null;
 
-  // Apply filters
-  const filteredInitiatives = section.initiatives.filter(initiative => {
+  const filteredInitiatives = section.initiatives.filter((initiative) => {
     if (filters.status.length > 0 && !filters.status.includes(initiative.status)) return false;
     if (filters.priority.length > 0 && !filters.priority.includes(initiative.priority)) return false;
     if (filters.category.length > 0 && !filters.category.includes(initiative.category)) return false;
@@ -190,63 +294,39 @@ export function TrackerSection({ section, viewMode, filters, selectedIds, onSele
   });
 
   const handleToggleSelect = (id: string) => {
-    if (selectedIds.includes(id)) {
-      onSelectionChange(selectedIds.filter(selectedId => selectedId !== id));
-    } else {
-      onSelectionChange([...selectedIds, id]);
-    }
+    if (selectedIds.includes(id)) onSelectionChange(selectedIds.filter((s) => s !== id));
+    else onSelectionChange([...selectedIds, id]);
   };
 
   const handleSelectAll = () => {
-    const allIds = filteredInitiatives.map(i => i.id);
-    const allSelected = allIds.every(id => selectedIds.includes(id));
-    
-    if (allSelected) {
-      onSelectionChange(selectedIds.filter(id => !allIds.includes(id)));
-    } else {
-      const newSelection = [...new Set([...selectedIds, ...allIds])];
-      onSelectionChange(newSelection);
-    }
+    const allIds = filteredInitiatives.map((i) => i.id);
+    const allSelected = allIds.every((id) => selectedIds.includes(id));
+    if (allSelected) onSelectionChange(selectedIds.filter((id) => !allIds.includes(id)));
+    else onSelectionChange([...new Set([...selectedIds, ...allIds])]);
   };
 
-  const allSelected = filteredInitiatives.length > 0 && 
-    filteredInitiatives.every(i => selectedIds.includes(i.id));
-  const someSelected = filteredInitiatives.some(i => selectedIds.includes(i.id)) && !allSelected;
+  const allSelected = filteredInitiatives.length > 0 && filteredInitiatives.every((i) => selectedIds.includes(i.id));
+  const someSelected = filteredInitiatives.some((i) => selectedIds.includes(i.id)) && !allSelected;
+
+  const handleUpdate = async (id: string, payload: { title?: string; status?: Status; priority?: Priority }) => {
+    if (onUpdateItem) await onUpdateItem(id, payload);
+  };
 
   return (
     <>
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="border-b border-gray-200 px-4 py-3 bg-gray-50">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="flex items-center gap-2 text-sm font-semibold text-gray-900 hover:text-gray-700 transition-colors"
-            >
-              {isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-gray-500" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-gray-500" />
-              )}
-              {section.title}
-              <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-gray-200 text-gray-700 rounded-full">
-                {filteredInitiatives.length}
-              </span>
-            </button>
-            
-            <Button
-              type="button"
-              size="sm"
-              className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white h-8"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onAddItem?.();
-              }}
-            >
-              <Plus className="w-4 h-4" />
-              Add work item
-            </Button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex items-center gap-2 text-sm font-semibold text-gray-900 hover:text-gray-700 transition-colors"
+          >
+            {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+            {section.title}
+            <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-gray-200 text-gray-700 rounded-full">
+              {filteredInitiatives.length}
+            </span>
+          </button>
         </div>
 
         {isExpanded && (
@@ -255,61 +335,70 @@ export function TrackerSection({ section, viewMode, filters, selectedIds, onSele
               <thead className="bg-white border-b border-gray-200">
                 <tr>
                   <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-12">
-                    <Checkbox 
+                    <Checkbox
                       checked={allSelected}
                       ref={(el) => {
-                        if (el) {
-                          (el as any).indeterminate = someSelected;
-                        }
+                        if (el) (el as HTMLButtonElement & { indeterminate?: boolean }).indeterminate = someSelected;
                       }}
                       onCheckedChange={handleSelectAll}
                     />
                   </th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-12"></th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                    Initiative
-                  </th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                    Category
-                  </th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                    Priority
-                  </th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                    Owner
-                  </th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                    Status
-                  </th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                    Progress
-                  </th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                    Due Date
-                  </th>
-                  <th className="py-2 px-4 w-12"></th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase w-12" />
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Initiative</th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Category</th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Priority</th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Owner</th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Progress</th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Due Date</th>
+                  <th className="py-2 px-4 w-12" />
                 </tr>
               </thead>
-              <tbody className="group">
+              <tbody>
                 {filteredInitiatives.map((initiative) => (
-                  <InitiativeRow 
-                    key={initiative.id} 
+                  <InitiativeRowEditable
+                    key={initiative.id}
                     initiative={initiative}
                     onOpenDetails={setSelectedInitiative}
                     isSelected={selectedIds.includes(initiative.id)}
                     onToggleSelect={handleToggleSelect}
                     onAddSubItem={onCreateSubItem}
+                    onUpdate={handleUpdate}
+                    onDelete={onDeleteItem}
+                    onItemCompleted={onItemCompleted}
                   />
                 ))}
-                {filteredInitiatives.length === 0 && (
+                {showNewRow && (
+                  <NewRowForm
+                    projectId={projectId}
+                    sectionId={section.id}
+                    trackerId={section.id === 'uncategorized' ? null : section.id}
+                    onSave={onCreateItem!}
+                    onCancel={() => setShowNewRow(false)}
+                  />
+                )}
+                {filteredInitiatives.length === 0 && !showNewRow && (
                   <tr>
                     <td colSpan={10} className="py-8 px-4 text-center text-sm text-gray-500">
-                      No initiatives match the current filters
+                      No items yet. Add one below.
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {isExpanded && (
+          <div className="border-t border-gray-200 px-4 py-3 bg-gray-50">
+            <button
+              type="button"
+              onClick={() => (projectId ? setShowNewRow(true) : onAddItem?.())}
+              className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+            >
+              <Plus className="w-4 h-4" />
+              Add work item
+            </button>
           </div>
         )}
       </div>
@@ -318,14 +407,8 @@ export function TrackerSection({ section, viewMode, filters, selectedIds, onSele
         <InitiativeDetailsDialog
           initiative={selectedInitiative}
           onClose={() => setSelectedInitiative(null)}
-          onSave={onUpdateItem ? async (id, payload) => {
-            await onUpdateItem(id, payload);
-            setSelectedInitiative(null);
-          } : undefined}
-          onDelete={onDeleteItem ? async (id) => {
-            await onDeleteItem(id);
-            setSelectedInitiative(null);
-          } : undefined}
+          onSave={onUpdateItem ? async (id, payload) => { await onUpdateItem(id, payload); setSelectedInitiative(null); } : undefined}
+          onDelete={onDeleteItem ? async (id) => { await onDeleteItem(id); setSelectedInitiative(null); } : undefined}
         />
       )}
     </>

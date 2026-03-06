@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { get, post, getApiBaseUrl } from '../api/meridian';
@@ -28,7 +28,9 @@ export function FieldNotesView({ projectId, onRefresh }: FieldNotesViewProps) {
   const [newContent, setNewContent] = useState('');
   const [saving, setSaving] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadNotes = useCallback(async () => {
     setLoading(true);
@@ -81,25 +83,46 @@ export function FieldNotesView({ projectId, onRefresh }: FieldNotesViewProps) {
       recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
       recorder.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop());
+        if (recordingTimerRef.current) {
+          clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = null;
+        }
+        setRecordingSeconds(0);
         const blob = new Blob(chunks, { type: 'audio/webm' });
+        if (blob.size === 0) {
+          setRecording(false);
+          toast.error('No audio recorded');
+          return;
+        }
         try {
           const formData = new FormData();
           formData.append('audio', blob, 'voice.webm');
           const apiBase = getApiBaseUrl();
           const url = apiBase ? `${apiBase}/api/voice/transcribe` : '/api/voice/transcribe';
           const res = await fetch(url, { method: 'POST', body: formData });
-          if (!res.ok) throw new Error('Transcribe failed');
-          const { transcript } = await res.json();
-          if (transcript) {
-            await post(apiPath('api/voice/create'), {
-              transcript,
-              item_type: 'note',
-              project_id: projectId || undefined,
-            });
-            await loadNotes();
-            onRefresh?.();
-            toast.success('Voice note saved');
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            const msg = data.error || res.statusText;
+            const hint = data.code === 'OPENAI_API_KEY_REQUIRED' || data.hint
+              ? (data.hint || 'Set OPENAI_API_KEY on the server to enable real voice transcription.')
+              : data.hint;
+            throw new Error(hint ? `${msg}. ${hint}` : msg);
           }
+          const transcript = (data.transcript || '').trim();
+          const noSpeech = !transcript || transcript === '(no speech detected)';
+          if (noSpeech) {
+            toast.warning('No speech detected. Try speaking closer to the mic.');
+            setRecording(false);
+            return;
+          }
+          await post(apiPath('api/voice/create'), {
+            transcript,
+            item_type: 'note',
+            project_id: projectId || undefined,
+          });
+          await loadNotes();
+          onRefresh?.();
+          toast.success('Voice note saved');
         } catch (e) {
           toast.error(e instanceof Error ? e.message : 'Voice note failed');
         }
@@ -108,7 +131,11 @@ export function FieldNotesView({ projectId, onRefresh }: FieldNotesViewProps) {
       recorder.start();
       setMediaRecorder(recorder);
       setRecording(true);
-      toast.info('Recording… Click again to stop.');
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((s) => s + 1);
+      }, 1000);
+      toast.info('Recording… Click Stop when done.');
     }).catch(() => toast.error('Microphone access denied'));
   };
 
@@ -151,10 +178,10 @@ export function FieldNotesView({ projectId, onRefresh }: FieldNotesViewProps) {
               variant={recording ? 'destructive' : 'outline'}
               size="sm"
               onClick={recording ? stopVoice : startVoice}
-              className="gap-1.5"
+              className="gap-1.5 min-w-[100px]"
             >
               <Mic className="w-4 h-4" />
-              {recording ? 'Stop' : 'Voice'}
+              {recording ? `Stop (${recordingSeconds}s)` : 'Voice note'}
             </Button>
           </div>
         </div>

@@ -26,6 +26,7 @@ import { SummitBoardKanban } from '../components/SummitBoardKanban';
 import { FieldNotesView } from '../components/FieldNotesView';
 import { ColumnsPopover } from '../components/ColumnsPopover';
 import { NewSectionDialog } from '../components/NewSectionDialog';
+import { CompletionCelebration } from '../components/CompletionCelebration';
 import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { HelpCircle, ChevronUp } from 'lucide-react';
@@ -79,6 +80,7 @@ export function Dashboard() {
   const [addInitiativeTrackerId, setAddInitiativeTrackerId] = useState<string | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate']));
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [celebrateCount, setCelebrateCount] = useState(0);
   const [filters, setFilters] = useState({
     status: [] as Status[],
     priority: [] as Priority[],
@@ -189,6 +191,13 @@ export function Dashboard() {
   const selectedSprint = sprints[0];
   const sprintLabel = selectedSprint ? selectedSprint.name : 'Sprint';
   const progressPercent = kpiData.overallProgress ?? 0;
+
+  useEffect(() => {
+    if (celebrateCount > 0) {
+      const t = setTimeout(() => setCelebrateCount(0), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [celebrateCount]);
 
   return (
     <div className="flex h-screen bg-white">
@@ -301,14 +310,16 @@ export function Dashboard() {
                         Add section
                       </Button>
                     )}
-                    <Button
-                      type="button"
-                      className="gap-2 bg-gray-900 hover:bg-gray-800 text-white"
-                      onClick={() => { setAddInitiativeParentId(null); setAddInitiativeTrackerId(null); setShowAddInitiative(true); }}
-                    >
-                      <ChevronUp className="w-4 h-4" />
-                      Add work item
-                    </Button>
+                    {currentView === 'summit_board' && (
+                      <Button
+                        type="button"
+                        className="gap-2 bg-gray-900 hover:bg-gray-800 text-white"
+                        onClick={() => { setAddInitiativeParentId(null); setAddInitiativeTrackerId(null); setShowAddInitiative(true); }}
+                      >
+                        <ChevronUp className="w-4 h-4" />
+                        Add work item
+                      </Button>
+                    )}
                   </>
                 )}
               </div>
@@ -345,14 +356,19 @@ export function Dashboard() {
                     filters={filters}
                     selectedIds={selectedIds}
                     onSelectionChange={setSelectedIds}
+                    projectId={selectedProjectId}
                     onAddItem={() => {
                       setAddInitiativeParentId(null);
                       setAddInitiativeTrackerId(section.id === 'uncategorized' ? null : section.id);
                       setShowAddInitiative(true);
                     }}
+                    onCreateItem={async (projectId, payload, trackerId) => {
+                      await createItem(projectId, payload, undefined, trackerId ?? undefined);
+                    }}
                     onUpdateItem={updateItem}
                     onDeleteItem={deleteItem}
                     onCreateSubItem={(parentId) => { setAddInitiativeParentId(parentId); setAddInitiativeTrackerId(null); setShowAddInitiative(true); }}
+                    onItemCompleted={() => setCelebrateCount((c) => c + 1)}
                   />
                 ))}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -425,6 +441,8 @@ export function Dashboard() {
         projectId={selectedProjectId}
         onCreate={createSection}
       />
+
+      <CompletionCelebration trigger={celebrateCount > 0} label="Item completed!" />
 
       <TeamMembersDialog
         open={showTeamMembers}

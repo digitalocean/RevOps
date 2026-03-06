@@ -300,10 +300,43 @@ export default function App() {
                 <div className="prog-t"><div className="prog-f" style={{width:pct+'%'}}></div></div>
                 {pct}% complete
               </div>
-              <div className="pmi"><i className="fa-solid fa-bolt" style={{color:'var(--gold)'}}></i> <span style={{fontFamily:'var(--fm)'}}>{totalPts}pt</span></div>
-              <div className="pmi" style={{color:'var(--jade)'}}><i className="fa-solid fa-circle-check"></i> <span style={{fontFamily:'var(--fm)'}}>{donePts}pt</span> done</div>
+              <div className="pmi"><i className="fa-solid fa-bolt" style={{color:'var(--gold)'}}></i> <span style={{fontWeight:600}}>{totalPts}pt</span></div>
+              <div className="pmi" style={{color:'var(--jade)'}}><i className="fa-solid fa-circle-check"></i> <span style={{fontWeight:600}}>{donePts}pt</span> done</div>
             </div>
           </div>
+
+          {/* ── KPI SUMMARY CARDS ── */}
+          {view !== 'admin' && (() => {
+            const doneCount = cols.some(c => c.is_done) ? items.filter(i => cols.find(c => c.slug === i.status)?.is_done).length : 0
+            const inProgress = items.length - doneCount
+            const atRisk = items.filter(i => (i.priority === 'high' || i.priority === 'critical') && !cols.find(c => c.slug === i.status)?.is_done).length
+            const progPct = items.length ? Math.round((doneCount / items.length) * 100) : 0
+            return (
+              <div className="kpi-grid">
+                <div className="kpi-card solved">
+                  <span className="kpi-title">Solved / Done</span>
+                  <div className="kpi-val">{doneCount}</div>
+                  <div className="kpi-ico"><i className="fa-solid fa-circle-check"/></div>
+                  <div className="kpi-prog"><div className="kpi-prog-fill" style={{width: progPct + '%', background: 'var(--jade)'}}/></div>
+                </div>
+                <div className="kpi-card in-progress">
+                  <span className="kpi-title">In Progress</span>
+                  <div className="kpi-val">{inProgress}</div>
+                  <div className="kpi-ico"><i className="fa-regular fa-clock"/></div>
+                </div>
+                <div className="kpi-card at-risk">
+                  <span className="kpi-title">At Risk / Blocked</span>
+                  <div className="kpi-val">{atRisk}</div>
+                  <div className="kpi-ico"><i className="fa-solid fa-triangle-exclamation"/></div>
+                </div>
+                <div className="kpi-card big-rocks">
+                  <span className="kpi-title">Items</span>
+                  <div className="kpi-val">{items.length}</div>
+                  <div className="kpi-ico"><i className="fa-solid fa-bullseye"/></div>
+                </div>
+              </div>
+            )
+          })()}
 
           {/* ── VIEW TABS ── */}
           <div className="vtabs">
@@ -313,6 +346,7 @@ export default function App() {
               </button>
             ))}
             <div className="vt-acts">
+              <button className="btn-g"><i className="fa-solid fa-file-export"></i> Export</button>
               <button className="btn-g" onClick={()=>setModal('col')}><i className="fa-solid fa-table-columns"></i> Columns</button>
               <button className="btn-p" onClick={()=>setModal('add')}><i className="fa-solid fa-mountain"></i> Summit Item</button>
             </div>
@@ -535,7 +569,7 @@ function ListView({ items, cols, colVis, customFields, onCycle, onAdd, onAddCol 
         <i className="fa-solid fa-circle"/>{col?.name||i.status}</span></td>
     }},
     { key:'Priority', render: i => <td key="pr"><span className={`prio-badge prio-${i.priority||'medium'}`}>{i.priority||'medium'}</span></td> },
-    { key:'Points',   render: i => <td key="pts" style={{fontFamily:'var(--fm)',fontSize:'12px'}}>{i.points||0}pt</td> },
+    { key:'Points',   render: i => <td key="pts" style={{fontWeight:600,fontSize:'13px'}}>{i.points||0}pt</td> },
     { key:'Assignee', render: i => <td key="a"><div style={{display:'flex',alignItems:'center',gap:'6px'}}>
       <div className="cav-sm" style={{background:i.assignee_color||'#6366f1',width:'20px',height:'20px',fontSize:'8px'}}>{i.assignee_initials||'?'}</div>
     </div></td> },
@@ -558,7 +592,7 @@ function ListView({ items, cols, colVis, customFields, onCycle, onAdd, onAddCol 
           {items.map(item => (
             <tr key={item.id}>
               {visibleCols.map(c => c.render(item))}
-              {customFields.map(f => <td key={f.id}><input style={{background:'transparent',border:'none',color:'var(--t2)',fontSize:'12px',width:'100%',outline:'none',fontFamily:'var(--fw)'}} placeholder="—"/></td>)}
+              {customFields.map(f => <td key={f.id}><input style={{background:'transparent',border:'none',color:'var(--t2)',fontSize:'13px',width:'100%',outline:'none'}} placeholder="—"/></td>)}
               <td/>
             </tr>
           ))}
@@ -599,7 +633,7 @@ function GanttView({ items }) {
             return (
               <tr key={item.id}>
                 <td style={{position:'sticky',left:0,background:'var(--bg0)',fontWeight:500,color:'var(--t1)'}}>{item.title.slice(0,28)}…</td>
-                <td style={{fontFamily:'var(--fm)',fontSize:'11px'}}>{item.points}pt</td>
+                <td style={{fontWeight:600,fontSize:'12px'}}>{item.points}pt</td>
                 <td><div className="cav-sm" style={{background:item.assignee_color||'#6366f1',width:'20px',height:'20px',fontSize:'8px'}}>{item.assignee_initials||'?'}</div></td>
                 {cells}
               </tr>
@@ -639,8 +673,12 @@ function TrackerView({ tab, setTab }) {
         ))}
         <button className="tr-plus">＋</button>
         <div style={{marginLeft:'auto',padding:'7px 0'}}>
-          <button className="btn-p" style={{fontSize:'11px',padding:'5px 12px'}}><i className="fa-solid fa-plus"/> Add Row</button>
+          <button className="btn-p" style={{fontSize:'12px',padding:'8px 14px'}}><i className="fa-solid fa-plus"/> Add Row</button>
         </div>
+      </div>
+      <div className="tracker-search-wrap">
+        <i className="fa-solid fa-magnifying-glass tracker-search-ico"/>
+        <input type="text" className="tracker-search" placeholder="Search initiatives…" />
       </div>
       <div className="scroll">
         {localTab === 'bigrock' && (
@@ -654,7 +692,7 @@ function TrackerView({ tab, setTab }) {
                 <td><span className="prio-badge prio-high">{r.priority}</span></td>
                 <td style={{fontSize:'15px'}}>{r.summit}</td><td style={{fontSize:'12px',color:'var(--t2)'}}>{r.owner}</td>
                 <td><span className={`spill ${statusCls[r.status]||'sp-backlog'}`}>{r.status}</span></td>
-                <td style={{fontSize:'11px',color:'var(--t3)'}}><input style={{background:'transparent',border:'none',color:'var(--t2)',fontSize:'12px',outline:'none',fontFamily:'var(--fw)',width:'100%'}} defaultValue="See tracker…"/></td>
+                <td style={{fontSize:'11px',color:'var(--t3)'}}><input style={{background:'transparent',border:'none',color:'var(--t2)',fontSize:'12px',outline:'none',width:'100%'}} defaultValue="See tracker…"/></td>
               </tr>
             ))}
           </tbody></table>
@@ -745,7 +783,7 @@ function MetricsView({ items, crew }) {
               <div style={{flex:1,height:'8px',background:'var(--bg4)',borderRadius:'4px',overflow:'hidden'}}>
                 <div style={{height:'100%',width:pct+'%',background:'linear-gradient(90deg,var(--jade),var(--gold))',borderRadius:'4px',transition:'width .5s'}}/>
               </div>
-              <div style={{fontFamily:'var(--fm)',fontSize:'11px',color:'var(--t3)',width:'55px',textAlign:'right'}}>{cdone}/{assigned}pt</div>
+              <div style={{fontSize:'12px',fontWeight:600,color:'var(--t3)',width:'55px',textAlign:'right'}}>{cdone}/{assigned}pt</div>
             </div>
           )
         })}
@@ -780,7 +818,7 @@ function AdminView({ customFields, adminSec, setAdminSec, onAddField, onDelField
         <div style={{display:'flex',alignItems:'center',gap:'10px',marginBottom:'20px'}}>
           <div className="adm-ico" style={{background:sec.bg}}><i className={`fa-solid ${sec.icon}`} style={{color:sec.color}}/></div>
           <div>
-            <div style={{fontFamily:'var(--fd)',fontSize:'20px',fontWeight:600,fontStyle:'italic',color:'var(--t1)'}}>{sec.title}</div>
+            <div style={{fontSize:'18px',fontWeight:700,color:'var(--t1)'}}>{sec.title}</div>
             <div style={{fontSize:'12px',color:'var(--t3)',marginTop:'3px'}}>{fields.length} custom field{fields.length!==1?'s':''} configured</div>
           </div>
         </div>
@@ -812,11 +850,11 @@ function AdminView({ customFields, adminSec, setAdminSec, onAddField, onDelField
     return (
       <div className="scroll">
         <button className="ph-back" onClick={()=>setAdminSec(null)}><i className="fa-solid fa-arrow-left"/> Back</button>
-        <div style={{fontFamily:'var(--fd)',fontSize:'20px',fontWeight:600,fontStyle:'italic',color:'var(--t1)',marginBottom:'16px'}}>Board Columns</div>
+        <div style={{fontSize:'18px',fontWeight:700,color:'var(--t1)',marginBottom:'16px'}}>Board Columns</div>
         {['Base Camp','Summit Ready','In Ascent','At Base Camp','Peak Reached'].map((n,i)=>(
           <div key={i} className="field-item">
             <div style={{width:'14px',height:'14px',borderRadius:'50%',background:Object.values(COL_COLORS)[i],flexShrink:0}}/>
-            <input defaultValue={n} style={{flex:1,background:'transparent',border:'none',outline:'none',fontSize:'13px',fontWeight:500,color:'var(--t1)',fontFamily:'var(--fw)'}}/>
+            <input defaultValue={n} style={{flex:1,background:'transparent',border:'none',outline:'none',fontSize:'13px',fontWeight:500,color:'var(--t1)'}}/>
             <button className="field-del"><i className="fa-solid fa-trash"/></button>
           </div>
         ))}
@@ -829,7 +867,7 @@ function AdminView({ customFields, adminSec, setAdminSec, onAddField, onDelField
     return (
       <div className="scroll">
         <button className="ph-back" onClick={()=>setAdminSec(null)}><i className="fa-solid fa-arrow-left"/> Back</button>
-        <div style={{fontFamily:'var(--fd)',fontSize:'20px',fontWeight:600,fontStyle:'italic',color:'var(--t1)',marginBottom:'16px'}}>Crew Management</div>
+        <div style={{fontSize:'18px',fontWeight:700,color:'var(--t1)',marginBottom:'16px'}}>Crew Management</div>
         {[{n:'Raj Kumar',i:'RK',c:'#6366f1',r:'Lead Developer'},{n:'Sara Kim',i:'SK',c:'#8b5cf6',r:'Architect'},{n:'Aman Mehta',i:'AM',c:'#059669',r:'Developer'},{n:'Priya Patel',i:'PP',c:'#f59e0b',r:'QA Engineer'}].map((m,idx)=>(
           <div key={idx} className="field-item">
             <div className="cav" style={{background:m.c}}>{m.i}</div>
@@ -846,7 +884,7 @@ function AdminView({ customFields, adminSec, setAdminSec, onAddField, onDelField
     return (
       <div className="scroll">
         <button className="ph-back" onClick={()=>setAdminSec(null)}><i className="fa-solid fa-arrow-left"/> Back</button>
-        <div style={{fontFamily:'var(--fd)',fontSize:'20px',fontWeight:600,fontStyle:'italic',color:'var(--t1)',marginBottom:'16px'}}>Integrations</div>
+        <div style={{fontSize:'18px',fontWeight:700,color:'var(--t1)',marginBottom:'16px'}}>Integrations</div>
         {[{name:'Slack',icon:'fa-slack',bg:'rgba(74,21,75,.3)',c:'#e01e5a',status:'Coming soon'},{name:'GitHub',icon:'fa-github',bg:'rgba(36,41,47,.5)',c:'#fff',status:'Coming soon'},{name:'Jira',icon:'fa-jira',bg:'rgba(0,82,204,.2)',c:'#0052cc',status:'Coming soon'}].map((int,i)=>(
           <div key={i} className="field-item">
             <div className="field-ico" style={{background:int.bg}}><i className={`fa-brands ${int.icon}`} style={{color:int.c}}/></div>
@@ -862,7 +900,7 @@ function AdminView({ customFields, adminSec, setAdminSec, onAddField, onDelField
   return (
     <div className="scroll">
       <div style={{marginBottom:'20px'}}>
-        <div style={{fontFamily:'var(--fd)',fontSize:'22px',fontWeight:600,fontStyle:'italic',color:'var(--t1)',marginBottom:'5px'}}>Base Camp — Admin Center</div>
+        <div style={{fontSize:'22px',fontWeight:700,color:'var(--t1)',marginBottom:'5px'}}>Base Camp — Admin Center</div>
         <div style={{fontSize:'12.5px',color:'var(--t3)'}}>Configure Meridian to match your workflow. All changes save automatically.</div>
       </div>
       <div className="admin-grid">

@@ -1,18 +1,25 @@
-import { useState } from 'react';
-import { X, Calendar, User, Tag, Flag, MessageSquare, Paperclip, Clock, CheckSquare, Star, TrendingUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Calendar, User, Tag, Flag, MessageSquare, Paperclip, Clock, CheckSquare, Star, TrendingUp, Save, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Progress } from './ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Separator } from './ui/separator';
 import { ScrollArea } from './ui/scroll-area';
-import type { Initiative } from '../data/mockData';
+import { toast } from 'sonner';
+import type { Initiative, Status, Priority } from '../data/mockData';
+
+const STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'Blocked', 'Complete'];
+const PRIORITY_OPTIONS: Priority[] = ['P0', 'P1', 'P2'];
 
 interface InitiativeDetailsDialogProps {
   initiative: Initiative;
   onClose: () => void;
+  onSave?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority }) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
 }
 
 interface Comment {
@@ -68,30 +75,107 @@ const mockAttachments: Attachment[] = [
   { id: '2', name: 'migration_plan.xlsx', size: '1.1 MB', uploadedBy: 'Marcus Rodriguez', uploadedAt: '1 week ago' }
 ];
 
-export function InitiativeDetailsDialog({ initiative, onClose }: InitiativeDetailsDialogProps) {
+export function InitiativeDetailsDialog({ initiative, onClose, onSave, onDelete }: InitiativeDetailsDialogProps) {
   const [newComment, setNewComment] = useState('');
+  const [title, setTitle] = useState(initiative.name);
+  const [description, setDescription] = useState(initiative.description || '');
+  const [status, setStatus] = useState<Status>(initiative.status);
+  const [priority, setPriority] = useState<Priority>(initiative.priority);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  useEffect(() => {
+    setTitle(initiative.name);
+    setDescription(initiative.description || '');
+    setStatus(initiative.status);
+    setPriority(initiative.priority);
+  }, [initiative.id, initiative.name, initiative.description, initiative.status, initiative.priority]);
+
+  const handleSave = async () => {
+    if (!onSave) return;
+    setSaving(true);
+    try {
+      await onSave(initiative.id, { title: title.trim(), description: description.trim() || undefined, status, priority });
+      toast.success('Saved');
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!onDelete || !confirm('Delete this item?')) return;
+    setDeleting(true);
+    try {
+      await onDelete(initiative.id);
+      toast.success('Deleted');
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const canEdit = !!onSave;
   const completedSubtasks = mockSubtasks.filter(t => t.completed).length;
   const totalSubtasks = mockSubtasks.length;
 
   return (
-    <Dialog open={true} onOpenChange={onClose}>
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-4xl max-h-[90vh] p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-2">
                 {initiative.isBigRock && (
-                  <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+                  <Star className="w-5 h-5 text-amber-500 fill-amber-500 flex-shrink-0" />
                 )}
-                <DialogTitle className="text-xl font-semibold text-gray-900">
-                  {initiative.name}
-                </DialogTitle>
+                {canEdit ? (
+                  <Input
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="text-xl font-semibold h-auto py-1"
+                    placeholder="Title"
+                  />
+                ) : (
+                  <DialogTitle className="text-xl font-semibold text-gray-900">
+                    {initiative.name}
+                  </DialogTitle>
+                )}
               </div>
-              <p className="text-sm text-gray-600">{initiative.description}</p>
+              {canEdit ? (
+                <Textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="text-sm min-h-[60px]"
+                  placeholder="Description"
+                />
+              ) : (
+                <p className="text-sm text-gray-600">{initiative.description || '—'}</p>
+              )}
             </div>
-            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-              <X className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {canEdit && (
+                <>
+                  <Button size="sm" onClick={handleSave} disabled={saving} className="gap-1.5">
+                    <Save className="w-4 h-4" />
+                    {saving ? 'Saving…' : 'Save'}
+                  </Button>
+                  {onDelete && (
+                    <Button size="sm" variant="destructive" onClick={handleDelete} disabled={deleting} className="gap-1.5">
+                      <Trash2 className="w-4 h-4" />
+                      {deleting ? 'Deleting…' : 'Delete'}
+                    </Button>
+                  )}
+                </>
+              )}
+              <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </DialogHeader>
 
@@ -253,9 +337,21 @@ export function InitiativeDetailsDialog({ initiative, onClose }: InitiativeDetai
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-2">
                 Status
               </label>
-              <Badge className={`${initiative.status === 'On Track' ? 'bg-green-500' : initiative.status === 'At Risk' ? 'bg-yellow-500' : initiative.status === 'Blocked' ? 'bg-red-500' : initiative.status === 'Complete' ? 'bg-blue-500' : 'bg-gray-300'} text-white border-0 text-sm`}>
-                {initiative.status}
-              </Badge>
+              {canEdit ? (
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as Status)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                >
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              ) : (
+                <Badge className={`${initiative.status === 'On Track' ? 'bg-green-500' : initiative.status === 'At Risk' ? 'bg-yellow-500' : initiative.status === 'Blocked' ? 'bg-red-500' : initiative.status === 'Complete' ? 'bg-blue-500' : 'bg-gray-300'} text-white border-0 text-sm`}>
+                  {initiative.status}
+                </Badge>
+              )}
             </div>
 
             <Separator />
@@ -278,9 +374,21 @@ export function InitiativeDetailsDialog({ initiative, onClose }: InitiativeDetai
               <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide block mb-2">
                 Priority
               </label>
-              <Badge variant="outline" className={`${initiative.priority === 'P0' ? 'bg-red-100 text-red-700 border-red-200' : initiative.priority === 'P1' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-blue-100 text-blue-700 border-blue-200'} text-sm`}>
-                {initiative.priority}
-              </Badge>
+              {canEdit ? (
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as Priority)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                >
+                  {PRIORITY_OPTIONS.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              ) : (
+                <Badge variant="outline" className={`${initiative.priority === 'P0' ? 'bg-red-100 text-red-700 border-red-200' : initiative.priority === 'P1' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-blue-100 text-blue-700 border-blue-200'} text-sm`}>
+                  {initiative.priority}
+                </Badge>
+              )}
             </div>
 
             <Separator />

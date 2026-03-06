@@ -26,6 +26,9 @@ interface TrackerSectionProps {
   };
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
+  onAddItem?: () => void;
+  onUpdateItem?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority }) => Promise<unknown>;
+  onDeleteItem?: (id: string) => Promise<void>;
 }
 
 function getPriorityColor(priority: Priority): string {
@@ -161,7 +164,7 @@ function InitiativeRow({ initiative, onOpenDetails, isSelected, onToggleSelect }
   );
 }
 
-export function TrackerSection({ section, viewMode, filters, selectedIds, onSelectionChange }: TrackerSectionProps) {
+export function TrackerSection({ section, viewMode, filters, selectedIds, onSelectionChange, onAddItem, onUpdateItem, onDeleteItem }: TrackerSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedInitiative, setSelectedInitiative] = useState<Initiative | null>(null);
 
@@ -223,9 +226,13 @@ export function TrackerSection({ section, viewMode, filters, selectedIds, onSele
               </span>
             </button>
             
-            <Button size="sm" className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white h-8">
+            <Button
+              size="sm"
+              className="gap-1.5 bg-blue-600 hover:bg-blue-700 text-white h-8"
+              onClick={(e) => { e.stopPropagation(); onAddItem?.(); }}
+            >
               <Plus className="w-4 h-4" />
-              Add Initiative
+              Add item
             </Button>
           </div>
         </div>
@@ -298,6 +305,14 @@ export function TrackerSection({ section, viewMode, filters, selectedIds, onSele
         <InitiativeDetailsDialog
           initiative={selectedInitiative}
           onClose={() => setSelectedInitiative(null)}
+          onSave={onUpdateItem ? async (id, payload) => {
+            await onUpdateItem(id, payload);
+            setSelectedInitiative(null);
+          } : undefined}
+          onDelete={onDeleteItem ? async (id) => {
+            await onDeleteItem(id);
+            setSelectedInitiative(null);
+          } : undefined}
         />
       )}
     </>

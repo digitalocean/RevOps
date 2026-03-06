@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Anchor, Briefcase, Settings, BookOpen, ChevronRight, LayoutDashboard, TrendingUp, Plus } from 'lucide-react';
+import { toast } from 'sonner';
+import { Anchor, Briefcase, Settings, BookOpen, LayoutDashboard, TrendingUp, Plus } from 'lucide-react';
 import { Button } from './ui/button';
 import {
   Dialog,
@@ -61,6 +62,9 @@ export function NavigationSidebar({
       await onCreateWorkspace(name);
       setNewWorkspaceName('');
       setShowNewWorkspace(false);
+      toast.success('Workspace created');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to create workspace');
     } finally {
       setCreating(false);
     }

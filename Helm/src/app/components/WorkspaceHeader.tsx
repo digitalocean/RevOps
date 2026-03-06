@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Plus, User, Bell, Search, Activity } from 'lucide-react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -39,6 +40,9 @@ export function WorkspaceHeader({
       await onCreateProject(name);
       setNewProjectName('');
       setShowNewProject(false);
+      toast.success('Project created');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to create project');
     } finally {
       setCreating(false);
     }

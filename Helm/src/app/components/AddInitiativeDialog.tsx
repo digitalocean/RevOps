@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -45,8 +46,11 @@ export function AddInitiativeDialog({
       setTitle('');
       setDescription('');
       onOpenChange(false);
+      toast.success('Initiative created');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create');
+      const msg = e instanceof Error ? e.message : 'Failed to create';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }

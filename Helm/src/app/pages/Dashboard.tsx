@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { NavigationSidebar } from '../components/NavigationSidebar';
 import { WorkspaceHeader } from '../components/WorkspaceHeader';
 import { KPIStatsBar } from '../components/KPIStatsBar';
@@ -42,6 +43,8 @@ export function Dashboard() {
     createWorkspace,
     createProject,
     createItem,
+    updateItem,
+    deleteItem,
   } = useMeridianData();
   const [viewMode, setViewMode] = useState<'grid' | 'gantt' | 'analytics'>('grid');
   const [showActivityPanel, setShowActivityPanel] = useState(false);
@@ -117,19 +120,38 @@ export function Dashboard() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [initiatives]);
 
-  const handleBulkStatusChange = (status: Status) => {
-    // In a real app, this would update the backend
-    setSelectedIds([]);
+  const handleBulkStatusChange = async (status: Status) => {
+    const count = selectedIds.length;
+    try {
+      await Promise.all(selectedIds.map((id) => updateItem(id, { status })));
+      setSelectedIds([]);
+      toast.success(`Updated ${count} item(s) to ${status}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update status');
+    }
   };
 
-  const handleBulkPriorityChange = (priority: Priority) => {
-    // In a real app, this would update the backend
-    setSelectedIds([]);
+  const handleBulkPriorityChange = async (priority: Priority) => {
+    const count = selectedIds.length;
+    try {
+      await Promise.all(selectedIds.map((id) => updateItem(id, { priority })));
+      setSelectedIds([]);
+      toast.success(`Updated ${count} item(s) to ${priority}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update priority');
+    }
   };
 
-  const handleBulkDelete = () => {
-    // In a real app, this would update the backend
-    setSelectedIds([]);
+  const handleBulkDelete = async () => {
+    const count = selectedIds.length;
+    if (!confirm(`Delete ${count} item(s)?`)) return;
+    try {
+      await Promise.all(selectedIds.map((id) => deleteItem(id)));
+      setSelectedIds([]);
+      toast.success(`Deleted ${count} item(s)`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete');
+    }
   };
 
   const handleSelectInitiativeFromSearch = (initiative: Initiative) => {
@@ -137,7 +159,11 @@ export function Dashboard() {
   };
 
   const handleCreateProject = async (name: string) => {
-    if (selectedWorkspaceId) await createProject(selectedWorkspaceId, name);
+    if (!selectedWorkspaceId) {
+      toast.error('Create or select a workspace first (sidebar).');
+      return;
+    }
+    await createProject(selectedWorkspaceId, name);
   };
 
   return (
@@ -213,6 +239,9 @@ export function Dashboard() {
                     filters={filters}
                     selectedIds={selectedIds}
                     onSelectionChange={setSelectedIds}
+                    onAddItem={() => setShowAddInitiative(true)}
+                    onUpdateItem={updateItem}
+                    onDeleteItem={deleteItem}
                   />
                 ))}
                 
@@ -238,6 +267,14 @@ export function Dashboard() {
         <InitiativeDetailsDialog 
           initiative={selectedInitiativeFromSearch}
           onClose={() => setSelectedInitiativeFromSearch(null)}
+          onSave={async (id, payload) => {
+            await updateItem(id, payload);
+            setSelectedInitiativeFromSearch(null);
+          }}
+          onDelete={async (id) => {
+            await deleteItem(id);
+            setSelectedInitiativeFromSearch(null);
+          }}
         />
       )}
 

@@ -50,46 +50,31 @@ export function BulkActionsBar({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => {
-                onBulkStatusChange('On Track');
-                toast.success(`Updated ${selectedCount} initiative${selectedCount !== 1 ? 's' : ''} to On Track`);
-              }}>
+              <DropdownMenuItem onClick={() => onBulkStatusChange('On Track')}>
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-green-500" />
                   On Track
                 </div>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => {
-                onBulkStatusChange('At Risk');
-                toast.success(`Updated ${selectedCount} initiative${selectedCount !== 1 ? 's' : ''} to At Risk`);
-              }}>
+              <DropdownMenuItem onClick={() => onBulkStatusChange('At Risk')}>
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-yellow-500" />
                   At Risk
                 </div>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => {
-                onBulkStatusChange('Blocked');
-                toast.success(`Updated ${selectedCount} initiative${selectedCount !== 1 ? 's' : ''} to Blocked`);
-              }}>
+              <DropdownMenuItem onClick={() => onBulkStatusChange('Blocked')}>
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-red-500" />
                   Blocked
                 </div>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => {
-                onBulkStatusChange('Complete');
-                toast.success(`Updated ${selectedCount} initiative${selectedCount !== 1 ? 's' : ''} to Complete`);
-              }}>
+              <DropdownMenuItem onClick={() => onBulkStatusChange('Complete')}>
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-blue-500" />
                   Complete
                 </div>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => {
-                onBulkStatusChange('Not Started');
-                toast.success(`Updated ${selectedCount} initiative${selectedCount !== 1 ? 's' : ''} to Not Started`);
-              }}>
+              <DropdownMenuItem onClick={() => onBulkStatusChange('Not Started')}>
                 <div className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-gray-300" />
                   Not Started
@@ -106,28 +91,19 @@ export function BulkActionsBar({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start">
-              <DropdownMenuItem onClick={() => {
-                onBulkPriorityChange('P0');
-                toast.success(`Updated ${selectedCount} initiative${selectedCount !== 1 ? 's' : ''} to P0`);
-              }}>
+              <DropdownMenuItem onClick={() => onBulkPriorityChange('P0')}>
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-red-500" />
                   P0 - Critical
                 </div>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => {
-                onBulkPriorityChange('P1');
-                toast.success(`Updated ${selectedCount} initiative${selectedCount !== 1 ? 's' : ''} to P1`);
-              }}>
+              <DropdownMenuItem onClick={() => onBulkPriorityChange('P1')}>
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-orange-500" />
                   P1 - High
                 </div>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => {
-                onBulkPriorityChange('P2');
-                toast.success(`Updated ${selectedCount} initiative${selectedCount !== 1 ? 's' : ''} to P2`);
-              }}>
+              <DropdownMenuItem onClick={() => onBulkPriorityChange('P2')}>
                 <div className="flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-blue-500" />
                   P2 - Medium
@@ -161,12 +137,7 @@ export function BulkActionsBar({
             size="sm" 
             variant="ghost" 
             className="h-8 text-red-400 hover:text-red-300 hover:bg-red-900/20"
-            onClick={() => {
-              if (confirm(`Are you sure you want to delete ${selectedCount} initiative${selectedCount !== 1 ? 's' : ''}?`)) {
-                onBulkDelete();
-                toast.success(`Deleted ${selectedCount} initiative${selectedCount !== 1 ? 's' : ''}`);
-              }
-            }}
+            onClick={() => onBulkDelete()}
           >
             <Trash2 className="w-4 h-4 mr-1.5" />
             Delete

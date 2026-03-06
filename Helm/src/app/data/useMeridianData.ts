@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { get, post, getApiBaseUrl } from '../api/meridian';
+import { get, post, patch, del, getApiBaseUrl } from '../api/meridian';
 import {
   mockInitiatives,
   trackerSections as mockTrackerSections,
@@ -91,6 +91,8 @@ export interface MeridianDataResult {
   createWorkspace: (name: string) => Promise<Workspace | null>;
   createProject: (workspaceId: string, name: string) => Promise<Project | null>;
   createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; type?: string }) => Promise<unknown>;
+  updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string }) => Promise<unknown>;
+  deleteItem: (itemId: string) => Promise<void>;
 }
 
 function apiPath(path: string): string {
@@ -127,10 +129,10 @@ export function useMeridianData(): MeridianDataResult {
       if (wsList.length && !selectedWorkspaceId && overrideWorkspaceId === undefined) setSelectedWorkspaceId(wsList[0].id);
       if (!wid) {
         setProjects([]);
-        setInitiatives(mockInitiatives);
-        setSections(mockTrackerSections);
+        setInitiatives([]);
+        setSections([]);
         setLoading(false);
-        setFromApi(wsList.length > 0);
+        setFromApi(true);
         return;
       }
       const projRes = await get<Project[]>(`${apiPath('api/projects')}?workspace_id=${wid}`).catch(() => []);
@@ -177,25 +179,17 @@ export function useMeridianData(): MeridianDataResult {
   }, [load]);
 
   const createWorkspace = useCallback(async (name: string): Promise<Workspace | null> => {
-    try {
-      const w = await post<Workspace>(apiPath('api/workspaces'), { name: name.trim() });
-      await load();
-      if (w?.id) setSelectedWorkspaceId(w.id);
-      return w ?? null;
-    } catch (_) {
-      return null;
-    }
+    const w = await post<Workspace>(apiPath('api/workspaces'), { name: name.trim() });
+    await load();
+    if (w?.id) setSelectedWorkspaceId(w.id);
+    return w ?? null;
   }, [load]);
 
   const createProject = useCallback(async (workspaceId: string, name: string): Promise<Project | null> => {
-    try {
-      const p = await post<Project>(apiPath('api/projects'), { workspace_id: workspaceId, name: name.trim() });
-      await load();
-      if (p?.id) setSelectedProjectId(p.id);
-      return p ?? null;
-    } catch (_) {
-      return null;
-    }
+    const p = await post<Project>(apiPath('api/projects'), { workspace_id: workspaceId, name: name.trim() });
+    await load();
+    if (p?.id) setSelectedProjectId(p.id);
+    return p ?? null;
   }, [load]);
 
   const createItem = useCallback(async (
@@ -212,6 +206,34 @@ export function useMeridianData(): MeridianDataResult {
     });
     await load();
     return res;
+  }, [load]);
+
+  const statusToSlug: Record<string, string> = {
+    'Not Started': 'not_started',
+    'On Track': 'in_progress',
+    'At Risk': 'in_progress',
+    'Blocked': 'blocked',
+    'Complete': 'done',
+  };
+  const priorityToSlug: Record<string, string> = { P0: 'high', P1: 'medium', P2: 'low' };
+
+  const updateItem = useCallback(async (
+    itemId: string,
+    payload: { title?: string; description?: string; status?: string; priority?: string }
+  ): Promise<unknown> => {
+    const body: Record<string, string> = {};
+    if (payload.title !== undefined) body.title = payload.title;
+    if (payload.description !== undefined) body.description = payload.description;
+    if (payload.status !== undefined) body.status = statusToSlug[payload.status] || 'not_started';
+    if (payload.priority !== undefined) body.priority = priorityToSlug[payload.priority] || 'medium';
+    const res = await patch(apiPath(`api/items/${itemId}`), body);
+    await load();
+    return res;
+  }, [load]);
+
+  const deleteItem = useCallback(async (itemId: string): Promise<void> => {
+    await del(apiPath(`api/items/${itemId}`));
+    await load();
   }, [load]);
 
   const done = initiatives.filter((i) => i.status === 'Complete').length;
@@ -241,5 +263,7 @@ export function useMeridianData(): MeridianDataResult {
     createWorkspace,
     createProject,
     createItem,
+    updateItem,
+    deleteItem,
   };
 }

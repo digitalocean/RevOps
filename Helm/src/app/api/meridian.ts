@@ -55,6 +55,8 @@ export const post = <T = unknown>(path: string, body: object) =>
   api<T>(path, { method: 'POST', body: body as BodyInit });
 export const patch = <T = unknown>(path: string, body: object) =>
   api<T>(path, { method: 'PATCH', body: body as BodyInit });
+export const del = <T = unknown>(path: string) =>
+  api<T>(path, { method: 'DELETE' });
 
 export function getApiBaseUrl(): string {
   return getBase();

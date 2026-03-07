@@ -76,8 +76,8 @@ export function KPIStatsBar({ kpiData = defaultKpiData }: KPIStatsBarProps) {
         
         <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Overall Progress</span>
-            <span className="text-lg font-semibold text-gray-900">
+            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">OVERALL PROGRESS</span>
+            <span className="text-lg font-semibold text-gray-900 tabular-nums">
               {kpiData.overallProgress}%
             </span>
           </div>

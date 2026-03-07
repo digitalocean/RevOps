@@ -269,18 +269,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         fieldNotesCount={initiatives.length}
       />
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {error && (
-          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-800 flex items-center justify-between">
-            <span>To-DO API: {error}. Using demo data.</span>
-            <button type="button" onClick={refresh} className="text-amber-700 underline">Retry</button>
-          </div>
-        )}
-        {fromApi && !error && (
-          <div className="bg-emerald-50 border-b border-emerald-200 px-4 py-1.5 text-xs text-emerald-800">
-            Connected to To-DO — showing tasks from your workspace.
-          </div>
-        )}
+      <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-app)]">
         <WorkspaceHeader
           projects={projects}
           selectedProjectId={selectedProjectId}
@@ -293,6 +282,9 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           currentUser={currentUser}
           onLogin={handleLogin}
           onLogout={handleLogout}
+          connected={fromApi && !error}
+          connectionError={error}
+          onRetry={refresh}
         />
         <KPIStatsBar kpiData={kpiData} />
         

@@ -258,7 +258,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         <div className="h-1 flex-shrink-0 bg-green-500" title="Connected to To-DO" />
       )}
       <div className="flex flex-1 min-h-0">
-      <NavigationSidebar
+        <NavigationSidebar
         projects={projects}
         selectedProjectId={selectedProjectId}
         onSelectProject={(id) => setSelectedProjectId(id)}
@@ -271,8 +271,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         currentView={currentView}
         onNavigateView={(v) => setCurrentView(v)}
         fieldNotesCount={initiatives.length}
-      />
-
+        />
+        <>
       <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-app)] min-w-0">
         <WorkspaceHeader
           projects={projects}
@@ -348,7 +348,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                       <Filter className="w-4 h-4" />
                       Filter
                       {filterRows.length > 0 && (
-                        <span className={'rounded-full bg-[var(--accent)]' + '/20 text-[var(--accent)] px-1.5 py-0.5 text-xs font-medium'}>
+                        <span className="rounded-full bg-[var(--accent)] bg-opacity-20 text-[var(--accent)] px-1.5 py-0.5 text-xs font-medium">
                           {filterRows.length}
                         </span>
                       )}
@@ -601,7 +601,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      </div>
+        </>
       </div>
     </div>
   );

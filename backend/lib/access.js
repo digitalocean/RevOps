@@ -35,15 +35,25 @@ async function getOrCreateDefaultWorkspaceId(pool, userId) {
 async function getAccessibleProjectIds(pool, userId) {
   if (!userId) return [];
   const workspaceIds = await getAccessibleWorkspaceIds(pool, userId);
-  if (workspaceIds.length === 0) return [];
-  const placeholders = workspaceIds.map((_, i) => `$${i + 1}`).join(',');
-  const { rows } = await pool.query(
-    `SELECT id FROM projects
-     WHERE workspace_id IN (${placeholders})
-     AND (is_personal = false OR created_by = $${workspaceIds.length + 1})`,
-    [...workspaceIds, userId]
+  const projectIdsFromWorkspace = [];
+  if (workspaceIds.length > 0) {
+    const placeholders = workspaceIds.map((_, i) => `$${i + 1}`).join(',');
+    const { rows } = await pool.query(
+      `SELECT id FROM projects
+       WHERE workspace_id IN (${placeholders})
+       AND (is_personal = false OR created_by = $${workspaceIds.length + 1})`,
+      [...workspaceIds, userId]
+    );
+    projectIdsFromWorkspace.push(...rows.map((r) => r.id));
+  }
+  const { rows: sharedRows } = await pool.query(
+    `SELECT DISTINCT pm.project_id AS id FROM project_members pm
+     JOIN crew c ON c.id = pm.crew_id AND c.user_id = $1`,
+    [userId]
   );
-  return rows.map((r) => r.id);
+  const sharedIds = sharedRows.map((r) => r.id);
+  const combined = [...new Set([...projectIdsFromWorkspace.map(String), ...sharedIds.map(String)])];
+  return combined;
 }
 
 function requireUser(req, res) {

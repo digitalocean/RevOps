@@ -50,6 +50,7 @@ interface TrackerSectionProps {
   projectId: string | null;
   crew?: CrewMember[];
   customFields?: CustomFieldDef[];
+  visibleColumns?: Set<string>;
   onUpdateFieldValue?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
   onAddItem?: () => void;
   onCreateItem?: (projectId: string, payload: { title: string; description?: string }, trackerId?: string | null) => Promise<unknown>;
@@ -88,6 +89,8 @@ function getCategoryColor(category: Category): string {
   }
 }
 
+const COL_KEYS = ['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate'] as const;
+
 interface InitiativeRowEditableProps {
   initiative: Initiative;
   onOpenDetails: (initiative: Initiative) => void;
@@ -95,11 +98,16 @@ interface InitiativeRowEditableProps {
   onToggleSelect: (id: string) => void;
   crew?: { id: string; name: string; initials?: string }[];
   customFields?: CustomFieldDef[];
+  visibleColumns?: Set<string>;
   onUpdateFieldValue?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
   onAddSubItem?: (parentId: string) => void;
   onUpdate: (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: Category }) => Promise<unknown>;
   onDelete?: (id: string) => Promise<void>;
   onItemCompleted?: () => void;
+}
+
+function colVisible(visibleColumns: Set<string> | undefined, colId: string): boolean {
+  return !visibleColumns || visibleColumns.has(colId);
 }
 
 function isTaskField(f: CustomFieldDef) {
@@ -164,6 +172,7 @@ function InitiativeRowEditable({
   onToggleSelect,
   crew = [],
   customFields = [],
+  visibleColumns,
   onUpdateFieldValue,
   onAddSubItem,
   onUpdate,
@@ -219,6 +228,7 @@ function InitiativeRowEditable({
       <td className="py-2 px-4 w-12 align-middle">
         {initiative.isBigRock ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : <div className="w-4 h-4" />}
       </td>
+      {colVisible(visibleColumns, 'name') && (
       <td className="py-2 px-4 align-middle min-w-[180px]">
         <Input
           value={title}
@@ -228,6 +238,8 @@ function InitiativeRowEditable({
           placeholder="Title"
         />
       </td>
+      )}
+      {colVisible(visibleColumns, 'category') && (
       <td className="py-2 px-4 align-middle min-w-[120px]">
         <Select value={initiative.category} onValueChange={(v) => { setSaving(true); onUpdate(initiative.id, { category: v as Category }).finally(() => setSaving(false)); }}>
           <SelectTrigger className={`h-8 text-xs border-gray-200 bg-white ${getCategoryColor(initiative.category)}`}>
@@ -240,6 +252,8 @@ function InitiativeRowEditable({
           </SelectContent>
         </Select>
       </td>
+      )}
+      {colVisible(visibleColumns, 'priority') && (
       <td className="py-2 px-4 align-middle w-24">
         <Select value={initiative.priority} onValueChange={(v) => handlePriorityChange(v as Priority)}>
           <SelectTrigger className="h-8 text-xs border-gray-200 bg-white">
@@ -252,6 +266,8 @@ function InitiativeRowEditable({
           </SelectContent>
         </Select>
       </td>
+      )}
+      {colVisible(visibleColumns, 'owner') && (
       <td className="py-2 px-4 align-middle min-w-[120px]">
         <Select
           value={initiative.assignee_id ?? 'unassigned'}
@@ -268,6 +284,8 @@ function InitiativeRowEditable({
           </SelectContent>
         </Select>
       </td>
+      )}
+      {colVisible(visibleColumns, 'status') && (
       <td className="py-2 px-4 align-middle w-36">
         <Select value={initiative.status} onValueChange={(v) => handleStatusChange(v as Status)}>
           <SelectTrigger className={`h-8 text-xs border-0 ${getStatusColor(initiative.status)} text-white`}>
@@ -280,12 +298,16 @@ function InitiativeRowEditable({
           </SelectContent>
         </Select>
       </td>
+      )}
+      {colVisible(visibleColumns, 'progress') && (
       <td className="py-2 px-4 align-middle">
         <div className="flex items-center gap-2">
           <Progress value={initiative.progress} className="w-20 h-1.5" />
           <span className="text-xs text-gray-600 w-8">{initiative.progress}%</span>
         </div>
       </td>
+      )}
+      {colVisible(visibleColumns, 'dueDate') && (
       <td className="py-2 px-4 align-middle">
         <input
           type="date"
@@ -294,7 +316,8 @@ function InitiativeRowEditable({
           className="h-8 text-xs border border-gray-200 rounded-md px-2 bg-white text-gray-700 w-full max-w-[140px]"
         />
       </td>
-      {customFields.filter(isTaskField).map((field) => (
+      )}
+      {customFields.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).map((field) => (
         <CustomFieldCell
           key={field.id}
           taskId={initiative.id}
@@ -341,9 +364,11 @@ interface NewRowFormProps {
   onSave: (projectId: string, payload: { title: string; description?: string }, trackerId?: string | null) => Promise<unknown>;
   onCancel: () => void;
   customFieldCount?: number;
+  visibleColumnCount?: number;
 }
 
-function NewRowForm({ projectId, sectionId, trackerId, onSave, onCancel, customFieldCount = 0 }: NewRowFormProps) {
+function NewRowForm({ projectId, sectionId, trackerId, onSave, onCancel, customFieldCount = 0, visibleColumnCount }: NewRowFormProps) {
+  const colspan = visibleColumnCount != null ? Math.max(1, visibleColumnCount) : 6 + customFieldCount;
   const [title, setTitle] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -374,7 +399,7 @@ function NewRowForm({ projectId, sectionId, trackerId, onSave, onCancel, customF
           autoFocus
         />
       </td>
-      <td colSpan={5 + customFieldCount} className="py-2 px-4 align-middle">
+      <td colSpan={colspan} className="py-2 px-4 align-middle">
         <div className="flex items-center gap-2">
           <Button type="button" size="sm" className="h-8 gap-1" onClick={handleSave} disabled={!title.trim() || !projectId || saving}>
             {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
@@ -400,6 +425,7 @@ export function TrackerSection({
   projectId,
   crew = [],
   customFields = [],
+  visibleColumns,
   onUpdateFieldValue,
   onAddItem,
   onCreateItem,
@@ -474,14 +500,14 @@ export function TrackerSection({
                     />
                   </th>
                   <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase w-12" />
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Initiative</th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Category</th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Priority</th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Owner</th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Progress</th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Due Date</th>
-                  {customFields?.filter(isTaskField).map((f) => (
+                  {colVisible(visibleColumns, 'name') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Initiative</th>}
+                  {colVisible(visibleColumns, 'category') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Category</th>}
+                  {colVisible(visibleColumns, 'priority') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Priority</th>}
+                  {colVisible(visibleColumns, 'owner') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Owner</th>}
+                  {colVisible(visibleColumns, 'status') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>}
+                  {colVisible(visibleColumns, 'progress') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Progress</th>}
+                  {colVisible(visibleColumns, 'dueDate') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Due Date</th>}
+                  {customFields?.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).map((f) => (
                     <th key={f.id} className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">{f.name}</th>
                   ))}
                   <th className="py-2 px-4 w-12" />
@@ -497,6 +523,7 @@ export function TrackerSection({
                     onToggleSelect={handleToggleSelect}
                     crew={crew}
                     customFields={customFields}
+                    visibleColumns={visibleColumns}
                     onUpdateFieldValue={onUpdateFieldValue}
                     onAddSubItem={onCreateSubItem}
                     onUpdate={handleUpdate}
@@ -512,6 +539,7 @@ export function TrackerSection({
                     onSave={onCreateItem!}
                     onCancel={() => setShowNewRow(false)}
                     customFieldCount={customFields.filter(isTaskField).length}
+                    visibleColumnCount={COL_KEYS.filter((id) => colVisible(visibleColumns, id)).length + customFields.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).length}
                   />
                 )}
                 {filteredInitiatives.length === 0 && !showNewRow && (

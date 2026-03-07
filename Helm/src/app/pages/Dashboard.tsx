@@ -27,11 +27,12 @@ import { FilterSlidePanel, type FilterRow } from '../components/FilterSlidePanel
 import { FieldNotesView } from '../components/FieldNotesView';
 import { ColumnsPopover } from '../components/ColumnsPopover';
 import { NewSectionDialog } from '../components/NewSectionDialog';
+import { ShareProjectDialog } from '../components/ShareProjectDialog';
 import { CompletionCelebration } from '../components/CompletionCelebration';
 import { AuthDialog } from '../components/AuthDialog';
 import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { HelpCircle, ChevronUp, Filter } from 'lucide-react';
+import { HelpCircle, ChevronUp, Filter, Share2 } from 'lucide-react';
 import { useMeridianData } from '../data/useMeridianData';
 import type { Status, Priority, Category, Initiative } from '../data/mockData';
 import { get, post, patch } from '../api/meridian';
@@ -86,6 +87,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const [showNewProject, setShowNewProject] = useState(false);
   const [showNewSprint, setShowNewSprint] = useState(false);
   const [showNewSection, setShowNewSection] = useState(false);
+  const [showShareProject, setShowShareProject] = useState(false);
   const [addInitiativeParentId, setAddInitiativeParentId] = useState<string | null>(null);
   const [addInitiativeTrackerId, setAddInitiativeTrackerId] = useState<string | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate']));
@@ -297,16 +299,28 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         <div className="flex-1 overflow-auto bg-gray-50">
           <div className="max-w-[1600px] mx-auto p-6">
             {selectedProject && (
-              <div className="mb-4">
-                <h2 className="text-2xl font-semibold text-gray-900">{selectedProject.name}</h2>
-                <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-                  {selectedSprint && (
-                    <span>
-                      {selectedSprint.start_date || '—'} – {selectedSprint.end_date || '—'}
-                    </span>
-                  )}
-                  <span>{progressPercent}% complete</span>
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-semibold text-gray-900">{selectedProject.name}</h2>
+                  <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                    {selectedSprint && (
+                      <span>
+                        {selectedSprint.start_date || '—'} – {selectedSprint.end_date || '—'}
+                      </span>
+                    )}
+                    <span>{progressPercent}% complete</span>
+                  </div>
                 </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0 gap-2 rounded-xl"
+                  onClick={() => setShowShareProject(true)}
+                >
+                  <Share2 className="w-4 h-4" />
+                  Share
+                </Button>
               </div>
             )}
 
@@ -349,6 +363,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                       userId={currentUser?.id}
                       visibleColumns={visibleColumns}
                       onVisibleColumnsChange={setVisibleColumns}
+                      customFields={customFields}
                     />
                   </>
                 )}
@@ -409,6 +424,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     section={section}
                     crew={crew}
                     customFields={customFields}
+                    visibleColumns={visibleColumns}
                     onUpdateFieldValue={async (taskId, fieldId, value) => {
                       const payload: { fieldId: string; valueText?: string; valueNumber?: number; valueDate?: string; valueBoolean?: boolean } = { fieldId };
                       if (typeof value === 'string') payload.valueText = value;
@@ -531,6 +547,14 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         onCreate={async (name, isPersonal) => {
           await createProject(name, isPersonal);
         }}
+      />
+
+      <ShareProjectDialog
+        open={showShareProject}
+        onOpenChange={setShowShareProject}
+        projectId={selectedProjectId}
+        projectName={selectedProject?.name ?? ''}
+        onShared={refresh}
       />
 
       <FilterSlidePanel

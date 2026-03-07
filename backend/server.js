@@ -85,15 +85,17 @@ const authRoutes = require('./routes/auth');
 const PgStore = pgSession(session);
 const sessionStore = new PgStore({ pool, createTableIfMissing: true, tableName: 'session' });
 
+// Session: long-lived so refresh doesn't log out; resave so activity extends session
+const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 app.use(
   session({
     store: sessionStore,
     secret: process.env.SESSION_SECRET || 'todo-dev-secret-change-in-production',
-    resave: false,
+    resave: true,
     saveUninitialized: false,
     name: 'todo.sid',
     cookie: {
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: SESSION_MAX_AGE_MS,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,

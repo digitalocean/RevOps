@@ -37,13 +37,14 @@ router.post('/', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const { project_id, name, icon = '📋', columns = [] } = req.body;
+    const { project_id, name } = req.body || {};
     if (!project_id) return res.status(400).json({ error: 'project_id required' });
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'name required' });
     const ok = await canAccessProject(pool, userId, project_id);
     if (!ok) return res.status(403).json({ error: 'Access denied to this project' });
     const { rows } = await pool.query(
-      'INSERT INTO trackers(project_id,name,icon,columns) VALUES($1,$2,$3,$4) RETURNING *',
-      [project_id, name, icon, JSON.stringify(columns || [])]
+      'INSERT INTO trackers(project_id, name) VALUES($1, $2) RETURNING *',
+      [project_id, String(name).trim()]
     );
     res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }

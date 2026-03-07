@@ -77,4 +77,86 @@ router.patch('/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+router.get('/:id/members', async (req, res) => {
+  try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const projectId = req.params.id;
+    const allowedProjectIds = await getAccessibleProjectIds(pool, userId);
+    if (!allowedProjectIds.some(id => String(id) === String(projectId))) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    const proj = await pool.query('SELECT created_by FROM projects WHERE id = $1', [projectId]);
+    if (!proj.rows.length) return res.status(404).json({ error: 'Not found' });
+    const createdBy = proj.rows[0].created_by;
+    let creatorRow = null;
+    if (createdBy) {
+      const cr = await pool.query('SELECT id, full_name, email FROM users WHERE id = $1', [createdBy]);
+      if (cr.rows.length) {
+        const u = cr.rows[0];
+        const inits = (u.full_name || u.email || '?').toString().slice(0, 2).toUpperCase();
+        creatorRow = { id: null, crew_id: null, role: 'owner', name: u.full_name || u.email, email: u.email, initials: inits, is_creator: true };
+      }
+    }
+    const { rows } = await pool.query(
+      `SELECT pm.id, pm.project_id, pm.crew_id, pm.role, c.name, c.email, c.initials,
+              (p.created_by = c.user_id) AS is_creator
+       FROM project_members pm
+       JOIN crew c ON c.id = pm.crew_id
+       JOIN projects p ON p.id = pm.project_id
+       WHERE pm.project_id = $1
+       ORDER BY (p.created_by = c.user_id) DESC, c.name`,
+      [projectId]
+    );
+    const list = rows.map((r) => ({ id: r.id, crew_id: r.crew_id, role: r.role, name: r.name, email: r.email, initials: r.initials, is_creator: !!r.is_creator }));
+    if (creatorRow && !list.some((m) => m.is_creator)) res.json([creatorRow, ...list]);
+    else res.json(list);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/:id/members', async (req, res) => {
+  try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const projectId = req.params.id;
+    const allowedProjectIds = await getAccessibleProjectIds(pool, userId);
+    if (!allowedProjectIds.some(id => String(id) === String(projectId))) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    const { email, role = 'member' } = req.body || {};
+    if (!email || !String(email).trim()) return res.status(400).json({ error: 'email required' });
+    const proj = await pool.query('SELECT workspace_id, created_by FROM projects WHERE id = $1', [projectId]);
+    if (!proj.rows.length) return res.status(404).json({ error: 'Project not found' });
+    const workspaceId = proj.rows[0].workspace_id;
+    const createdBy = proj.rows[0].created_by;
+    const allowedWorkspaceIds = await getAccessibleWorkspaceIds(pool, userId);
+    if (!allowedWorkspaceIds.some(id => String(id) === String(workspaceId))) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const emailNorm = String(email).trim().toLowerCase();
+    let crewRow = await pool.query('SELECT id FROM crew WHERE workspace_id = $1 AND LOWER(email) = $2 AND active = true', [workspaceId, emailNorm]);
+    if (!crewRow.rows.length) {
+      const userRow = await pool.query('SELECT id, full_name FROM users WHERE LOWER(email) = $1', [emailNorm]);
+      const initials = userRow.rows.length
+        ? (userRow.rows[0].full_name || emailNorm).slice(0, 2).toUpperCase()
+        : emailNorm.slice(0, 2).toUpperCase();
+      const { rows: inserted } = await pool.query(
+        'INSERT INTO crew(workspace_id, user_id, name, email, initials, role) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
+        [workspaceId, userRow.rows[0]?.id || null, userRow.rows[0]?.full_name || emailNorm, emailNorm, initials, 'Member']
+      );
+      crewRow = { rows: inserted };
+    }
+    const crewId = crewRow.rows[0].id;
+    await pool.query(
+      'INSERT INTO project_members(project_id, crew_id, role) VALUES($1,$2,$3) ON CONFLICT (project_id, crew_id) DO UPDATE SET role = $3',
+      [projectId, crewId, role]
+    );
+    const { rows: members } = await pool.query(
+      'SELECT pm.id, pm.crew_id, pm.role, c.name, c.email, c.initials FROM project_members pm JOIN crew c ON c.id = pm.crew_id WHERE pm.project_id = $1',
+      [projectId]
+    );
+    res.status(201).json(members);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

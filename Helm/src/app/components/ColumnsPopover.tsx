@@ -17,6 +17,13 @@ const COLUMN_IDS = [
   { id: 'dueDate', label: 'Due Date' },
 ] as const;
 
+interface CustomFieldDef {
+  id: string;
+  name: string;
+  field_type?: string;
+  target?: string;
+}
+
 const STORAGE_KEY_PREFIX = 'todo_visible_columns_';
 
 function storageKey(projectId: string | null, userId?: string | null): string {
@@ -53,6 +60,11 @@ interface ColumnsPopoverProps {
   userId?: string | null;
   visibleColumns: Set<string>;
   onVisibleColumnsChange: (visible: Set<string>) => void;
+  customFields?: CustomFieldDef[];
+}
+
+function isTaskField(f: CustomFieldDef) {
+  return f.target === 'item' || (f as { applies_to?: string }).applies_to === 'task' || !(f as { applies_to?: string }).applies_to;
 }
 
 export function ColumnsPopover({
@@ -60,8 +72,14 @@ export function ColumnsPopover({
   userId = null,
   visibleColumns,
   onVisibleColumnsChange,
+  customFields = [],
 }: ColumnsPopoverProps) {
   const [open, setOpen] = useState(false);
+  const taskFields = customFields.filter(isTaskField);
+  const allColumns = [
+    ...COLUMN_IDS,
+    ...taskFields.map((f) => ({ id: f.id, label: f.name })),
+  ];
 
   useEffect(() => {
     if (projectId) {
@@ -85,10 +103,10 @@ export function ColumnsPopover({
           Columns
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-56 p-3" align="end">
+      <PopoverContent className="w-56 p-3 max-h-[70vh] overflow-y-auto" align="end">
         <p className="text-xs font-medium text-gray-500 mb-2">Visible columns</p>
         <div className="space-y-2">
-          {COLUMN_IDS.map((col) => (
+          {allColumns.map((col) => (
             <label key={col.id} className="flex items-center gap-2 cursor-pointer">
               <Checkbox
                 checked={visibleColumns.has(col.id)}

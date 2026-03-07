@@ -63,14 +63,10 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     error,
     fromApi,
     refresh,
-    workspaces,
     projects,
     sprints,
-    selectedWorkspaceId,
-    setSelectedWorkspaceId,
     selectedProjectId,
     setSelectedProjectId,
-    createWorkspace,
     createProject,
     createSprint,
     createItem,
@@ -257,13 +253,6 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   return (
     <div className="flex h-screen bg-[var(--bg-app)]">
       <NavigationSidebar
-        workspaces={workspaces}
-        selectedWorkspaceId={selectedWorkspaceId ?? null}
-        onSelectWorkspace={(id) => {
-          setSelectedWorkspaceId(id);
-          setSelectedProjectId(null);
-        }}
-        onCreateWorkspace={createWorkspace}
         projects={projects}
         selectedProjectId={selectedProjectId}
         onSelectProject={(id) => setSelectedProjectId(id)}
@@ -526,22 +515,21 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
       <TeamMembersDialog
         open={showTeamMembers}
         onOpenChange={setShowTeamMembers}
-        workspaceId={selectedWorkspaceId}
+        workspaceId={selectedProjectId ? (projects.find((p) => p.id === selectedProjectId)?.workspace_id ?? projects[0]?.workspace_id ?? null) : (projects[0]?.workspace_id ?? null)}
         onAdded={refresh}
       />
 
       <CustomFieldsDialog
         open={showCustomFields}
         onOpenChange={setShowCustomFields}
-        workspaceId={selectedWorkspaceId}
+        workspaceId={selectedProjectId ? (projects.find((p) => p.id === selectedProjectId)?.workspace_id ?? projects[0]?.workspace_id ?? null) : (projects[0]?.workspace_id ?? null)}
       />
 
       <NewProjectDialog
         open={showNewProject}
         onOpenChange={setShowNewProject}
-        selectedWorkspaceId={selectedWorkspaceId}
-        onCreate={async (workspaceId, name, isPersonal) => {
-          await createProject(workspaceId, name, isPersonal);
+        onCreate={async (name, isPersonal) => {
+          await createProject(name, isPersonal);
         }}
       />
 

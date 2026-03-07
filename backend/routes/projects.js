@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { pool } = require('../server');
-const { getAccessibleWorkspaceIds, getAccessibleProjectIds, requireUser } = require('../lib/access');
+const { getAccessibleWorkspaceIds, getAccessibleProjectIds, getOrCreateDefaultWorkspaceId, requireUser } = require('../lib/access');
 
 router.get('/', async (req, res) => {
   try {
@@ -37,15 +37,20 @@ router.post('/', async (req, res) => {
     if (!userId) return;
     const { workspace_id, name, description, color = '#6366f1', owner_id, is_personal } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'Project name is required' });
-    if (!workspace_id) return res.status(400).json({ error: 'Select a team first' });
-    const allowedWorkspaceIds = await getAccessibleWorkspaceIds(pool, userId);
-    if (!allowedWorkspaceIds.some(id => String(id) === String(workspace_id))) {
-      return res.status(403).json({ error: 'Access denied to this workspace' });
+    let wid = workspace_id;
+    if (!wid) {
+      wid = await getOrCreateDefaultWorkspaceId(pool, userId);
+      if (!wid) return res.status(500).json({ error: 'Could not create default workspace' });
+    } else {
+      const allowedWorkspaceIds = await getAccessibleWorkspaceIds(pool, userId);
+      if (!allowedWorkspaceIds.some(id => String(id) === String(wid))) {
+        return res.status(403).json({ error: 'Access denied to this workspace' });
+      }
     }
     const personal = !!is_personal;
     const { rows } = await pool.query(
       `INSERT INTO projects(workspace_id,name,description,color,owner_id,is_personal,created_by) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [workspace_id, name.trim(), description || '', color, owner_id || null, personal, userId]
+      [wid, name.trim(), description || '', color, owner_id || null, personal, userId]
     );
     const pid = rows[0].id;
     for (let i = 0; i < DEFAULT_COLUMNS.length; i++) {

@@ -106,14 +106,10 @@ export interface MeridianDataResult {
   apiBase: string;
   fromApi: boolean;
   refresh: () => void;
-  workspaces: Workspace[];
   projects: Project[];
-  selectedWorkspaceId: string | null;
-  setSelectedWorkspaceId: (id: string | null) => void;
   selectedProjectId: string | null;
   setSelectedProjectId: (id: string | null) => void;
-  createWorkspace: (name: string) => Promise<Workspace | null>;
-  createProject: (workspaceId: string, name: string) => Promise<Project | null>;
+  createProject: (name: string, isPersonal?: boolean) => Promise<Project | null>;
   createSprint: (projectId: string, name: string, start_date?: string, end_date?: string) => Promise<Sprint | null>;
   createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; type?: string }, parentId?: string | null, trackerId?: string | null) => Promise<unknown>;
   createSection: (projectId: string, name: string) => Promise<{ id: string; name: string } | null>;
@@ -129,10 +125,8 @@ function apiPath(path: string): string {
 }
 
 export function useMeridianData(): MeridianDataResult {
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [sprints, setSprints] = useState<Sprint[]>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [initiatives, setInitiatives] = useState<Initiative[]>(mockInitiatives);
   const [sections, setSections] = useState<TrackerSection[]>(mockTrackerSections);
@@ -142,7 +136,7 @@ export function useMeridianData(): MeridianDataResult {
   const [error, setError] = useState<string | null>(null);
   const [fromApi, setFromApi] = useState(false);
 
-  const load = useCallback(async (overrideWorkspaceId?: string | null, overrideProjectId?: string | null) => {
+  const load = useCallback(async (overrideProjectId?: string | null) => {
     const base = getApiBaseUrl();
     if (!base) {
       setInitiatives(mockInitiatives);
@@ -154,25 +148,10 @@ export function useMeridianData(): MeridianDataResult {
     setLoading(true);
     setError(null);
     try {
-      const wsRes = await get<Workspace[]>(apiPath('api/workspaces')).catch(() => []);
-      const wsList = Array.isArray(wsRes) ? wsRes : [];
-      setWorkspaces(wsList);
-      const wid = overrideWorkspaceId ?? selectedWorkspaceId ?? (wsList[0]?.id ?? null);
-      if (wsList.length && !selectedWorkspaceId && overrideWorkspaceId === undefined) setSelectedWorkspaceId(wsList[0].id);
-      if (!wid) {
-        setProjects([]);
-        setInitiatives([]);
-        setSections([]);
-        setCrew([]);
-        setCustomFields([]);
-        setLoading(false);
-        setFromApi(true);
-        return;
-      }
       const [projRes, crewRes, cfRes] = await Promise.all([
-        get<Project[]>(`${apiPath('api/projects')}?workspace_id=${wid}`).catch(() => []),
-        get<{ id: string; name: string; initials: string; role: string }[]>(`${apiPath('api/crew')}?workspace_id=${wid}`).catch(() => []),
-        get<{ id: string; name: string; field_type: string; target: string }[]>(`${apiPath('api/custom-fields')}?workspace_id=${wid}`).catch(() => []),
+        get<Project[]>(apiPath('api/projects')).catch(() => []),
+        get<{ id: string; name: string; initials: string; role: string }[]>(apiPath('api/crew')).catch(() => []),
+        get<{ id: string; name: string; field_type: string; target: string }[]>(apiPath('api/custom-fields')).catch(() => []),
       ]);
       const projList = Array.isArray(projRes) ? projRes : [];
       setProjects(projList);
@@ -184,6 +163,7 @@ export function useMeridianData(): MeridianDataResult {
         setSprints([]);
         setInitiatives([]);
         setSections([]);
+        setSelectedProjectId(null);
         setLoading(false);
         setFromApi(true);
         return;
@@ -234,21 +214,14 @@ export function useMeridianData(): MeridianDataResult {
     } finally {
       setLoading(false);
     }
-  }, [selectedWorkspaceId, selectedProjectId]);
+  }, [selectedProjectId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const createWorkspace = useCallback(async (name: string): Promise<Workspace | null> => {
-    const w = await post<Workspace>(apiPath('api/workspaces'), { name: name.trim() });
-    await load();
-    if (w?.id) setSelectedWorkspaceId(w.id);
-    return w ?? null;
-  }, [load]);
-
-  const createProject = useCallback(async (workspaceId: string, name: string, isPersonal?: boolean): Promise<Project | null> => {
-    const body: { workspace_id: string; name: string; is_personal?: boolean } = { workspace_id: workspaceId, name: name.trim() };
+  const createProject = useCallback(async (name: string, isPersonal?: boolean): Promise<Project | null> => {
+    const body: { name: string; is_personal?: boolean } = { name: name.trim() };
     if (isPersonal !== undefined) body.is_personal = isPersonal;
     const p = await post<Project>(apiPath('api/projects'), body);
     await load();
@@ -358,13 +331,9 @@ export function useMeridianData(): MeridianDataResult {
     apiBase: getApiBaseUrl(),
     fromApi,
     refresh: load,
-    workspaces,
     projects,
-    selectedWorkspaceId,
-    setSelectedWorkspaceId,
     selectedProjectId,
     setSelectedProjectId,
-    createWorkspace,
     createProject,
     createSprint,
     createItem,

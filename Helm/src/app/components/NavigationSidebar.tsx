@@ -1,16 +1,6 @@
 import { useState } from 'react';
-import { toast } from 'sonner';
 import { Anchor, LayoutDashboard, List, Map, FileText, BarChart3, Tent, Plus, ChevronRight, ChevronDown, FolderOpen, GripVertical, Calendar, Triangle, Settings } from 'lucide-react';
-import { Button } from './ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from './ui/dialog';
-import { Input } from './ui/input';
-import type { Workspace, Project } from '../data/useMeridianData';
+import type { Project } from '../data/useMeridianData';
 import type { Initiative } from '../data/mockData';
 import type { TrackerSection as TrackerSectionType } from '../data/mockData';
 
@@ -37,10 +27,6 @@ const VIEW_ICONS: Record<NavView, React.ReactNode> = {
 const TASKS_PREVIEW_COUNT = 5;
 
 interface NavigationSidebarProps {
-  workspaces?: Workspace[];
-  selectedWorkspaceId?: string | null;
-  onSelectWorkspace?: (id: string) => void;
-  onCreateWorkspace?: (name: string) => Promise<unknown>;
   projects: Project[];
   selectedProjectId: string | null;
   onSelectProject: (id: string) => void;
@@ -56,8 +42,6 @@ interface NavigationSidebarProps {
 }
 
 export function NavigationSidebar({
-  workspaces = [],
-  selectedWorkspaceId,
   projects,
   selectedProjectId,
   onSelectProject,
@@ -70,29 +54,9 @@ export function NavigationSidebar({
   currentView,
   onNavigateView,
   fieldNotesCount = 0,
-  onCreateWorkspace,
 }: NavigationSidebarProps) {
-  const [showNewWorkspace, setShowNewWorkspace] = useState(false);
-  const [newWorkspaceName, setNewWorkspaceName] = useState('');
-  const [creating, setCreating] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set(projects.map((p) => p.id)));
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
-
-  const handleCreateWorkspace = async () => {
-    const name = newWorkspaceName.trim();
-    if (!name || !onCreateWorkspace) return;
-    setCreating(true);
-    try {
-      await onCreateWorkspace(name);
-      setNewWorkspaceName('');
-      setShowNewWorkspace(false);
-      toast.success('Workspace created');
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to create workspace');
-    } finally {
-      setCreating(false);
-    }
-  };
 
   const toggleProject = (id: string) => {
     setExpandedProjects((prev) => {
@@ -114,13 +78,10 @@ export function NavigationSidebar({
   const tasksByProject: Record<string, Initiative[]> = {};
   if (selectedProjectId && initiatives.length) tasksByProject[selectedProjectId] = initiatives;
 
-  const selectedWorkspace = workspaces?.find((w) => w.id === selectedWorkspaceId);
-  const workspaceName = selectedWorkspace?.name ?? 'To-DO';
-
   return (
     <div className="w-[220px] flex-shrink-0 bg-[var(--bg-sidebar)] border-r border-gray-200 h-screen flex flex-col">
       <div className="p-4 border-b border-gray-200">
-        <h2 className="text-sm font-bold text-gray-900">{workspaceName}</h2>
+        <h2 className="text-sm font-bold text-gray-900">To-DO</h2>
         <p className="text-xs text-gray-500 mt-0.5">RevOps Project Management</p>
       </div>
 
@@ -281,40 +242,11 @@ export function NavigationSidebar({
         </div>
       </div>
 
-      <div className="p-3 border-t border-gray-200 flex items-center justify-between">
-        {onCreateWorkspace && (
-          <button
-            type="button"
-            onClick={() => setShowNewWorkspace(true)}
-            className="text-xs text-gray-600 hover:text-gray-900"
-          >
-            + New workspace
-          </button>
-        )}
+      <div className="p-3 border-t border-gray-200 flex justify-end">
         <button type="button" className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700" title="Settings">
           <Settings className="w-4 h-4" />
         </button>
       </div>
-
-      <Dialog open={showNewWorkspace} onOpenChange={setShowNewWorkspace}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New workspace</DialogTitle>
-          </DialogHeader>
-          <Input
-            placeholder="Workspace name"
-            value={newWorkspaceName}
-            onChange={(e) => setNewWorkspaceName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCreateWorkspace()}
-          />
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setShowNewWorkspace(false)}>Cancel</Button>
-            <Button type="button" onClick={handleCreateWorkspace} disabled={!newWorkspaceName.trim() || creating}>
-              {creating ? 'Creating…' : 'Create'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

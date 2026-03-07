@@ -16,6 +16,19 @@ async function getAccessibleWorkspaceIds(pool, userId) {
   return rows.map((r) => r.id);
 }
 
+/** Get or create a single default workspace for the user (used when UI has no workspace concept). */
+async function getOrCreateDefaultWorkspaceId(pool, userId) {
+  if (!userId) return null;
+  let { rows } = await pool.query('SELECT id FROM workspaces WHERE owner_id = $1 ORDER BY created_at LIMIT 1', [userId]);
+  if (rows.length > 0) return rows[0].id;
+  const slug = 'my-workspace-' + String(userId).replace(/-/g, '').slice(0, 12);
+  const { rows: inserted } = await pool.query(
+    `INSERT INTO workspaces (name, slug, owner_id) VALUES ($1, $2, $3) RETURNING id`,
+    ['My Workspace', slug, userId]
+  );
+  return inserted[0]?.id ?? null;
+}
+
 async function getAccessibleProjectIds(pool, userId) {
   if (!userId) return [];
   const workspaceIds = await getAccessibleWorkspaceIds(pool, userId);
@@ -41,5 +54,6 @@ function requireUser(req, res) {
 module.exports = {
   getAccessibleWorkspaceIds,
   getAccessibleProjectIds,
+  getOrCreateDefaultWorkspaceId,
   requireUser,
 };

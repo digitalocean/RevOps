@@ -50,6 +50,10 @@ services:
       - key: NODE_TLS_REJECT_UNAUTHORIZED
         value: "0"
         scope: RUN_TIME
+      # Required in production so session cookies are signed (use a long random string).
+      - key: SESSION_SECRET
+        value: "CHANGE_ME_use_a_long_random_string_in_production"
+        scope: RUN_TIME
       # Optional: DigitalOcean Gradient AI for chat (voice→work item, etc.). Create in DO Control Panel → Gradient → Model API Key.
       # - key: GRADIENT_MODEL_ACCESS_KEY
       #   scope: RUN_TIME

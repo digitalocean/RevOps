@@ -78,3 +78,17 @@ Use this if Option A or B still deploys the old app.
   - `node src/index.js`
 
 If they still show the old app, the component is **not** using the `backend` folder from the **meridian** branch. Re-check **Branch** and **Source Directory** (Option B) or use Option A / C so the app is driven entirely by the spec.
+
+---
+
+## "Sign in required" when creating a project (or after login)
+
+Sessions are stored in PostgreSQL so they persist across requests and restarts. You must set a **session secret** in production:
+
+1. In DigitalOcean, open your app → **api** (Web Service) component → **Settings** → **App-Level Environment Variables** (or **Environment Variables**).
+2. Add or edit:
+   - **Key:** `SESSION_SECRET`
+   - **Value:** A long random string (e.g. generate with `openssl rand -base64 32`). Do not use the placeholder `CHANGE_ME_...` in production.
+3. Save and **redeploy** the api component.
+
+If `SESSION_SECRET` is missing or weak, session cookies may not be trusted. The backend also uses **trust proxy** and a **PostgreSQL session store** so that once you’re signed in, creating projects and loading data work correctly (same session on every request).

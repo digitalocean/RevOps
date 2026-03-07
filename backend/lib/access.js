@@ -1,7 +1,10 @@
 /**
  * User-based access: which workspaces and projects the current user can see.
+ * Once signed in, users see only their data and what has been shared with them.
+ *
  * - Workspaces: user owns (owner_id) OR is a crew member (crew.user_id).
- * - Projects: in an accessible workspace AND (not personal OR created_by = user).
+ * - Projects: in an accessible workspace; personal projects only if created_by = user.
+ *   So: "their projects" = owned/member workspaces; "shared" = non-personal projects in those workspaces.
  */
 
 async function getAccessibleWorkspaceIds(pool, userId) {

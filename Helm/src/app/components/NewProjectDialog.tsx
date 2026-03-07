@@ -5,6 +5,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from './ui/dialog';
 import { Button } from './ui/button';
@@ -47,22 +48,23 @@ export function NewProjectDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader className="space-y-1">
-          <DialogTitle className="text-xl font-semibold text-gray-900">New project</DialogTitle>
-          <p className="text-sm text-gray-500">Create a new project.</p>
+        <DialogHeader>
+          <DialogTitle>New project</DialogTitle>
+          <DialogDescription>Create a new project to organize your tasks.</DialogDescription>
         </DialogHeader>
-        <div>
-          <label className="text-sm font-medium text-gray-700 block mb-1">Project name</label>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-slate-700">Project name</label>
           <Input
             placeholder="e.g. Personal Project, My Team"
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+            className="rounded-xl border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
           />
         </div>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button type="button" onClick={handleSubmit} disabled={!name.trim() || creating}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">Cancel</Button>
+          <Button type="button" onClick={handleSubmit} disabled={!name.trim() || creating} className="rounded-xl bg-blue-600 hover:bg-blue-700">
             {creating ? 'Creating…' : 'Create'}
           </Button>
         </DialogFooter>

@@ -63,6 +63,9 @@ function runSchemaWithRetry() {
 }
 
 // ── Middleware ───────────────────────────────────────────
+// Trust first proxy (e.g. DigitalOcean App Platform) so req.secure and req.ip are correct; required for cookies.
+app.set('trust proxy', 1);
+
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? true
@@ -76,16 +79,24 @@ app.use(express.urlencoded({ extended: true }));
 
 // ── Session & Auth (must be before routes that use req.user) ─
 const session = require('express-session');
+const pgSession = require('connect-pg-simple');
 const authRoutes = require('./routes/auth');
+
+const PgStore = pgSession(session);
+const sessionStore = new PgStore({ pool, createTableIfMissing: true, tableName: 'session' });
+
 app.use(
   session({
+    store: sessionStore,
     secret: process.env.SESSION_SECRET || 'todo-dev-secret-change-in-production',
     resave: false,
     saveUninitialized: false,
+    name: 'todo.sid',
     cookie: {
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'lax',
+      sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
     },
   })
 );

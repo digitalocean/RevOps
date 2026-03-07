@@ -597,7 +597,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
             </Button>
           </TooltipTrigger>
           <TooltipContent side="left" className="text-xs">
-            <p>Press <kbd className="px-1 py-0.5 bg-gray-200 rounded text-xs">?</kbd> for shortcuts</p>
+            <p>Press <kbd className="px-1 py-0.5 bg-gray-200 rounded text-xs">{'?'}</kbd> for shortcuts</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>

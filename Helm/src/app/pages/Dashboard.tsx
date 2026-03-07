@@ -348,7 +348,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                       <Filter className="w-4 h-4" />
                       Filter
                       {filterRows.length > 0 && (
-                        <span className="rounded-full bg-[var(--accent)]/20 text-[var(--accent)] px-1.5 py-0.5 text-xs font-medium">
+                        <span className={'rounded-full bg-[var(--accent)]' + '/20 text-[var(--accent)] px-1.5 py-0.5 text-xs font-medium'}>
                           {filterRows.length}
                         </span>
                       )}

@@ -43,15 +43,24 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
   }
 });
 
-// POST /api/voice/create — create item/note from transcript (notes use transcript as-is; work items use GPT when key set)
+// POST /api/voice/create — create item/note from transcript (user-scoped)
 router.post('/create', async (req, res) => {
   try {
+    const { getAccessibleProjectIds, requireUser } = require('../lib/access');
+    const userId = requireUser(req, res);
+    if (!userId) return;
     const { transcript, item_type = 'note', project_id, sprint_id, author_id } = req.body;
     if (!transcript || typeof transcript !== 'string') return res.status(400).json({ error: 'Transcript is required' });
     const text = transcript.trim();
     if (!text) return res.status(400).json({ error: 'Transcript is required' });
     if (item_type !== 'note') {
       if (!project_id) return res.status(400).json({ error: 'Select a project first' });
+    }
+    if (project_id) {
+      const allowedProjectIds = await getAccessibleProjectIds(pool, userId);
+      if (!allowedProjectIds.some(id => String(id) === String(project_id))) {
+        return res.status(403).json({ error: 'Access denied to this project' });
+      }
     }
 
     let result = null;

@@ -221,4 +221,128 @@ BEGIN
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'password_hash') THEN
     ALTER TABLE users ADD COLUMN password_hash VARCHAR(255);
   END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'workspaces')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'workspaces' AND column_name = 'owner_id') THEN
+    ALTER TABLE workspaces ADD COLUMN owner_id UUID REFERENCES users(id) ON DELETE SET NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'created_by') THEN
+    ALTER TABLE projects ADD COLUMN created_by UUID REFERENCES users(id) ON DELETE SET NULL;
+  END IF;
+  -- User fields (spec)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'full_name') THEN
+    ALTER TABLE users ADD COLUMN full_name VARCHAR(120);
+    UPDATE users SET full_name = name WHERE full_name IS NULL AND name IS NOT NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'is_verified') THEN
+    ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT false;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'verification_token') THEN
+    ALTER TABLE users ADD COLUMN verification_token VARCHAR(255);
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'reset_token') THEN
+    ALTER TABLE users ADD COLUMN reset_token VARCHAR(255);
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'reset_token_expires_at') THEN
+    ALTER TABLE users ADD COLUMN reset_token_expires_at TIMESTAMPTZ;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'last_login_at') THEN
+    ALTER TABLE users ADD COLUMN last_login_at TIMESTAMPTZ;
+  END IF;
+  -- Items (spec: created_by, is_big_rock, position)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'items')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'items' AND column_name = 'created_by_id') THEN
+    ALTER TABLE items ADD COLUMN created_by_id UUID REFERENCES users(id) ON DELETE SET NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'items')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'items' AND column_name = 'is_big_rock') THEN
+    ALTER TABLE items ADD COLUMN is_big_rock BOOLEAN DEFAULT false;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'items')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'items' AND column_name = 'position') THEN
+    ALTER TABLE items ADD COLUMN position INT DEFAULT 0;
+  END IF;
+  -- Trackers (spec: is_collapsed, created_by_id)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'trackers')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trackers' AND column_name = 'is_collapsed') THEN
+    ALTER TABLE trackers ADD COLUMN is_collapsed BOOLEAN DEFAULT false;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'trackers')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'trackers' AND column_name = 'created_by_id') THEN
+    ALTER TABLE trackers ADD COLUMN created_by_id UUID REFERENCES users(id) ON DELETE SET NULL;
+  END IF;
+  -- Custom fields (spec: field_key, applies_to, options as JSONB)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'custom_fields')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'custom_fields' AND column_name = 'field_key') THEN
+    ALTER TABLE custom_fields ADD COLUMN field_key VARCHAR(80);
+    UPDATE custom_fields SET field_key = lower(regexp_replace(name, '[^a-zA-Z0-9]+', '_', 'g')) WHERE field_key IS NULL;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'custom_fields')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'custom_fields' AND column_name = 'applies_to') THEN
+    ALTER TABLE custom_fields ADD COLUMN applies_to VARCHAR(30) DEFAULT 'task';
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'custom_fields')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'custom_fields' AND column_name = 'project_id') THEN
+    ALTER TABLE custom_fields ADD COLUMN project_id UUID REFERENCES projects(id) ON DELETE CASCADE;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'custom_fields')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'custom_fields' AND column_name = 'options_json') THEN
+    ALTER TABLE custom_fields ADD COLUMN options_json JSONB DEFAULT '[]';
+  END IF;
 END $$;
+
+-- SavedView (spec)
+CREATE TABLE IF NOT EXISTS saved_views (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id    UUID REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+  user_id       UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  name          VARCHAR(120) NOT NULL,
+  view_type     VARCHAR(40)  DEFAULT 'tracker',
+  filters       JSONB        DEFAULT '{}',
+  column_config JSONB        DEFAULT '{}',
+  sort_config   JSONB        DEFAULT '{}',
+  is_default    BOOLEAN      DEFAULT false,
+  is_shared     BOOLEAN      DEFAULT false,
+  created_at    TIMESTAMPTZ  DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ  DEFAULT NOW(),
+  UNIQUE(project_id, user_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS saved_views_project_user ON saved_views(project_id, user_id);
+
+-- CustomFieldValue (spec)
+CREATE TABLE IF NOT EXISTS custom_field_values (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  task_id       UUID REFERENCES items(id) ON DELETE CASCADE NOT NULL,
+  field_id      UUID REFERENCES custom_fields(id) ON DELETE CASCADE NOT NULL,
+  value_text    TEXT,
+  value_number  DOUBLE PRECISION,
+  value_date    DATE,
+  value_boolean BOOLEAN,
+  value_json    JSONB,
+  updated_at    TIMESTAMPTZ  DEFAULT NOW(),
+  UNIQUE(task_id, field_id)
+);
+
+CREATE INDEX IF NOT EXISTS custom_field_values_task ON custom_field_values(task_id);
+CREATE INDEX IF NOT EXISTS custom_field_values_field ON custom_field_values(field_id);
+
+-- FieldNote (spec: dedicated notes per project)
+CREATE TABLE IF NOT EXISTS field_notes (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+  author_id  UUID REFERENCES users(id) ON DELETE SET NULL,
+  title      VARCHAR(200),
+  content    TEXT,
+  tags       TEXT[]         DEFAULT '{}',
+  created_at TIMESTAMPTZ    DEFAULT NOW(),
+  updated_at TIMESTAMPTZ    DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS field_notes_project ON field_notes(project_id);

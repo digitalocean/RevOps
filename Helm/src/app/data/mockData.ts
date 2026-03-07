@@ -24,6 +24,8 @@ export interface Initiative {
   tracker_id?: string | null;
   /** Crew member id for assignee */
   assignee_id?: string | null;
+  /** Custom field values: field_id -> value */
+  field_values?: Record<string, string | number | boolean | null>;
 }
 
 export interface TrackerSection {

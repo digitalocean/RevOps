@@ -47,6 +47,7 @@ function mapItemToInitiative(item: {
   tracker_id?: string | null;
   due_date?: string | null;
   category?: string | null;
+  field_values?: Record<string, string | number | boolean | null>;
 }): Initiative {
   const status = (item.status && STATUS_MAP[item.status]) || 'Not Started';
   const priority = (item.priority && PRIORITY_MAP[item.priority]) || 'P1';
@@ -69,6 +70,7 @@ function mapItemToInitiative(item: {
     progress: status === 'Complete' ? 100 : status === 'Not Started' ? 0 : 50,
     tracker_id: item.tracker_id ?? null,
     assignee_id: item.assignee_id ?? null,
+    field_values: item.field_values ?? undefined,
   };
 }
 
@@ -119,6 +121,7 @@ export interface MeridianDataResult {
   deleteItem: (itemId: string) => Promise<void>;
   sprints: Sprint[];
   crew: { id: string; name: string; initials: string; role: string }[];
+  customFields: { id: string; name: string; field_type: string; target: string }[];
 }
 
 function apiPath(path: string): string {
@@ -134,6 +137,7 @@ export function useMeridianData(): MeridianDataResult {
   const [initiatives, setInitiatives] = useState<Initiative[]>(mockInitiatives);
   const [sections, setSections] = useState<TrackerSection[]>(mockTrackerSections);
   const [crew, setCrew] = useState<{ id: string; name: string; initials: string; role: string }[]>([]);
+  const [customFields, setCustomFields] = useState<{ id: string; name: string; field_type: string; target: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fromApi, setFromApi] = useState(false);
@@ -160,17 +164,20 @@ export function useMeridianData(): MeridianDataResult {
         setInitiatives([]);
         setSections([]);
         setCrew([]);
+        setCustomFields([]);
         setLoading(false);
         setFromApi(true);
         return;
       }
-      const [projRes, crewRes] = await Promise.all([
+      const [projRes, crewRes, cfRes] = await Promise.all([
         get<Project[]>(`${apiPath('api/projects')}?workspace_id=${wid}`).catch(() => []),
         get<{ id: string; name: string; initials: string; role: string }[]>(`${apiPath('api/crew')}?workspace_id=${wid}`).catch(() => []),
+        get<{ id: string; name: string; field_type: string; target: string }[]>(`${apiPath('api/custom-fields')}?workspace_id=${wid}`).catch(() => []),
       ]);
       const projList = Array.isArray(projRes) ? projRes : [];
       setProjects(projList);
       setCrew(Array.isArray(crewRes) ? crewRes : []);
+      setCustomFields(Array.isArray(cfRes) ? cfRes : []);
       const pid = overrideProjectId ?? selectedProjectId ?? (projList[0]?.id ?? null);
       if (projList.length && !selectedProjectId && overrideProjectId === undefined) setSelectedProjectId(projList[0].id);
       if (!pid) {
@@ -203,6 +210,7 @@ export function useMeridianData(): MeridianDataResult {
           tracker_id: i.tracker_id as string | null,
           due_date: i.due_date as string | null,
           category: i.category as string | null,
+          field_values: i.field_values as Record<string, string | number | boolean | null> | undefined,
         })
       );
       setInitiatives(mapped);
@@ -363,5 +371,6 @@ export function useMeridianData(): MeridianDataResult {
     updateItem,
     deleteItem,
     sprints,
+    customFields,
   };
 }

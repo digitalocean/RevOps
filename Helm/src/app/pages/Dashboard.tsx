@@ -6,7 +6,6 @@ import { KPIStatsBar } from '../components/KPIStatsBar';
 import { TrackerSection } from '../components/TrackerSection';
 import { GanttChart } from '../components/GanttChart';
 import { ActivityPanel } from '../components/ActivityPanel';
-import { FilterPanel } from '../components/FilterPanel';
 import { ExportMenu } from '../components/ExportMenu';
 import { CategoryPriorityStatusMetrics } from '../components/CategoryPriorityStatusMetrics';
 import { DueDateMetrics } from '../components/DueDateMetrics';
@@ -22,7 +21,9 @@ import { CustomFieldsDialog } from '../components/CustomFieldsDialog';
 import { NewProjectDialog } from '../components/NewProjectDialog';
 import { NewSprintDialog } from '../components/NewSprintDialog';
 import { ObservatoryView } from '../components/ObservatoryView';
+import { AnalyticsView } from '../components/AnalyticsView';
 import { SummitBoardKanban } from '../components/SummitBoardKanban';
+import { FilterSlidePanel, type FilterRow } from '../components/FilterSlidePanel';
 import { FieldNotesView } from '../components/FieldNotesView';
 import { ColumnsPopover } from '../components/ColumnsPopover';
 import { NewSectionDialog } from '../components/NewSectionDialog';
@@ -30,10 +31,10 @@ import { CompletionCelebration } from '../components/CompletionCelebration';
 import { AuthDialog } from '../components/AuthDialog';
 import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { HelpCircle, ChevronUp } from 'lucide-react';
+import { HelpCircle, ChevronUp, Filter } from 'lucide-react';
 import { useMeridianData } from '../data/useMeridianData';
 import type { Status, Priority, Category, Initiative } from '../data/mockData';
-import { get, post } from '../api/meridian';
+import { get, post, patch } from '../api/meridian';
 
 const VIEW_TABS: { id: NavView; label: string }[] = [
   { id: 'manifest', label: 'Trackers' },
@@ -77,6 +78,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     updateItem,
     deleteItem,
     crew,
+    customFields,
   } = useMeridianData();
   const [currentView, setCurrentView] = useState<NavView>('summit_board');
   const [showActivityPanel, setShowActivityPanel] = useState(false);
@@ -100,6 +102,9 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     owner: [] as string[],
     bigRocksOnly: false
   });
+  const [showFilterSlide, setShowFilterSlide] = useState(false);
+  const [filterRows, setFilterRows] = useState<FilterRow[]>([]);
+  const [filterAndOr, setFilterAndOr] = useState<'AND' | 'OR'>('AND');
   const [selectedInitiativeFromSearch, setSelectedInitiativeFromSearch] = useState<Initiative | null>(null);
   const [internalUser, setInternalUser] = useState<AuthUser>(null);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
@@ -250,7 +255,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   }, [celebrateCount]);
 
   return (
-    <div className="flex h-screen bg-white">
+    <div className="flex h-screen bg-[var(--bg-app)]">
       <NavigationSidebar
         workspaces={workspaces}
         selectedWorkspaceId={selectedWorkspaceId ?? null}
@@ -269,10 +274,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         onOpenAddCrew={() => setShowTeamMembers(true)}
         onOpenCustomFields={() => setShowCustomFields(true)}
         currentView={currentView}
-        onNavigateView={(v) => {
-          setCurrentView(v);
-          if (v === 'base_camp') setShowCustomFields(true);
-        }}
+        onNavigateView={(v) => setCurrentView(v)}
         fieldNotesCount={initiatives.length}
       />
 
@@ -342,8 +344,16 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               <div className="flex items-center gap-2">
                 {(currentView === 'summit_board' || currentView === 'manifest') && (
                   <>
-                    <SavedViewsMenu currentFilters={filters} onApplyView={(newFilters) => setFilters(newFilters)} />
-                    <FilterPanel filters={filters} onFiltersChange={setFilters} />
+                    <SavedViewsMenu projectId={selectedProjectId} currentFilters={filters} onApplyView={(newFilters) => setFilters(newFilters)} />
+                    <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowFilterSlide(true)}>
+                      <Filter className="w-4 h-4" />
+                      Filter
+                      {filterRows.length > 0 && (
+                        <span className="rounded-full bg-[var(--accent)]/20 text-[var(--accent)] px-1.5 py-0.5 text-xs font-medium">
+                          {filterRows.length}
+                        </span>
+                      )}
+                    </Button>
                     <ExportMenu />
                     <ColumnsPopover
                       projectId={selectedProjectId}
@@ -381,7 +391,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
             </div>
 
             {currentView === 'observatory' ? (
-              <ObservatoryView kpiData={kpiData} initiatives={initiatives} sprintLabel={sprintLabel} />
+              <AnalyticsView projectId={selectedProjectId} />
             ) : currentView === 'expedition_map' ? (
               <GanttChart initiatives={initiatives} />
             ) : currentView === 'field_notes' ? (
@@ -409,6 +419,15 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     key={section.id}
                     section={section}
                     crew={crew}
+                    customFields={customFields}
+                    onUpdateFieldValue={async (taskId, fieldId, value) => {
+                      const payload: { fieldId: string; valueText?: string; valueNumber?: number; valueDate?: string; valueBoolean?: boolean } = { fieldId };
+                      if (typeof value === 'string') payload.valueText = value;
+                      else if (typeof value === 'number') payload.valueNumber = value;
+                      else if (typeof value === 'boolean') payload.valueBoolean = value;
+                      await patch(`/api/tasks/${taskId}/field-values`, { values: [payload] });
+                      refresh();
+                    }}
                     viewMode="grid"
                     filters={filters}
                     selectedIds={selectedIds}
@@ -526,10 +545,25 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         }}
       />
 
+      <FilterSlidePanel
+        open={showFilterSlide}
+        onClose={() => setShowFilterSlide(false)}
+        filterRows={filterRows}
+        onFilterRowsChange={setFilterRows}
+        filterAndOr={filterAndOr}
+        onFilterAndOrChange={setFilterAndOr}
+        onApply={(derived) => { setFilters(derived); setShowFilterSlide(false); }}
+        onSaveAsView={() => { toast.info('Apply filters then use Saved Views to save.'); setShowFilterSlide(false); }}
+        statusOptions={['On Track', 'At Risk', 'Complete', 'Blocked', 'Not Started', 'In Review'] as Status[]}
+        priorityOptions={['P0', 'P1', 'P2', 'P3'] as Priority[]}
+        categoryOptions={['Engineering', 'Design', 'Sales', 'Product', 'Operations'] as Category[]}
+        ownerOptions={crew.map((c) => c.name)}
+      />
+
       <AuthDialog
         open={showAuthDialog}
         onOpenChange={setShowAuthDialog}
-        onSuccess={(user) => setCurrentUser(user)}
+        onSuccess={(user) => setInternalUser(user)}
       />
 
       <NewSprintDialog

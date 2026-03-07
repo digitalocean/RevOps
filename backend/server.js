@@ -108,6 +108,9 @@ app.use('/api/custom-fields',require('./routes/customFields'));
 app.use('/api/voice',        require('./routes/voice'));
 app.use('/api/columns',      require('./routes/columns'));
 app.use('/api/activity',     require('./routes/activity'));
+app.use('/api',              require('./routes/analytics'));   // GET /api/projects/:id/analytics
+app.use('/api',              require('./routes/fieldValues')); // GET/PATCH /api/tasks/:id/field-values
+app.use('/api',              require('./routes/savedViews'));  // GET/POST /api/projects/:id/views, PATCH/DELETE /api/views/:id
 
 // Mount without /api prefix (DigitalOcean App Platform trims /api before forwarding to the service)
 const workspaces = require('./routes/workspaces');
@@ -132,6 +135,9 @@ app.use('/custom-fields', customFields);
 app.use('/voice', voice);
 app.use('/columns', columns);
 app.use('/activity', activity);
+app.use('/', require('./routes/analytics'));
+app.use('/', require('./routes/fieldValues'));
+app.use('/', require('./routes/savedViews'));
 
 // ── Health Check (both /api/health and /health for platform checks) ─
 const healthHandler = async (req, res) => {

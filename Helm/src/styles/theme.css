@@ -1,44 +1,64 @@
 @custom-variant dark (&:is(.dark *));
 
+/* To-DO design system (spec) */
 :root {
   --font-size: 16px;
-  --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
-  --card: #ffffff;
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: #030213;
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.95 0.0058 264.53);
-  --secondary-foreground: #030213;
-  --muted: #ececf0;
-  --muted-foreground: #717182;
-  --accent: #e9ebef;
-  --accent-foreground: #030213;
-  --destructive: #d4183d;
-  --destructive-foreground: #ffffff;
-  --border: rgba(0, 0, 0, 0.1);
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --bg-app: #FAFAFA;
+  --bg-sidebar: #111318;
+  --bg-surface: #FFFFFF;
+  --border: #E8E8EC;
+  --text-primary: #0F0F13;
+  --text-muted: #6B7280;
+  --text-sidebar: #C9CAD1;
+  --accent: #6366F1;
+  --status-on-track: #16A34A;
+  --status-in-review: #7C3AED;
+  --status-blocked: #DC2626;
+  --status-complete: #0EA5E9;
+  --status-not-started: #9CA3AF;
+  --priority-p0: #EF4444;
+  --priority-p1: #F97316;
+  --priority-p2: #3B82F6;
+  --priority-p3: #6B7280;
+  /* Legacy aliases */
+  --background: var(--bg-surface);
+  --foreground: var(--text-primary);
+  --card: var(--bg-surface);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-surface);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--text-primary);
+  --primary-foreground: #fff;
+  --secondary: #F8F8FB;
+  --secondary-foreground: var(--text-primary);
+  --muted: #F0F0F4;
+  --muted-foreground: var(--text-muted);
+  --accent-foreground: #fff;
+  --destructive: #DC2626;
+  --destructive-foreground: #fff;
+  --border: var(--border);
   --input: transparent;
-  --input-background: #f3f3f5;
+  --input-background: #fff;
   --switch-background: #cbced4;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #030213;
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --ring: var(--accent);
+  --chart-1: var(--status-on-track);
+  --chart-2: var(--status-complete);
+  --chart-3: var(--status-in-review);
+  --chart-4: var(--priority-p1);
+  --chart-5: var(--priority-p2);
+  --radius: 0.75rem;
+  --sidebar: var(--bg-sidebar);
+  --sidebar-foreground: var(--text-sidebar);
+  --sidebar-primary: #fff;
+  --sidebar-primary-foreground: var(--bg-sidebar);
+  --sidebar-accent: rgba(255,255,255,0.1);
+  --sidebar-accent-foreground: var(--text-sidebar);
+  --sidebar-border: rgba(255,255,255,0.08);
+  --sidebar-ring: var(--accent);
 }
 
 .dark {
@@ -125,7 +145,13 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    background: var(--bg-app);
+    color: var(--text-primary);
+  }
+
+  .font-mono {
+    font-family: var(--font-mono);
   }
 
   /**

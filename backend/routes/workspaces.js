@@ -1,10 +1,17 @@
 const router = require('express').Router();
 const { pool } = require('../server');
+const { getAccessibleWorkspaceIds, requireUser } = require('../lib/access');
 
 router.get('/', async (req, res) => {
   try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const allowedIds = await getAccessibleWorkspaceIds(pool, userId);
+    if (allowedIds.length === 0) return res.json([]);
+    const placeholders = allowedIds.map((_, i) => `$${i + 1}`).join(',');
     const { rows } = await pool.query(
-      'SELECT * FROM workspaces ORDER BY name ASC'
+      `SELECT * FROM workspaces WHERE id IN (${placeholders}) ORDER BY name ASC`,
+      allowedIds
     );
     res.json(rows);
   } catch (e) {
@@ -14,14 +21,16 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
     const { name, slug, color, icon } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Team name is required' });
     }
     const safeSlug = (slug || name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'team';
     const { rows } = await pool.query(
-      `INSERT INTO workspaces (name, slug, color, icon) VALUES ($1, $2, $3, $4) RETURNING *`,
-      [name.trim(), safeSlug, color || '#6366f1', icon || '⚡']
+      `INSERT INTO workspaces (name, slug, color, icon, owner_id) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [name.trim(), safeSlug, color || '#6366f1', icon || '⚡', userId]
     );
     res.status(201).json(rows[0]);
   } catch (e) {
@@ -31,6 +40,12 @@ router.post('/', async (req, res) => {
 
 router.patch('/:id', async (req, res) => {
   try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const allowedIds = await getAccessibleWorkspaceIds(pool, userId);
+    if (!allowedIds.some(id => String(id) === String(req.params.id))) {
+      return res.status(404).json({ error: 'Not found' });
+    }
     const allowed = ['name', 'slug', 'color', 'icon'];
     const fields = Object.keys(req.body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No valid fields' });

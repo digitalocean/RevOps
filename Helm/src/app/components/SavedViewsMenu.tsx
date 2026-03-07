@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bookmark, Plus, Trash2, Check, Star } from 'lucide-react';
+import { get, post, del } from '../api/meridian';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +38,7 @@ interface SavedView {
 }
 
 interface SavedViewsMenuProps {
+  projectId: string | null;
   currentFilters: {
     status: Status[];
     priority: Priority[];
@@ -86,10 +88,36 @@ const defaultViews: SavedView[] = [
   },
 ];
 
-export function SavedViewsMenu({ currentFilters, onApplyView }: SavedViewsMenuProps) {
+function apiViewToSavedView(row: { id: string; name: string; filters: unknown; is_default?: boolean }): SavedView {
+  let f: SavedView['filters'] = { status: [], priority: [], category: [], owner: [], bigRocksOnly: false };
+  if (row.filters) {
+    if (typeof row.filters === 'string') {
+      try { f = { ...f, ...JSON.parse(row.filters) }; } catch { /* ignore */ }
+    } else if (typeof row.filters === 'object') {
+      f = { ...f, ...row.filters } as SavedView['filters'];
+    }
+  }
+  return { id: row.id, name: row.name, filters: f, isDefault: !!row.is_default };
+}
+
+export function SavedViewsMenu({ projectId, currentFilters, onApplyView }: SavedViewsMenuProps) {
   const [savedViews, setSavedViews] = useState<SavedView[]>(defaultViews);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [newViewName, setNewViewName] = useState('');
+
+  useEffect(() => {
+    if (!projectId) return;
+    get<{ id: string; name: string; filters: unknown; is_default?: boolean }[]>(`/api/projects/${projectId}/views`)
+      .then((rows) => {
+        const views = rows.map(apiViewToSavedView);
+        if (views.length > 0) {
+          setSavedViews(views);
+          const defaultView = views.find((v) => v.isDefault);
+          if (defaultView) onApplyView(defaultView.filters);
+        }
+      })
+      .catch(() => {});
+  }, [projectId]);
 
   const hasActiveFilters = 
     currentFilters.status.length > 0 ||
@@ -98,32 +126,55 @@ export function SavedViewsMenu({ currentFilters, onApplyView }: SavedViewsMenuPr
     currentFilters.owner.length > 0 ||
     currentFilters.bigRocksOnly;
 
-  const handleSaveView = () => {
+  const handleSaveView = async () => {
     if (!newViewName.trim()) {
       toast.error('Please enter a view name');
       return;
     }
-
+    if (projectId) {
+      try {
+        const created = await post<SavedView & { id: string }>(`/api/projects/${projectId}/views`, {
+          name: newViewName.trim(),
+          view_type: 'tracker',
+          filters: currentFilters,
+        });
+        setSavedViews((prev) => [...prev, apiViewToSavedView(created)]);
+        setShowSaveDialog(false);
+        setNewViewName('');
+        toast.success(`Saved view "${newViewName}"`);
+      } catch (e: unknown) {
+        toast.error((e as { message?: string })?.message || 'Failed to save view');
+      }
+      return;
+    }
     const newView: SavedView = {
       id: `custom-${Date.now()}`,
       name: newViewName,
       filters: currentFilters,
     };
-
-    setSavedViews([...savedViews, newView]);
+    setSavedViews((prev) => [...prev, newView]);
     setShowSaveDialog(false);
     setNewViewName('');
     toast.success(`Saved view "${newViewName}"`);
   };
 
-  const handleDeleteView = (viewId: string) => {
-    const view = savedViews.find(v => v.id === viewId);
+  const handleDeleteView = async (viewId: string) => {
+    const view = savedViews.find((v) => v.id === viewId);
     if (view?.isDefault) {
       toast.error('Cannot delete default views');
       return;
     }
-
-    setSavedViews(savedViews.filter(v => v.id !== viewId));
+    if (projectId && !viewId.startsWith('custom-')) {
+      try {
+        await del(`/api/views/${viewId}`);
+        setSavedViews((prev) => prev.filter((v) => v.id !== viewId));
+        toast.success('View deleted');
+      } catch {
+        toast.error('Failed to delete view');
+      }
+      return;
+    }
+    setSavedViews((prev) => prev.filter((v) => v.id !== viewId));
     toast.success('View deleted');
   };
 

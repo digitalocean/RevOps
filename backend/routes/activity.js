@@ -1,12 +1,17 @@
 const router = require('express').Router();
 const { pool } = require('../server');
+const { getAccessibleProjectIds, requireUser } = require('../lib/access');
 
-// GET activity feed for a project (activity_log first, then fallback to recent items)
+// GET activity feed for a project (user-scoped)
 router.get('/', async (req, res) => {
   try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
     const { project_id, limit = 50 } = req.query;
-    if (!project_id) {
-      return res.status(400).json({ error: 'project_id required' });
+    if (!project_id) return res.status(400).json({ error: 'project_id required' });
+    const allowedProjectIds = await getAccessibleProjectIds(pool, userId);
+    if (!allowedProjectIds.some(id => String(id) === String(project_id))) {
+      return res.status(404).json({ error: 'Not found' });
     }
     const lim = Math.min(Number(limit) || 50, 100);
 

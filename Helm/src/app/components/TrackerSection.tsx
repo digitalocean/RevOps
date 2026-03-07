@@ -27,6 +27,14 @@ interface CrewMember {
   role?: string;
 }
 
+interface CustomFieldDef {
+  id: string;
+  name: string;
+  field_type: string;
+  target?: string;
+  applies_to?: string;
+}
+
 interface TrackerSectionProps {
   section: TrackerSectionType;
   viewMode: 'grid' | 'gantt';
@@ -41,6 +49,8 @@ interface TrackerSectionProps {
   onSelectionChange: (ids: string[]) => void;
   projectId: string | null;
   crew?: CrewMember[];
+  customFields?: CustomFieldDef[];
+  onUpdateFieldValue?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
   onAddItem?: () => void;
   onCreateItem?: (projectId: string, payload: { title: string; description?: string }, trackerId?: string | null) => Promise<unknown>;
   onCreateSubItem?: (parentId: string) => void;
@@ -84,10 +94,67 @@ interface InitiativeRowEditableProps {
   isSelected: boolean;
   onToggleSelect: (id: string) => void;
   crew?: { id: string; name: string; initials?: string }[];
+  customFields?: CustomFieldDef[];
+  onUpdateFieldValue?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
   onAddSubItem?: (parentId: string) => void;
   onUpdate: (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: Category }) => Promise<unknown>;
   onDelete?: (id: string) => Promise<void>;
   onItemCompleted?: () => void;
+}
+
+function isTaskField(f: CustomFieldDef) {
+  return (f.target === 'item' || f.applies_to === 'task' || !f.applies_to);
+}
+
+function CustomFieldCell({
+  taskId,
+  fieldId,
+  fieldType,
+  value,
+  onSave,
+}: {
+  taskId: string;
+  fieldId: string;
+  fieldType: string;
+  value: string | number | boolean | null | undefined;
+  onSave?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [local, setLocal] = useState(String(value ?? ''));
+
+  const display = value === null || value === undefined ? '—' : String(value);
+
+  const handleBlur = () => {
+    setEditing(false);
+    if (!onSave) return;
+    const v = local.trim();
+    if (fieldType === 'number') {
+      const n = Number(v);
+      onSave(taskId, fieldId, v === '' ? null : Number.isNaN(n) ? value : n);
+    } else if (fieldType === 'boolean') {
+      onSave(taskId, fieldId, v === 'true' || v === '1' || v.toLowerCase() === 'yes');
+    } else {
+      onSave(taskId, fieldId, v === '' ? null : v);
+    }
+  };
+
+  return (
+    <td className="py-2 px-4 align-middle min-w-[100px]" onClick={() => onSave && setEditing(true)}>
+      {editing && onSave ? (
+        <Input
+          value={local}
+          onChange={(e) => setLocal(e.target.value)}
+          onBlur={handleBlur}
+          onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
+          className="h-8 text-xs border-[#E4E4EC] rounded-lg"
+          autoFocus
+          type={fieldType === 'number' ? 'number' : 'text'}
+        />
+      ) : (
+        <span className="text-xs text-[#0F0F13] font-mono">{display}</span>
+      )}
+    </td>
+  );
 }
 
 function InitiativeRowEditable({
@@ -96,6 +163,8 @@ function InitiativeRowEditable({
   isSelected,
   onToggleSelect,
   crew = [],
+  customFields = [],
+  onUpdateFieldValue,
   onAddSubItem,
   onUpdate,
   onDelete,
@@ -143,7 +212,7 @@ function InitiativeRowEditable({
   };
 
   return (
-    <tr className={`border-b border-gray-100 hover:bg-gray-50/50 ${isSelected ? 'bg-blue-50' : ''}`}>
+    <tr className={`border-b border-[#E8E8EC] hover:bg-[#F8F8FB] ${isSelected ? 'bg-[var(--accent)]/5' : ''}`}>
       <td className="py-2 px-4 w-12 align-middle">
         <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(initiative.id)} />
       </td>
@@ -214,7 +283,7 @@ function InitiativeRowEditable({
       <td className="py-2 px-4 align-middle">
         <div className="flex items-center gap-2">
           <Progress value={initiative.progress} className="w-20 h-1.5" />
-          <span className="text-xs text-gray-600 w-8">{initiative.progress}%</span>
+          <span className="text-xs text-[#6B7280] w-8 font-mono">{initiative.progress}%</span>
         </div>
       </td>
       <td className="py-2 px-4 align-middle">
@@ -222,9 +291,19 @@ function InitiativeRowEditable({
           type="date"
           value={dueDateStr}
           onChange={handleDueDateChange}
-          className="h-8 text-xs border border-gray-200 rounded-md px-2 bg-white text-gray-700 w-full max-w-[140px]"
+          className="h-8 text-xs font-mono border border-[#E8E8EC] rounded-lg px-2 bg-white text-[#0F0F13] w-full max-w-[140px]"
         />
       </td>
+      {customFields.filter(isTaskField).map((field) => (
+        <CustomFieldCell
+          key={field.id}
+          taskId={initiative.id}
+          fieldId={field.id}
+          fieldType={field.field_type}
+          value={initiative.field_values?.[field.id] ?? null}
+          onSave={onUpdateFieldValue}
+        />
+      ))}
       <td className="py-2 px-4 align-middle w-12">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -261,9 +340,10 @@ interface NewRowFormProps {
   trackerId: string | null;
   onSave: (projectId: string, payload: { title: string; description?: string }, trackerId?: string | null) => Promise<unknown>;
   onCancel: () => void;
+  customFieldCount?: number;
 }
 
-function NewRowForm({ projectId, sectionId, trackerId, onSave, onCancel }: NewRowFormProps) {
+function NewRowForm({ projectId, sectionId, trackerId, onSave, onCancel, customFieldCount = 0 }: NewRowFormProps) {
   const [title, setTitle] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -294,7 +374,7 @@ function NewRowForm({ projectId, sectionId, trackerId, onSave, onCancel }: NewRo
           autoFocus
         />
       </td>
-      <td colSpan={5} className="py-2 px-4 align-middle">
+      <td colSpan={5 + customFieldCount} className="py-2 px-4 align-middle">
         <div className="flex items-center gap-2">
           <Button type="button" size="sm" className="h-8 gap-1" onClick={handleSave} disabled={!title.trim() || !projectId || saving}>
             {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
@@ -319,6 +399,8 @@ export function TrackerSection({
   onSelectionChange,
   projectId,
   crew = [],
+  customFields = [],
+  onUpdateFieldValue,
   onAddItem,
   onCreateItem,
   onCreateSubItem,
@@ -380,9 +462,9 @@ export function TrackerSection({
         {isExpanded && (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-white border-b border-gray-200">
+              <thead className="sticky top-0 z-10 bg-[var(--bg-surface)] border-b border-[#E8E8EC]">
                 <tr>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-12">
+                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF] w-12">
                     <Checkbox
                       checked={allSelected}
                       ref={(el) => {
@@ -391,14 +473,17 @@ export function TrackerSection({
                       onCheckedChange={handleSelectAll}
                     />
                   </th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase w-12" />
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Initiative</th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Category</th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Priority</th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Owner</th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Progress</th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Due Date</th>
+                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF] w-12" />
+                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Initiative</th>
+                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Category</th>
+                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Priority</th>
+                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Owner</th>
+                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Status</th>
+                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Progress</th>
+                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Due Date</th>
+                  {customFields?.filter(isTaskField).map((f) => (
+                    <th key={f.id} className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">{f.name}</th>
+                  ))}
                   <th className="py-2 px-4 w-12" />
                 </tr>
               </thead>
@@ -411,6 +496,8 @@ export function TrackerSection({
                     isSelected={selectedIds.includes(initiative.id)}
                     onToggleSelect={handleToggleSelect}
                     crew={crew}
+                    customFields={customFields}
+                    onUpdateFieldValue={onUpdateFieldValue}
                     onAddSubItem={onCreateSubItem}
                     onUpdate={handleUpdate}
                     onDelete={onDeleteItem}
@@ -424,11 +511,12 @@ export function TrackerSection({
                     trackerId={section.id === 'uncategorized' ? null : section.id}
                     onSave={onCreateItem!}
                     onCancel={() => setShowNewRow(false)}
+                    customFieldCount={customFields.filter(isTaskField).length}
                   />
                 )}
                 {filteredInitiatives.length === 0 && !showNewRow && (
                   <tr>
-                    <td colSpan={10} className="py-8 px-4 text-center text-sm text-gray-500">
+                    <td colSpan={10 + customFields.filter(isTaskField).length} className="py-8 px-4 text-center text-sm text-gray-500">
                       No items yet. Add one below.
                     </td>
                   </tr>

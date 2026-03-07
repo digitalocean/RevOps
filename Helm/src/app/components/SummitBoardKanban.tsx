@@ -15,11 +15,11 @@ import type { Initiative, Status } from '../data/mockData';
 import { InitiativeDetailsDialog } from './InitiativeDetailsDialog';
 
 const COLUMNS: { id: string; label: string; statuses: Status[]; color: string }[] = [
-  { id: 'not_started', label: 'Not Started', statuses: ['Not Started'], color: 'var(--status-not-started)' },
-  { id: 'in_progress', label: 'In Progress', statuses: ['On Track', 'At Risk'], color: 'var(--status-complete)' },
-  { id: 'in_review', label: 'In Review', statuses: ['In Review'], color: 'var(--status-in-review)' },
-  { id: 'blocked', label: 'Blocked', statuses: ['Blocked'], color: 'var(--status-blocked)' },
-  { id: 'done', label: 'Done', statuses: ['Complete'], color: 'var(--status-on-track)' },
+  { id: 'not_started', label: 'Not Started', statuses: ['Not Started'], color: '#6b7280' },
+  { id: 'in_progress', label: 'In Progress', statuses: ['On Track', 'At Risk'], color: '#2563eb' },
+  { id: 'in_review', label: 'In Review', statuses: ['In Review'], color: '#7c3aed' },
+  { id: 'blocked', label: 'Blocked', statuses: ['Blocked'], color: '#ea580c' },
+  { id: 'done', label: 'Done', statuses: ['Complete'], color: '#059669' },
 ];
 
 const STATUS_TO_COLUMN: Record<Status, string> = {
@@ -40,10 +40,10 @@ const COLUMN_TO_STATUS: Record<string, Status> = {
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
-  P0: 'bg-[var(--priority-p0)]/10 text-[var(--priority-p0)]',
-  P1: 'bg-[var(--priority-p1)]/10 text-[var(--priority-p1)]',
-  P2: 'bg-[var(--priority-p2)]/10 text-[var(--priority-p2)]',
-  P3: 'bg-[var(--priority-p3)]/10 text-[var(--priority-p3)]',
+  P0: 'bg-red-100 text-red-700',
+  P1: 'bg-orange-100 text-orange-700',
+  P2: 'bg-blue-100 text-blue-700',
+  P3: 'bg-gray-100 text-gray-600',
 };
 
 function KanbanCard({
@@ -66,24 +66,24 @@ function KanbanCard({
       onClick={onClick}
       onKeyDown={(e) => e.key === 'Enter' && onClick?.()}
       className={`
-        bg-white rounded-xl border border-[#E8E8EC] p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.06)]
-        hover:shadow-[0_4px_12px_rgba(0,0,0,0.10)] hover:-translate-y-px transition-all duration-150 cursor-grab active:cursor-grabbing
-        ${isDrag ? 'opacity-80 rotate-1 border-dashed' : ''}
+        bg-white border border-gray-200 rounded-lg p-3 shadow-sm cursor-grab active:cursor-grabbing
+        hover:shadow-md transition-shadow
+        ${isDrag ? 'opacity-50 border-dashed' : ''}
       `}
     >
-      <p className="text-sm font-medium text-[#0F0F13] line-clamp-2">{init.name}</p>
+      <p className="font-medium text-gray-900 text-sm line-clamp-2">{init.name}</p>
       <div className="flex items-center justify-between gap-2 mt-2">
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${PRIORITY_COLOR[init.priority] || 'bg-gray-100 text-gray-600'}`}>
           {init.priority}
         </span>
         {owner && (
-          <div className="w-6 h-6 rounded-full bg-[var(--accent)]/20 flex items-center justify-center text-[var(--accent)]" title={owner.name}>
+          <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white" title={owner.name}>
             <span className="text-[10px] font-medium">{owner.initials || owner.name.slice(0, 2).toUpperCase()}</span>
           </div>
         )}
       </div>
       {dueStr && (
-        <div className="flex items-center gap-1.5 mt-2 text-xs text-[#9CA3AF] font-mono">
+        <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-500">
           <Calendar className="w-3.5 h-3.5" />
           {dueStr}
         </div>
@@ -132,23 +132,25 @@ function DroppableColumn({
   return (
     <div
       ref={setNodeRef}
-      className="flex-shrink-0 w-[280px] flex flex-col rounded-xl bg-[#F8F8FB] border border-[#E8E8EC] min-h-[320px]"
+      className="flex-shrink-0 w-72 flex flex-col rounded-lg border-2 border-gray-200 bg-gray-50/50 min-h-[320px]"
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      style={{ borderTopWidth: 3, borderTopColor: color }}
+      style={{ borderTopColor: isOver ? color : undefined }}
     >
-      <div className="px-3 py-2.5 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
-        <span className="text-sm font-medium text-[#0F0F13]">{label}</span>
-        <span className="rounded-full bg-gray-200/80 px-2 py-0.5 text-xs text-[#6B7280]">{count}</span>
+      <div
+        className="px-3 py-2 rounded-t-lg text-sm font-semibold text-white"
+        style={{ backgroundColor: color }}
+      >
+        {label}
+        <span className="ml-2 opacity-90">{count}</span>
       </div>
-      <div className={`flex-1 p-2 space-y-2 overflow-y-auto transition-colors ${isOver ? 'bg-[var(--accent)]/5 rounded-b-xl' : ''}`}>
+      <div className={`flex-1 p-2 space-y-2 overflow-y-auto ${isOver ? 'bg-blue-50/30' : ''}`}>
         {children}
         {showAdd && (
           <button
             type="button"
             onClick={onAddTask}
-            className="w-full py-2 rounded-lg border border-dashed border-[#E8E8EC] text-sm text-[#6B7280] hover:bg-white/60 hover:border-[var(--accent)]/40 hover:text-[var(--accent)] transition-colors"
+            className="w-full py-2 rounded-lg border border-dashed border-gray-300 text-sm text-gray-500 hover:bg-white/60 hover:border-blue-300 hover:text-blue-600"
           >
             + Add task
           </button>

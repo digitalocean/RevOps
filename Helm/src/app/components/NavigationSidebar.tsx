@@ -118,28 +118,28 @@ export function NavigationSidebar({
   const workspaceName = selectedWorkspace?.name ?? 'To-DO';
 
   return (
-    <div className="w-[220px] flex-shrink-0 bg-[#111318] border-r border-white/10 h-screen flex flex-col">
-      <div className="p-4 border-b border-white/10">
-        <h2 className="text-sm font-bold text-white">{workspaceName}</h2>
-        <p className="text-[11px] text-[#C9CAD1] mt-0.5">RevOps Project Management</p>
+    <div className="w-[220px] flex-shrink-0 bg-[var(--bg-sidebar)] border-r border-gray-200 h-screen flex flex-col">
+      <div className="p-4 border-b border-gray-200">
+        <h2 className="text-sm font-bold text-gray-900">{workspaceName}</h2>
+        <p className="text-xs text-gray-500 mt-0.5">RevOps Project Management</p>
       </div>
 
       <div className="flex-1 p-3 overflow-y-auto">
         {/* PROJECTS section */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2 px-2">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-[#6B7280]">Projects</span>
+            <span className="text-xs font-medium uppercase tracking-wider text-gray-500">Projects</span>
             <button
               type="button"
               onClick={onOpenNewProject}
-              className="text-[10px] font-medium text-[#C9CAD1] hover:text-white"
+              className="text-xs font-medium text-gray-600 hover:text-gray-900"
             >
               + New
             </button>
           </div>
           <div className="space-y-0">
             {projects.length === 0 && (
-              <p className="text-[11px] text-[#6B7280] px-2 py-1">No projects yet.</p>
+              <p className="text-xs text-gray-500 px-2 py-1">No projects yet.</p>
             )}
             {projects.map((p) => {
               const isProjectExpanded = expandedProjects.has(p.id);
@@ -154,7 +154,7 @@ export function NavigationSidebar({
                     <button
                       type="button"
                       onClick={() => toggleProject(p.id)}
-                      className="p-1 text-[#6B7280] hover:text-[#C9CAD1]"
+                      className="p-1 text-gray-500 hover:text-gray-700"
                     >
                       {isProjectExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                     </button>
@@ -162,20 +162,20 @@ export function NavigationSidebar({
                       type="button"
                       onClick={() => { onSelectProject(p.id); onNavigateView('manifest'); }}
                       className={`flex-1 flex items-center gap-2 px-2 py-2 rounded-md text-left text-sm font-medium truncate ${
-                        isActive ? 'bg-white/10 text-white' : 'text-[#C9CAD1] hover:bg-white/5'
+                        isActive ? 'bg-blue-100 text-blue-900' : 'text-gray-700 hover:bg-gray-100'
                       }`}
                     >
-                      <span className="w-2 h-2 rounded-full flex-shrink-0 bg-[var(--accent)]" />
+                      <span className="w-2 h-2 rounded-full flex-shrink-0 bg-blue-500" />
                       <span className="truncate">{p.name}</span>
                     </button>
                   </div>
-                  {isProjectExpanded && (
-                    <div className="ml-4 pl-2 border-l border-white/10 space-y-0">
+                    {isProjectExpanded && (
+                    <div className="ml-4 pl-2 border-l border-gray-200 space-y-0">
                       <button
                         type="button"
                         onClick={() => { onSelectProject(p.id); onNavigateView('manifest'); }}
                         className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm ${
-                          selectedProjectId === p.id && currentView === 'manifest' ? 'bg-white/10 text-white' : 'text-[#C9CAD1] hover:bg-white/5'
+                          selectedProjectId === p.id && currentView === 'manifest' ? 'bg-blue-100 text-blue-900' : 'text-gray-700 hover:bg-gray-100'
                         }`}
                       >
                         <GripVertical className="w-4 h-4 flex-shrink-0" />
@@ -185,21 +185,21 @@ export function NavigationSidebar({
                         <button
                           type="button"
                           onClick={() => toggleTasks(p.id)}
-                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm text-[#C9CAD1] hover:bg-white/5"
+                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-left text-sm text-gray-600 hover:bg-gray-100"
                         >
                           {isTasksExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                           <span>Tasks</span>
                           {projectTasks.length > 0 && (
-                            <span className="text-[11px] text-[#6B7280]">({projectTasks.length})</span>
+                            <span className="text-xs text-gray-500">({projectTasks.length})</span>
                           )}
                         </button>
                         {isTasksExpanded && (
-                          <div className="ml-4 pl-2 border-l border-white/10 space-y-0.5 py-1">
+                          <div className="ml-4 pl-2 border-l border-gray-200 space-y-0.5 py-1">
                             {topTasks.length === 0 && (
-                              <p className="text-[11px] text-[#6B7280] px-2">No tasks yet</p>
+                              <p className="text-xs text-gray-500 px-2">No tasks yet</p>
                             )}
                             {topTasks.map((t) => (
-                              <div key={t.id} className="px-2 py-1 text-xs text-[#C9CAD1] truncate" title={t.name}>
+                              <div key={t.id} className="px-2 py-1 text-xs text-gray-600 truncate" title={t.name}>
                                 {t.name}
                               </div>
                             ))}
@@ -207,7 +207,7 @@ export function NavigationSidebar({
                               <button
                                 type="button"
                                 onClick={() => { onSelectProject(p.id); onNavigateView('manifest'); }}
-                                className="px-2 py-1 text-xs text-[var(--accent)] hover:text-white font-medium"
+                                className="px-2 py-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
                               >
                                 More ({projectTasks.length - TASKS_PREVIEW_COUNT} more)
                               </button>
@@ -225,7 +225,7 @@ export function NavigationSidebar({
 
         {/* Trackers, Gantt, Field Notes, Analytics, Base Camp, Board */}
         <div className="mb-4">
-          <span className="text-[10px] font-medium uppercase tracking-wider text-[#6B7280] px-2 block mb-2">Views</span>
+          <span className="text-xs font-medium uppercase tracking-wider text-gray-500 px-2 block mb-2">Views</span>
           <div className="space-y-0.5">
             {VIEW_ORDER.map((id) => {
               const isActive = currentView === id;
@@ -235,13 +235,13 @@ export function NavigationSidebar({
                   type="button"
                   onClick={() => onNavigateView(id)}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-left text-sm font-medium ${
-                    isActive ? 'bg-white/10 text-white' : 'text-[#6B7280] hover:bg-white/5 hover:text-[#C9CAD1]'
+                    isActive ? 'bg-blue-100 text-blue-900' : 'text-gray-600 hover:bg-gray-100'
                   }`}
                 >
                   <span className="flex-shrink-0 w-4 [&>svg]:w-4 [&>svg]:h-4">{VIEW_ICONS[id]}</span>
                   <span className="flex-1 truncate">{VIEW_LABELS[id]}</span>
                   {id === 'field_notes' && fieldNotesCount > 0 && (
-                    <span className="text-[11px] text-[#6B7280] tabular-nums">{fieldNotesCount}</span>
+                    <span className="text-xs text-gray-500 tabular-nums">{fieldNotesCount}</span>
                   )}
                 </button>
               );
@@ -252,11 +252,11 @@ export function NavigationSidebar({
         {/* CREW MEMBERS */}
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2 px-2">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-[#6B7280]">Crew members</span>
+            <span className="text-xs font-medium uppercase tracking-wider text-gray-500">Crew members</span>
             <button
               type="button"
               onClick={onOpenAddCrew}
-              className="flex items-center justify-center w-6 h-6 rounded-md bg-white/5 hover:bg-white/10 text-[#C9CAD1] hover:text-white text-sm font-medium"
+              className="flex items-center justify-center w-6 h-6 rounded-md bg-gray-200 hover:bg-gray-300 text-gray-600 hover:text-gray-900 text-sm font-medium"
               title="Add crew"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -264,14 +264,14 @@ export function NavigationSidebar({
           </div>
           <div className="space-y-1">
             {crew.length === 0 && (
-              <p className="text-[11px] text-[#6B7280] px-2 py-1">No crew. Click + to add.</p>
+              <p className="text-xs text-gray-500 px-2 py-1">No crew. Click + to add.</p>
             )}
             {crew.map((c) => (
               <div
                 key={c.id}
-                className="flex items-center gap-2 px-2 py-2 rounded-md text-sm text-[#C9CAD1]"
+                className="flex items-center gap-2 px-2 py-2 rounded-md text-sm text-gray-700"
               >
-                <div className="w-6 h-6 rounded-full bg-[var(--accent)]/80 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
+                <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-medium flex-shrink-0">
                   {c.initials || c.name.slice(0, 2).toUpperCase()}
                 </div>
                 <span className="truncate">{c.name}</span>
@@ -281,17 +281,17 @@ export function NavigationSidebar({
         </div>
       </div>
 
-      <div className="p-3 border-t border-white/10 flex items-center justify-between">
+      <div className="p-3 border-t border-gray-200 flex items-center justify-between">
         {onCreateWorkspace && (
           <button
             type="button"
             onClick={() => setShowNewWorkspace(true)}
-            className="text-[11px] text-[#6B7280] hover:text-[#C9CAD1]"
+            className="text-xs text-gray-600 hover:text-gray-900"
           >
             + New workspace
           </button>
         )}
-        <button type="button" className="p-1.5 rounded-md text-[#6B7280] hover:bg-white/5 hover:text-[#C9CAD1]" title="Settings">
+        <button type="button" className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700" title="Settings">
           <Settings className="w-4 h-4" />
         </button>
       </div>

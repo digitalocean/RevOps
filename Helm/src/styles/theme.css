@@ -1,27 +1,16 @@
 @custom-variant dark (&:is(.dark *));
 
-/* To-DO design system (spec) */
+/* Light UI — previous version */
 :root {
   --font-size: 16px;
-  --font-sans: 'DM Sans', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
-  --bg-app: #FAFAFA;
-  --bg-sidebar: #111318;
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --bg-app: #EDE8D0;
+  --bg-sidebar: #f5f5f0;
   --bg-surface: #FFFFFF;
-  --border: #E8E8EC;
-  --text-primary: #0F0F13;
-  --text-muted: #6B7280;
-  --text-sidebar: #C9CAD1;
-  --accent: #6366F1;
-  --status-on-track: #16A34A;
-  --status-in-review: #7C3AED;
-  --status-blocked: #DC2626;
-  --status-complete: #0EA5E9;
-  --status-not-started: #9CA3AF;
-  --priority-p0: #EF4444;
-  --priority-p1: #F97316;
-  --priority-p2: #3B82F6;
-  --priority-p3: #6B7280;
+  --border: #e5e7eb;
+  --text-primary: #111827;
+  --text-muted: #6b7280;
+  --accent: #2563eb;
   /* Legacy aliases */
   --background: var(--bg-surface);
   --foreground: var(--text-primary);
@@ -29,36 +18,36 @@
   --card-foreground: var(--text-primary);
   --popover: var(--bg-surface);
   --popover-foreground: var(--text-primary);
-  --primary: var(--text-primary);
+  --primary: #2563eb;
   --primary-foreground: #fff;
-  --secondary: #F8F8FB;
+  --secondary: #f3f4f6;
   --secondary-foreground: var(--text-primary);
-  --muted: #F0F0F4;
+  --muted: #f3f4f6;
   --muted-foreground: var(--text-muted);
   --accent-foreground: #fff;
-  --destructive: #DC2626;
+  --destructive: #dc2626;
   --destructive-foreground: #fff;
   --border: var(--border);
   --input: transparent;
   --input-background: #fff;
-  --switch-background: #cbced4;
+  --switch-background: #d1d5db;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: var(--accent);
-  --chart-1: var(--status-on-track);
-  --chart-2: var(--status-complete);
-  --chart-3: var(--status-in-review);
-  --chart-4: var(--priority-p1);
-  --chart-5: var(--priority-p2);
-  --radius: 0.75rem;
+  --ring: #2563eb;
+  --chart-1: #2563eb;
+  --chart-2: #059669;
+  --chart-3: #7c3aed;
+  --chart-4: #f59e0b;
+  --chart-5: #6b7280;
+  --radius: 0.5rem;
   --sidebar: var(--bg-sidebar);
-  --sidebar-foreground: var(--text-sidebar);
-  --sidebar-primary: #fff;
-  --sidebar-primary-foreground: var(--bg-sidebar);
-  --sidebar-accent: rgba(255,255,255,0.1);
-  --sidebar-accent-foreground: var(--text-sidebar);
-  --sidebar-border: rgba(255,255,255,0.08);
-  --sidebar-ring: var(--accent);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: #1f2937;
+  --sidebar-primary-foreground: #fff;
+  --sidebar-accent: #e5e7eb;
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: #e5e7eb;
+  --sidebar-ring: #2563eb;
 }
 
 .dark {
@@ -150,58 +139,15 @@
     color: var(--text-primary);
   }
 
-  .font-mono {
-    font-family: var(--font-mono);
-  }
-
-  /**
-  * Default typography styles for HTML elements (h1-h4, p, label, button, input).
-  * These are in @layer base, so Tailwind utility classes (like text-sm, text-lg) automatically override them.
-  */
-
   html {
     font-size: var(--font-size);
   }
 
-  h1 {
-    font-size: var(--text-2xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h2 {
-    font-size: var(--text-xl);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h3 {
-    font-size: var(--text-lg);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  h4 {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  label {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  button {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-medium);
-    line-height: 1.5;
-  }
-
-  input {
-    font-size: var(--text-base);
-    font-weight: var(--font-weight-normal);
-    line-height: 1.5;
-  }
+  h1 { font-size: 1.5rem; font-weight: 500; line-height: 1.5; }
+  h2 { font-size: 1.25rem; font-weight: 500; line-height: 1.5; }
+  h3 { font-size: 1.125rem; font-weight: 500; line-height: 1.5; }
+  h4 { font-size: 1rem; font-weight: 500; line-height: 1.5; }
+  label { font-size: 1rem; font-weight: 500; line-height: 1.5; }
+  button { font-size: 1rem; font-weight: 500; line-height: 1.5; }
+  input { font-size: 1rem; font-weight: 400; line-height: 1.5; }
 }

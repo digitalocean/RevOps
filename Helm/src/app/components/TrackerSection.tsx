@@ -146,12 +146,12 @@ function CustomFieldCell({
           onChange={(e) => setLocal(e.target.value)}
           onBlur={handleBlur}
           onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
-          className="h-8 text-xs border-[#E4E4EC] rounded-lg"
+          className="h-8 text-xs border-gray-200 rounded-md"
           autoFocus
           type={fieldType === 'number' ? 'number' : 'text'}
         />
       ) : (
-        <span className="text-xs text-[#0F0F13] font-mono">{display}</span>
+        <span className="text-xs text-gray-700">{display}</span>
       )}
     </td>
   );
@@ -212,7 +212,7 @@ function InitiativeRowEditable({
   };
 
   return (
-    <tr className={`border-b border-[#E8E8EC] hover:bg-[#F8F8FB] ${isSelected ? 'bg-[var(--accent)]/5' : ''}`}>
+    <tr className={`border-b border-gray-100 hover:bg-gray-50/50 ${isSelected ? 'bg-blue-50' : ''}`}>
       <td className="py-2 px-4 w-12 align-middle">
         <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(initiative.id)} />
       </td>
@@ -283,7 +283,7 @@ function InitiativeRowEditable({
       <td className="py-2 px-4 align-middle">
         <div className="flex items-center gap-2">
           <Progress value={initiative.progress} className="w-20 h-1.5" />
-          <span className="text-xs text-[#6B7280] w-8 font-mono">{initiative.progress}%</span>
+          <span className="text-xs text-gray-600 w-8">{initiative.progress}%</span>
         </div>
       </td>
       <td className="py-2 px-4 align-middle">
@@ -291,7 +291,7 @@ function InitiativeRowEditable({
           type="date"
           value={dueDateStr}
           onChange={handleDueDateChange}
-          className="h-8 text-xs font-mono border border-[#E8E8EC] rounded-lg px-2 bg-white text-[#0F0F13] w-full max-w-[140px]"
+          className="h-8 text-xs border border-gray-200 rounded-md px-2 bg-white text-gray-700 w-full max-w-[140px]"
         />
       </td>
       {customFields.filter(isTaskField).map((field) => (
@@ -462,9 +462,9 @@ export function TrackerSection({
         {isExpanded && (
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="sticky top-0 z-10 bg-[var(--bg-surface)] border-b border-[#E8E8EC]">
+              <thead className="bg-white border-b border-gray-200">
                 <tr>
-                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF] w-12">
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-12">
                     <Checkbox
                       checked={allSelected}
                       ref={(el) => {
@@ -473,16 +473,16 @@ export function TrackerSection({
                       onCheckedChange={handleSelectAll}
                     />
                   </th>
-                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF] w-12" />
-                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Initiative</th>
-                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Category</th>
-                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Priority</th>
-                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Owner</th>
-                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Status</th>
-                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Progress</th>
-                  <th className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">Due Date</th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase w-12" />
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Initiative</th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Category</th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Priority</th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Owner</th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Progress</th>
+                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Due Date</th>
                   {customFields?.filter(isTaskField).map((f) => (
-                    <th key={f.id} className="py-2 px-4 text-left text-[11px] font-medium uppercase tracking-wider text-[#9CA3AF]">{f.name}</th>
+                    <th key={f.id} className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">{f.name}</th>
                   ))}
                   <th className="py-2 px-4 w-12" />
                 </tr>

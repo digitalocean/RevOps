@@ -56,6 +56,8 @@ interface NavigationSidebarProps {
 }
 
 export function NavigationSidebar({
+  workspaces = [],
+  selectedWorkspaceId,
   projects,
   selectedProjectId,
   onSelectProject,

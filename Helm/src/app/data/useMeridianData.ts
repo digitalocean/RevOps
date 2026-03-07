@@ -86,6 +86,7 @@ export interface Project {
   name: string;
   workspace_id?: string;
   description?: string;
+  color?: string;
 }
 
 export interface Sprint {
@@ -109,7 +110,7 @@ export interface MeridianDataResult {
   projects: Project[];
   selectedProjectId: string | null;
   setSelectedProjectId: (id: string | null) => void;
-  createProject: (name: string, isPersonal?: boolean) => Promise<Project | null>;
+  createProject: (payload: { name: string; description?: string; color?: string; is_personal?: boolean }) => Promise<Project | null>;
   createSprint: (projectId: string, name: string, start_date?: string, end_date?: string) => Promise<Sprint | null>;
   createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; type?: string }, parentId?: string | null, trackerId?: string | null) => Promise<unknown>;
   createSection: (projectId: string, name: string) => Promise<{ id: string; name: string } | null>;
@@ -207,9 +208,19 @@ export function useMeridianData(): MeridianDataResult {
       setSections(sectionList);
       setFromApi(true);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load');
-      setInitiatives(mockInitiatives);
-      setSections(mockTrackerSections);
+      const msg = e instanceof Error ? e.message : 'Failed to load';
+      setError(msg);
+      const isAuthError = /sign in|401|unauthorized/i.test(msg);
+      if (isAuthError) {
+        setProjects([]);
+        setSprints([]);
+        setInitiatives([]);
+        setSections([]);
+        setSelectedProjectId(null);
+      } else {
+        setInitiatives(mockInitiatives);
+        setSections(mockTrackerSections);
+      }
       setFromApi(false);
     } finally {
       setLoading(false);
@@ -220,9 +231,11 @@ export function useMeridianData(): MeridianDataResult {
     load();
   }, [load]);
 
-  const createProject = useCallback(async (name: string, isPersonal?: boolean): Promise<Project | null> => {
-    const body: { name: string; is_personal?: boolean } = { name: name.trim() };
-    if (isPersonal !== undefined) body.is_personal = isPersonal;
+  const createProject = useCallback(async (payload: { name: string; description?: string; color?: string; is_personal?: boolean }): Promise<Project | null> => {
+    const body: { name: string; description?: string; color?: string; is_personal?: boolean } = { name: payload.name.trim() };
+    if (payload.description !== undefined) body.description = payload.description;
+    if (payload.color !== undefined) body.color = payload.color;
+    if (payload.is_personal !== undefined) body.is_personal = payload.is_personal;
     const p = await post<Project>(apiPath('api/projects'), body);
     await load();
     if (p?.id) setSelectedProjectId(p.id);

@@ -253,7 +253,11 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   }, [celebrateCount]);
 
   return (
-    <div className="flex h-screen bg-[var(--bg-app)]">
+    <div className="flex flex-col h-screen bg-[var(--bg-app)]">
+      {fromApi && !error && (
+        <div className="h-1 flex-shrink-0 bg-green-500" title="Connected to To-DO" />
+      )}
+      <div className="flex flex-1 min-h-0">
       <NavigationSidebar
         projects={projects}
         selectedProjectId={selectedProjectId}
@@ -269,7 +273,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         fieldNotesCount={initiatives.length}
       />
 
-      <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-app)]">
+      <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-app)] min-w-0">
         <WorkspaceHeader
           projects={projects}
           selectedProjectId={selectedProjectId}
@@ -536,8 +540,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
       <NewProjectDialog
         open={showNewProject}
         onOpenChange={setShowNewProject}
-        onCreate={async (name, isPersonal) => {
-          await createProject(name, isPersonal);
+        onCreate={async (payload) => {
+          await createProject(payload);
         }}
       />
 
@@ -597,6 +601,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
+      </div>
+      </div>
     </div>
   );
 }

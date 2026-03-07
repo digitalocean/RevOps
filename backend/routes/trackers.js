@@ -42,10 +42,11 @@ router.post('/', async (req, res) => {
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'name required' });
     const ok = await canAccessProject(pool, userId, project_id);
     if (!ok) return res.status(403).json({ error: 'Access denied to this project' });
-    const { rows } = await pool.query(
-      'INSERT INTO trackers(project_id, name) VALUES($1, $2) RETURNING *',
-      [project_id, String(name).trim()]
-    );
+    const { rows } = await pool.query({
+      name: 'trackers_insert',
+      text: 'INSERT INTO trackers(project_id, name) VALUES($1, $2) RETURNING *',
+      values: [project_id, String(name).trim()],
+    });
     res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

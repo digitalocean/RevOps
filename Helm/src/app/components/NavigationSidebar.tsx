@@ -1,6 +1,13 @@
 import { useState } from 'react';
-import { LayoutDashboard, FileText, BarChart3, GripVertical, Triangle, Plus, ChevronRight, ChevronDown, Settings } from 'lucide-react';
+import { LayoutDashboard, FileText, BarChart3, GripVertical, Triangle, Plus, ChevronRight, ChevronDown, Settings, Anchor } from 'lucide-react';
 import type { Project } from '../data/useMeridianData';
+
+const PROJECT_DOT_COLORS = ['#22c55e', '#7c3aed', '#2563eb', '#ea580c', '#dc2626', '#0891b2'];
+
+function projectDotColor(project: Project, index: number): string {
+  if (project.color && /^#[0-9A-Fa-f]{6}$/.test(project.color)) return project.color;
+  return PROJECT_DOT_COLORS[index % PROJECT_DOT_COLORS.length];
+}
 import type { Initiative } from '../data/mockData';
 import type { TrackerSection as TrackerSectionType } from '../data/mockData';
 
@@ -67,8 +74,11 @@ export function NavigationSidebar({
       style={{ backgroundColor: 'var(--bg-sidebar)' }}
     >
       <div className="p-4 border-b border-white/10">
-        <h2 className="text-sm font-bold text-white">To-DO</h2>
-        <p className="text-[11px] text-gray-400 mt-0.5">RevOps Project Management</p>
+        <div className="flex items-center gap-2">
+          <Anchor className="w-4 h-4 text-blue-400 shrink-0" />
+          <h2 className="text-sm font-bold text-white">To-DO</h2>
+        </div>
+        <p className="text-[11px] text-gray-400 mt-1">Get things done.</p>
       </div>
 
       <div className="flex-1 p-3 overflow-y-auto">
@@ -79,7 +89,7 @@ export function NavigationSidebar({
             <button
               type="button"
               onClick={onOpenNewProject}
-              className="text-xs font-medium text-gray-400 hover:text-white transition-colors"
+              className="text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
             >
               + New project
             </button>
@@ -88,9 +98,10 @@ export function NavigationSidebar({
             {projects.length === 0 && (
               <p className="text-xs text-gray-500 px-2 py-1">No projects yet.</p>
             )}
-            {projects.map((p) => {
+            {projects.map((p, idx) => {
               const isExpanded = expandedProjects.has(p.id);
               const isActive = selectedProjectId === p.id;
+              const dotColor = projectDotColor(p, idx);
               return (
                 <div key={p.id} className="rounded-md overflow-hidden">
                   <div className="flex items-center gap-0">
@@ -108,7 +119,7 @@ export function NavigationSidebar({
                         isActive ? 'bg-white/10 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-gray-300'
                       }`}
                     >
-                      <span className="w-2 h-2 rounded-full flex-shrink-0 bg-blue-400" />
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
                       <span className="truncate">{p.name}</span>
                     </button>
                   </div>

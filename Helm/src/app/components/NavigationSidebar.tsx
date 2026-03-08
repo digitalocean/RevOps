@@ -204,9 +204,9 @@ export function NavigationSidebar({
                                 <span className="text-[10px] text-gray-400 ml-auto flex-shrink-0 tabular-nums">{allTasks.length}</span>
                               </button>
                               {tracker.id !== 'uncategorized' && (onDeleteSection || onRenameSection) && (
-                                <DropdownMenu>
+                                <DropdownMenu modal={false}>
                                   <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                    <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 shrink-0" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
                                       <MoreHorizontal className="w-3 h-3" />
                                     </Button>
                                   </DropdownMenuTrigger>

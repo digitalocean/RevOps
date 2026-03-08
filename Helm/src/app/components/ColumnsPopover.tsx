@@ -32,7 +32,7 @@ function storageKey(projectId: string | null, userId?: string | null): string {
 }
 
 function loadVisibleColumns(projectId: string | null, userId?: string | null): Set<string> {
-  if (typeof window === 'undefined' || !projectId) return new Set(COLUMN_IDS.map((c) => c.id));
+  if (typeof window === 'undefined' || !projectId) return new Set<string>();
   try {
     const key = storageKey(projectId, userId);
     const fallbackKey = userId ? storageKey(projectId, null) : '';
@@ -41,13 +41,13 @@ function loadVisibleColumns(projectId: string | null, userId?: string | null): S
     const rawToUse = raw || rawFallback;
     if (rawToUse) {
       const arr = JSON.parse(rawToUse) as string[];
-      return new Set(Array.isArray(arr) ? arr : COLUMN_IDS.map((c) => c.id));
+      return new Set(Array.isArray(arr) ? arr : []);
     }
   } catch (_) {}
-  return new Set(COLUMN_IDS.map((c) => c.id));
+  return new Set<string>();
 }
 
-function saveVisibleColumns(projectId: string | null, visible: Set<string>, userId?: string | null) {
+export function saveVisibleColumns(projectId: string | null, visible: Set<string>, userId?: string | null) {
   if (typeof window === 'undefined' || !projectId) return;
   try {
     const key = storageKey(projectId, userId);
@@ -90,14 +90,9 @@ export function ColumnsPopover({
   useEffect(() => {
     if (projectId) {
       const saved = loadVisibleColumns(projectId, userId);
-      const taskFieldIds = customFields.filter(isTaskField).map((f) => f.id);
-      const merged = new Set(saved);
-      taskFieldIds.forEach((id) => {
-        if (!saved.has(id)) merged.add(id);
-      });
-      onVisibleColumnsChange(merged);
+      onVisibleColumnsChange(saved);
     }
-  }, [projectId, userId, customFields.length]);
+  }, [projectId, userId]);
 
   const toggle = (id: string) => {
     const next = new Set(visibleColumns);

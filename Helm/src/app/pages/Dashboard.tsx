@@ -26,7 +26,8 @@ import { SummitBoardKanban } from '../components/SummitBoardKanban';
 import { FilterSlidePanel, type FilterRow } from '../components/FilterSlidePanel';
 import { FieldNotesView } from '../components/FieldNotesView';
 import { PersonalTasksView } from '../components/PersonalTasksView';
-import { ColumnsPopover } from '../components/ColumnsPopover';
+import { ColumnsPopover, saveVisibleColumns } from '../components/ColumnsPopover';
+import { BaseCampView } from '../components/BaseCampView';
 import { NewSectionDialog } from '../components/NewSectionDialog';
 import { ShareProjectDialog } from '../components/ShareProjectDialog';
 import { CompletionCelebration } from '../components/CompletionCelebration';
@@ -104,7 +105,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const [showShareProject, setShowShareProject] = useState(false);
   const [addInitiativeParentId, setAddInitiativeParentId] = useState<string | null>(null);
   const [addInitiativeTrackerId, setAddInitiativeTrackerId] = useState<string | null>(null);
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set(['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate']));
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [celebrateCount, setCelebrateCount] = useState(0);
   const [filters, setFilters] = useState({
@@ -676,9 +677,18 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
             ) : currentView === 'field_notes' ? (
               <FieldNotesView projectId={selectedProjectId} onRefresh={refresh} />
             ) : currentView === 'base_camp' ? (
-              <div className="py-8 text-center text-gray-500">
-                Use <strong>Base Camp</strong> in the sidebar or the tab to manage custom fields and settings.
-              </div>
+              <BaseCampView
+                projectId={selectedProjectId}
+                customFields={customFields}
+                visibleColumns={visibleColumns}
+                onApplyToTracker={(columnId) => {
+                  const next = new Set(visibleColumns);
+                  next.add(columnId);
+                  setVisibleColumns(next);
+                  if (selectedProjectId) saveVisibleColumns(selectedProjectId, next, currentUser?.id);
+                }}
+                onOpenCustomFields={() => setShowCustomFields(true)}
+              />
             ) : currentView === 'summit_board' ? (
               <SummitBoardKanban
                 initiatives={initiatives}

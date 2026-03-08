@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Plus, MoreHorizontal, Clock, Star, Loader2, Check, X, GripVertical, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, MoreHorizontal, Clock, Star, X, GripVertical, Trash2 } from 'lucide-react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -129,7 +129,8 @@ interface InitiativeRowEditableProps {
 }
 
 function colVisible(visibleColumns: Set<string> | undefined, colId: string): boolean {
-  return !visibleColumns || visibleColumns.has(colId);
+  if (visibleColumns === undefined) return true;
+  return visibleColumns.has(colId);
 }
 
 function isTaskField(f: CustomFieldDef) {
@@ -380,10 +381,10 @@ function InitiativeRowEditable({
           onSave={onUpdateFieldValue}
         />
       ))}
-      <td className="py-2 px-4 align-middle w-12">
-        <DropdownMenu>
+      <td className="py-2 px-4 align-middle w-12" onClick={(e) => e.stopPropagation()}>
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100" onClick={e => e.stopPropagation()}>
+            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
               <MoreHorizontal className="w-4 h-4 text-gray-400" />
             </Button>
           </DropdownMenuTrigger>
@@ -425,10 +426,6 @@ interface NewRowFormProps {
 
 function NewRowForm({ projectId, sectionId, trackerId, onSave, onCancel, crew = [], customFieldCount = 0, visibleColumnCount }: NewRowFormProps & { crew?: { id: string; name: string; initials?: string }[] }) {
   const [title, setTitle] = useState('');
-  const [status, setStatus] = useState<Status>('Not Started');
-  const [priority, setPriority] = useState<Priority>('P1');
-  const [assigneeId, setAssigneeId] = useState<string>('');
-  const [dueDate, setDueDate] = useState('');
   const [saving, setSaving] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -439,108 +436,35 @@ function NewRowForm({ projectId, sectionId, trackerId, onSave, onCancel, crew = 
     if (!t || !projectId) return;
     setSaving(true);
     try {
-      const payload: { title: string; status?: string; priority?: string; assignee_id?: string; due_date?: string } = { title: t };
-      const statusSlug: Record<string, string> = {
-        'Not Started': 'not_started', 'On Track': 'in_progress', 'At Risk': 'at_risk',
-        'In Review': 'in_review', 'Blocked': 'blocked', 'Complete': 'done',
-      };
-      const prioritySlug: Record<string, string> = { P0: 'critical', P1: 'high', P2: 'medium' };
-      payload.status = statusSlug[status] || 'not_started';
-      payload.priority = prioritySlug[priority] || 'medium';
-      if (assigneeId) payload.assignee_id = assigneeId;
-      if (dueDate) payload.due_date = `${dueDate}T00:00:00.000Z`;
-      await onSave(projectId, payload, sectionId === 'uncategorized' ? null : sectionId);
+      await onSave(projectId, { title: t }, sectionId === 'uncategorized' ? null : sectionId);
       setTitle('');
-      setStatus('Not Started');
-      setPriority('P1');
-      setAssigneeId('');
-      setDueDate('');
-      // Keep row open for rapid entry — user presses Escape or Cancel to close
       inputRef.current?.focus();
     } finally {
       setSaving(false);
     }
   };
 
-  const STATUS_STYLES: Record<Status, string> = {
-    'Not Started': 'bg-gray-100 text-gray-600',
-    'On Track': 'bg-emerald-100 text-emerald-700',
-    'At Risk': 'bg-amber-100 text-amber-700',
-    'In Review': 'bg-violet-100 text-violet-700',
-    'Blocked': 'bg-red-100 text-red-700',
-    'Complete': 'bg-blue-100 text-blue-700',
-  };
+  const colSpan = (visibleColumnCount ?? 0) + 1;
 
   return (
     <tr className="bg-indigo-50/40 border-b border-indigo-100">
       <td className="py-2 px-2 w-8" />
       <td className="py-2 px-3 w-10" />
-      {/* Title */}
-      <td className="py-2 px-4 align-middle min-w-[220px]">
-        <input
-          ref={inputRef}
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          onKeyDown={e => {
-            if (e.key === 'Enter') handleSave();
-            if (e.key === 'Escape') onCancel();
-          }}
-          className="w-full h-8 px-3 text-sm border border-indigo-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 placeholder-gray-400"
-          placeholder="Task title… (Enter to save, Esc to cancel)"
-        />
-      </td>
-      {/* Status */}
-      <td className="py-2 px-3 align-middle">
-        <select
-          value={status}
-          onChange={e => setStatus(e.target.value as Status)}
-          className={`h-8 text-xs rounded-lg px-2 border-0 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-200 ${STATUS_STYLES[status]}`}
-        >
-          {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-      </td>
-      {/* Priority */}
-      <td className="py-2 px-3 align-middle">
-        <select
-          value={priority}
-          onChange={e => setPriority(e.target.value as Priority)}
-          className={`h-8 text-xs rounded-lg px-2 border-0 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
-            priority === 'P0' ? 'bg-red-100 text-red-700' :
-            priority === 'P1' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
-          }`}
-        >
-          {PRIORITY_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
-      </td>
-      {/* Assignee */}
-      <td className="py-2 px-3 align-middle">
-        <select
-          value={assigneeId}
-          onChange={e => setAssigneeId(e.target.value)}
-          className="h-8 text-xs rounded-lg px-2 border border-gray-200 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-        >
-          <option value="">Unassigned</option>
-          {crew.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </td>
-      {/* Due date */}
-      <td className="py-2 px-3 align-middle">
-        <input
-          type="date"
-          value={dueDate}
-          onChange={e => setDueDate(e.target.value)}
-          className="h-8 text-xs px-2 border border-gray-200 rounded-lg bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-        />
-      </td>
-      {/* Actions */}
-      <td className="py-2 px-4 align-middle">
+      <td colSpan={colSpan} className="py-2 px-4 align-middle">
         <div className="flex items-center gap-2">
-          <Button type="button" size="sm" className="h-7 px-3 text-xs gap-1 bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleSave} disabled={!title.trim() || !projectId || saving}>
-            {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
-            Save
-          </Button>
-          <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1 text-gray-500" onClick={onCancel} disabled={saving}>
-            <X className="w-3 h-3" />
+          <input
+            ref={inputRef}
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleSave();
+              if (e.key === 'Escape') onCancel();
+            }}
+            className="flex-1 min-w-0 h-8 px-3 text-sm border border-indigo-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 placeholder-gray-400"
+            placeholder="Task title… (Enter to add, Esc to cancel)"
+          />
+          <Button type="button" size="sm" variant="ghost" className="h-8 w-8 p-0 text-gray-400 shrink-0" onClick={onCancel} disabled={saving} title="Cancel">
+            <X className="w-4 h-4" />
           </Button>
         </div>
       </td>
@@ -676,12 +600,13 @@ export function TrackerSection({
             </span>
           </button>
           {section.id !== 'uncategorized' && (onDeleteSection || onRenameSection) && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100" onClick={(e) => e.stopPropagation()}>
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
+            <div onClick={(e) => e.stopPropagation()}>
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                    <MoreHorizontal className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="z-[100] w-48">
                 {onRenameSection && (
                   <DropdownMenuItem
@@ -708,6 +633,7 @@ export function TrackerSection({
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
+            </div>
           )}
         </div>
 
@@ -775,7 +701,7 @@ export function TrackerSection({
                 )}
                 {sortedInitiatives.length === 0 && !showNewRow && (
                   <tr>
-                    <td colSpan={10 + customFields.filter(isTaskField).length} className="py-8 px-4 text-center text-sm text-gray-500 italic">
+                    <td colSpan={3 + COL_KEYS.filter((id) => colVisible(visibleColumns, id)).length + (customFields?.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).length ?? 0)} className="py-8 px-4 text-center text-sm text-gray-500 italic">
                       No items yet — click <strong>Add task</strong> below to start.
                     </td>
                   </tr>

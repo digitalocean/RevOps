@@ -1,7 +1,14 @@
 import { useState } from 'react';
-import { LayoutDashboard, FileText, BarChart3, GripVertical, Triangle, Plus, ChevronRight, ChevronDown, Settings, Anchor, Layers, Inbox, Users, ListTodo } from 'lucide-react';
+import { LayoutDashboard, FileText, BarChart3, GripVertical, Triangle, Plus, ChevronRight, ChevronDown, Settings, Anchor, Layers, Inbox, Users, ListTodo, MoreHorizontal, Trash2 } from 'lucide-react';
 import type { Project } from '../data/useMeridianData';
 import type { Initiative, TrackerSection as TrackerSectionType } from '../data/mockData';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
+import { Button } from './ui/button';
 
 const PROJECT_DOT_COLORS = ['#22c55e', '#7c3aed', '#2563eb', '#ea580c', '#dc2626', '#0891b2'];
 
@@ -53,12 +60,14 @@ interface NavigationSidebarProps {
   fieldNotesCount?: number;
   myTasksCount?: number;
   onOpenItem?: (itemId: string) => void;
+  onDeleteSection?: (trackerId: string) => void;
+  onRenameSection?: (trackerId: string, newName: string) => void;
 }
 
 export function NavigationSidebar({
   projects, selectedProjectId, onSelectProject, onOpenNewProject,
   trackerSections = [], crew, onOpenAddCrew, currentView, onNavigateView, onOpenPersonalTasks,
-  fieldNotesCount = 0, myTasksCount = 0, onOpenItem,
+  fieldNotesCount = 0, myTasksCount = 0, onOpenItem, onDeleteSection, onRenameSection,
 }: NavigationSidebarProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
     () => new Set(selectedProjectId ? [selectedProjectId] : [])
@@ -187,13 +196,34 @@ export function NavigationSidebar({
                           const hiddenCount = allTasks.length - TASKS_LIMIT;
 
                           return (
-                            <div key={tracker.id} className="mb-0.5">
+                            <div key={tracker.id} className="mb-0.5 flex items-center gap-0.5 group">
                               <button type="button" onClick={() => toggleSet(setExpandedTrackers, tracker.id)}
-                                className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-800 transition-colors">
+                                className="flex-1 min-w-0 flex items-center gap-1.5 px-2 py-1 rounded-md text-left text-xs text-gray-600 hover:bg-gray-50 hover:text-gray-800 transition-colors">
                                 {isTrackerOpen ? <ChevronDown className="w-3 h-3 text-gray-400 flex-shrink-0" /> : <ChevronRight className="w-3 h-3 text-gray-400 flex-shrink-0" />}
                                 <span className="truncate font-medium">{tracker.title}</span>
                                 <span className="text-[10px] text-gray-400 ml-auto flex-shrink-0 tabular-nums">{allTasks.length}</span>
                               </button>
+                              {tracker.id !== 'uncategorized' && (onDeleteSection || onRenameSection) && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                      <MoreHorizontal className="w-3 h-3" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="start" className="w-44">
+                                    {onRenameSection && (
+                                      <DropdownMenuItem onClick={(e) => e.stopPropagation()} onSelect={() => { const n = window.prompt('Section name', tracker.title); if (n != null && n.trim()) onRenameSection(tracker.id, n.trim()); }}>
+                                        Edit
+                                      </DropdownMenuItem>
+                                    )}
+                                    {onDeleteSection && (
+                                      <DropdownMenuItem className="text-red-600 focus:text-red-700" onClick={(e) => e.stopPropagation()} onSelect={() => { if (window.confirm(`Delete "${tracker.title}"?`)) onDeleteSection(tracker.id); }}>
+                                        <Trash2 className="w-3 h-3 mr-1.5" /> Delete
+                                      </DropdownMenuItem>
+                                    )}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
 
                               {isTrackerOpen && (
                                 <div className="ml-3 pl-2 border-l border-gray-100">

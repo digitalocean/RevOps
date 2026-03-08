@@ -116,6 +116,7 @@ export interface MeridianDataResult {
   createSprint: (projectId: string, name: string, start_date?: string, end_date?: string) => Promise<Sprint | null>;
   createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; status?: string; category?: string; due_date?: string; type?: string }, parentId?: string | null, trackerId?: string | null) => Promise<unknown>;
   createSection: (projectId: string, name: string) => Promise<{ id: string; name: string } | null>;
+  updateSection: (trackerId: string, payload: { name: string }) => Promise<unknown>;
   updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number; progress?: number; category?: string | null }) => Promise<unknown>;
   deleteItem: (itemId: string) => Promise<void>;
   deleteSection: (trackerId: string) => Promise<void>;
@@ -302,6 +303,12 @@ export function useMeridianData(): MeridianDataResult {
     return t ?? null;
   }, [load]);
 
+  const updateSection = useCallback(async (trackerId: string, payload: { name: string }): Promise<unknown> => {
+    const res = await patch(apiPath(`api/trackers/${trackerId}`), { name: payload.name.trim() });
+    await load();
+    return res;
+  }, [load]);
+
   const statusToSlug: Record<string, string> = {
     'Not Started': 'not_started',
     'On Track': 'in_progress',
@@ -362,6 +369,7 @@ export function useMeridianData(): MeridianDataResult {
     trackerSections: sections,
     crew,
     createSection,
+    updateSection,
     kpiData: fromApi
       ? { solvedYTD: done, inProgress, atRiskBlocked: atRisk, bigRocksCount: bigRocks, overallProgress, totalItems: total }
       : { ...mockKpiData, totalItems: mockKpiData.totalItems ?? 0 },

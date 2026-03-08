@@ -66,6 +66,7 @@ interface TrackerSectionProps {
   onUpdateItem?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: string | null; progress?: number }) => Promise<unknown>;
   onDeleteItem?: (id: string) => Promise<void>;
   onDeleteSection?: (trackerId: string) => Promise<void>;
+  onRenameSection?: (trackerId: string, newName: string) => Promise<void>;
   onItemCompleted?: () => void;
   focusedId?: string | null;
   onFocusChange?: (id: string | null) => void;
@@ -387,22 +388,12 @@ function InitiativeRowEditable({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="z-[100] w-48" onCloseAutoFocus={(e) => e.preventDefault()}>
-            <DropdownMenuItem onSelect={() => onOpenDetails(initiative)} className="gap-2 cursor-pointer">
-              <span className="text-gray-500">↗</span> Open details
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
             <DropdownMenuItem
               className="gap-2 cursor-pointer"
-              onSelect={async () => {
-                if (!onUpdate) return;
-                try {
-                  window.dispatchEvent(new CustomEvent('todo:duplicate-item', { detail: { id: initiative.id } }));
-                } catch { /* ignore */ }
-              }}
+              onSelect={() => onFocusChange?.(initiative.id)}
             >
-              <span className="text-gray-500">⧉</span> Duplicate
+              Edit
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
             {onDelete && (
               <DropdownMenuItem
                 className="text-red-600 focus:text-red-700 gap-2 cursor-pointer"
@@ -412,7 +403,7 @@ function InitiativeRowEditable({
                   }
                 }}
               >
-                <span>🗑</span> Delete
+                <Trash2 className="w-4 h-4" /> Delete
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -601,6 +592,7 @@ export function TrackerSection({
   onUpdateItem,
   onDeleteItem,
   onDeleteSection,
+  onRenameSection,
   onItemCompleted,
   focusedId,
   onFocusChange,
@@ -683,24 +675,37 @@ export function TrackerSection({
               {filteredInitiatives.length}
             </span>
           </button>
-          {section.id !== 'uncategorized' && onDeleteSection && (
+          {section.id !== 'uncategorized' && (onDeleteSection || onRenameSection) && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50" onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100" onClick={(e) => e.stopPropagation()}>
                   <MoreHorizontal className="w-4 h-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="z-[100] w-48">
-                <DropdownMenuItem
-                  className="text-red-600 focus:text-red-700 gap-2 cursor-pointer"
-                  onSelect={() => {
-                    if (window.confirm(`Delete section "${section.title}"? Tasks in it will become uncategorized.`)) {
-                      onDeleteSection(section.id);
-                    }
-                  }}
-                >
-                  <Trash2 className="w-4 h-4" /> Delete section
-                </DropdownMenuItem>
+                {onRenameSection && (
+                  <DropdownMenuItem
+                    className="gap-2 cursor-pointer"
+                    onSelect={() => {
+                      const newName = window.prompt('Section name', section.title);
+                      if (newName != null && newName.trim()) onRenameSection(section.id, newName.trim());
+                    }}
+                  >
+                    Edit
+                  </DropdownMenuItem>
+                )}
+                {onDeleteSection && (
+                  <DropdownMenuItem
+                    className="text-red-600 focus:text-red-700 gap-2 cursor-pointer"
+                    onSelect={() => {
+                      if (window.confirm(`Delete section "${section.title}"? Tasks in it will become uncategorized.`)) {
+                        onDeleteSection(section.id);
+                      }
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" /> Delete
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}

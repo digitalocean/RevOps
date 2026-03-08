@@ -1,38 +1,15 @@
-import { X, CheckCircle2, AlertCircle, User, Tag, Trash2 } from 'lucide-react';
+import { X, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from './ui/dropdown-menu';
-import type { Status, Priority } from '../data/mockData';
-
-interface CrewMember {
-  id: string;
-  name: string;
-  initials?: string;
-  role?: string;
-}
 
 interface BulkActionsBarProps {
   selectedCount: number;
-  crew: CrewMember[];
   onClearSelection: () => void;
-  onBulkStatusChange: (status: Status) => void;
-  onBulkPriorityChange: (priority: Priority) => void;
-  onBulkAssignOwner: (assigneeId: string) => void;
   onBulkDelete: () => void;
 }
 
 export function BulkActionsBar({
   selectedCount,
-  crew,
   onClearSelection,
-  onBulkStatusChange,
-  onBulkPriorityChange,
-  onBulkAssignOwner,
   onBulkDelete,
 }: BulkActionsBarProps) {
   if (selectedCount === 0) return null;
@@ -51,122 +28,21 @@ export function BulkActionsBar({
 
         <div className="h-6 w-px bg-gray-600" />
 
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="secondary" className="h-8 bg-gray-700 hover:bg-gray-600 text-white border-gray-600">
-                <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                Change Status
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" onCloseAutoFocus={(e) => e.preventDefault()}>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onBulkStatusChange('On Track'); }}>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                  On Track
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onBulkStatusChange('At Risk'); }}>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-yellow-500" />
-                  At Risk
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onBulkStatusChange('Blocked'); }}>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-red-500" />
-                  Blocked
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onBulkStatusChange('Complete'); }}>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-blue-500" />
-                  Complete
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onBulkStatusChange('Not Started'); }}>
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-gray-300" />
-                  Not Started
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="secondary" className="h-8 bg-gray-700 hover:bg-gray-600 text-white border-gray-600">
-                <Tag className="w-4 h-4 mr-1.5" />
-                Change Priority
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" onCloseAutoFocus={(e) => e.preventDefault()}>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onBulkPriorityChange('P0'); }}>
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-500" />
-                  P0 - Critical
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onBulkPriorityChange('P1'); }}>
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-orange-500" />
-                  P1 - High
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={(e) => { e.preventDefault(); onBulkPriorityChange('P2'); }}>
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-blue-500" />
-                  P2 - Medium
-                </div>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="secondary" className="h-8 bg-gray-700 hover:bg-gray-600 text-white border-gray-600">
-                <User className="w-4 h-4 mr-1.5" />
-                Assign Owner
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" onCloseAutoFocus={(e) => e.preventDefault()}>
-              {crew.length === 0 ? (
-                <DropdownMenuItem disabled>No crew members. Add crew in sidebar.</DropdownMenuItem>
-              ) : (
-                crew.map((member) => (
-                  <DropdownMenuItem
-                    key={member.id}
-                    onSelect={(e) => {
-                      e.preventDefault();
-                      onBulkAssignOwner(member.id);
-                    }}
-                  >
-                    <User className="w-4 h-4 mr-2 text-gray-500" />
-                    {member.name}
-                  </DropdownMenuItem>
-                ))
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          <div className="h-6 w-px bg-gray-600" />
-
-          <Button 
-            size="sm" 
-            variant="ghost" 
-            className="h-8 text-red-400 hover:text-red-300 hover:bg-red-900/20"
-            onClick={() => onBulkDelete()}
-          >
-            <Trash2 className="w-4 h-4 mr-1.5" />
-            Delete
-          </Button>
-        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-8 text-red-400 hover:text-red-300 hover:bg-red-900/20"
+          onClick={() => onBulkDelete()}
+        >
+          <Trash2 className="w-4 h-4 mr-1.5" />
+          Delete
+        </Button>
 
         <div className="h-6 w-px bg-gray-600" />
 
-        <Button 
-          size="sm" 
-          variant="ghost" 
+        <Button
+          size="sm"
+          variant="ghost"
           className="h-8 text-gray-400 hover:text-white hover:bg-gray-700"
           onClick={onClearSelection}
         >

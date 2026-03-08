@@ -16,6 +16,7 @@ import { KeyboardShortcutsDialog } from '../components/KeyboardShortcutsDialog';
 import { TaskDetailDrawer } from '../components/TaskDetailDrawer';
 import { AddInitiativeDialog } from '../components/AddInitiativeDialog';
 import { SpreadsheetImport, type ImportRow } from '../components/SpreadsheetImport';
+import { ImportTemplateDialog } from '../components/ImportTemplateDialog';
 import { TeamMembersDialog } from '../components/TeamMembersDialog';
 import { CustomFieldsDialog } from '../components/CustomFieldsDialog';
 import { NewProjectDialog } from '../components/NewProjectDialog';
@@ -86,6 +87,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     deleteItem,
     deleteSection,
     deleteProject,
+    updateSection,
     crew,
     customFields,
   } = useMeridianData();
@@ -120,6 +122,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const [showAuthDialog, setShowAuthDialog] = useState(false);
   const [focusedId, setFocusedId] = useState<string | null>(null);
   const [showImport, setShowImport] = useState(false);
+  const [showImportTemplate, setShowImportTemplate] = useState(false);
   const [drawerInitiative, setDrawerInitiative] = useState<Initiative | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile sidebar
@@ -440,6 +443,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 fieldNotesCount={0}
                 myTasksCount={initiatives.filter(i => currentUser && i.assignee_id === currentUser.id && i.status !== 'Complete').length}
                 onOpenItem={(id) => { const init = initiatives.find(i => i.id === id); if (init) setDrawerInitiative(init); }}
+                onDeleteSection={deleteSection}
+                onRenameSection={(trackerId, newName) => updateSection(trackerId, { name: newName })}
               />
             </div>
           </div>
@@ -471,6 +476,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
             fieldNotesCount={0}
             myTasksCount={initiatives.filter(i => currentUser && i.assignee_id === currentUser.id && i.status !== 'Complete').length}
             onOpenItem={(id) => { const init = initiatives.find(i => i.id === id); if (init) setDrawerInitiative(init); }}
+            onDeleteSection={deleteSection}
+            onRenameSection={(trackerId, newName) => updateSection(trackerId, { name: newName })}
           />
         </div>
         <>
@@ -579,6 +586,16 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                       )}
                     </Button>
                     <ExportMenu initiatives={initiatives} projectName={selectedProject?.name} />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setShowImportTemplate(true)}
+                      title="Import template: column names as custom fields, rows as tasks"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Import template
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -694,6 +711,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     customFields={customFields}
                     visibleColumns={visibleColumns}
                     onDeleteSection={deleteSection}
+                    onRenameSection={(trackerId, newName) => updateSection(trackerId, { name: newName })}
                     onUpdateFieldValue={async (taskId, fieldId, value) => {
                       const payload: { fieldId: string; valueText?: string; valueNumber?: number; valueDate?: string; valueBoolean?: boolean } = { fieldId };
                       if (typeof value === 'string') payload.valueText = value;
@@ -762,14 +780,30 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         />
       )}
 
+      {showImportTemplate && (
+        <ImportTemplateDialog
+          open={showImportTemplate}
+          onClose={() => setShowImportTemplate(false)}
+          projectId={selectedProjectId}
+          trackerId={trackerSections.find((s) => s.id !== 'uncategorized')?.id ?? null}
+          onCreateTask={async (payload, trackerId) => {
+            if (!selectedProjectId) return null;
+            const res = await createItem(selectedProjectId, {
+              title: String(payload.title ?? ''),
+              description: payload.description as string | undefined,
+              status: (payload.status as string) || 'not_started',
+              priority: (payload.priority as string) || 'medium',
+            }, undefined, trackerId ?? undefined);
+            return res as { id?: string } | null;
+          }}
+          onSuccess={refresh}
+        />
+      )}
+
       {selectedIds.length > 0 && (
         <BulkActionsBar
           selectedCount={selectedIds.length}
-          crew={crew}
           onClearSelection={() => setSelectedIds([])}
-          onBulkStatusChange={handleBulkStatusChange}
-          onBulkPriorityChange={handleBulkPriorityChange}
-          onBulkAssignOwner={handleBulkAssignOwner}
           onBulkDelete={handleBulkDelete}
         />
       )}

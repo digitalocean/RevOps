@@ -63,6 +63,31 @@ router.post('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// PATCH /:id — update tracker (e.g. name)
+router.patch('/:id', async (req, res) => {
+  try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const trackerId = req.params.id;
+    const tr = await pool.query({
+      name: 'trackers_get_project_for_patch',
+      text: 'SELECT project_id FROM trackers WHERE id = $1',
+      values: [trackerId],
+    });
+    if (!tr.rows.length) return res.status(404).json({ error: 'Not found' });
+    const ok = await canAccessProject(pool, userId, tr.rows[0].project_id);
+    if (!ok) return res.status(404).json({ error: 'Not found' });
+    const { name } = req.body || {};
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'name required' });
+    const { rows } = await pool.query({
+      name: 'trackers_patch_name',
+      text: 'UPDATE trackers SET name = $2 WHERE id = $1 RETURNING *',
+      values: [trackerId, String(name).trim()],
+    });
+    res.json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 router.post('/:id/rows', async (req, res) => {
   try {
     const userId = requireUser(req, res);

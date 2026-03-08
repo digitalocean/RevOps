@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Plus, Clock, Star, X, GripVertical, Trash2, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Clock, X, GripVertical, Trash2, Pencil } from 'lucide-react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -145,37 +145,83 @@ function CustomFieldCell({
   value: string | number | boolean | null | undefined;
   onSave?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
 }) {
+  const normalizedType = (fieldType || 'text').toLowerCase();
   const [editing, setEditing] = useState(false);
-  const [local, setLocal] = useState(String(value ?? ''));
+  const toLocal = (val: string | number | boolean | null | undefined) => {
+    if (val == null) return '';
+    if (normalizedType === 'date') {
+      const s = String(val);
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+      if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(s)) {
+        const [a, b, c] = s.split('/');
+        const y = (c?.length === 2 ? `20${c}` : c) ?? '';
+        return `${y}-${(a ?? '').padStart(2, '0')}-${(b ?? '').padStart(2, '0')}`;
+      }
+      return s.slice(0, 10);
+    }
+    return String(val);
+  };
+  const [local, setLocal] = useState(() => toLocal(value));
+  useEffect(() => {
+    if (!editing) setLocal(toLocal(value));
+  }, [value, normalizedType, editing]);
 
-  const display = value === null || value === undefined ? '—' : String(value);
+  const display =
+    value === null || value === undefined
+      ? '—'
+      : normalizedType === 'date' && value
+        ? (typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : String(value))
+        : String(value);
 
   const handleBlur = () => {
     setEditing(false);
     if (!onSave) return;
     const v = local.trim();
-    if (fieldType === 'number') {
+    if (normalizedType === 'number') {
       const n = Number(v);
       onSave(taskId, fieldId, v === '' ? null : Number.isNaN(n) ? (value ?? null) : n);
-    } else if (fieldType === 'boolean') {
+    } else if (normalizedType === 'boolean') {
       onSave(taskId, fieldId, v === 'true' || v === '1' || v.toLowerCase() === 'yes');
+    } else if (normalizedType === 'date') {
+      onSave(taskId, fieldId, v === '' ? null : v);
     } else {
       onSave(taskId, fieldId, v === '' ? null : v);
     }
   };
 
+  const inputType =
+    normalizedType === 'number'
+      ? 'number'
+      : normalizedType === 'date'
+        ? 'date'
+        : normalizedType === 'url'
+          ? 'url'
+          : 'text';
+
   return (
     <td className="py-2 px-4 align-middle min-w-[100px]" onClick={() => onSave && setEditing(true)}>
       {editing && onSave ? (
-        <Input
-          value={local}
-          onChange={(e) => setLocal(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
-          className="h-8 text-xs border-gray-200 rounded-md"
-          autoFocus
-          type={fieldType === 'number' ? 'number' : 'text'}
-        />
+        normalizedType === 'date' ? (
+          <input
+            type="date"
+            value={local}
+            onChange={(e) => setLocal(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
+            className="h-8 text-xs border border-gray-200 rounded-md px-2 bg-white w-full max-w-[140px]"
+            autoFocus
+          />
+        ) : (
+          <Input
+            value={local}
+            onChange={(e) => setLocal(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
+            className="h-8 text-xs border-gray-200 rounded-md"
+            autoFocus
+            type={inputType}
+          />
+        )
       ) : (
         <span className="text-xs text-gray-700">{display}</span>
       )}
@@ -242,18 +288,9 @@ function InitiativeRowEditable({
     onUpdate(initiative.id, { assignee_id: assigneeId || null }).finally(() => setSaving(false));
   };
 
-  // Note: this renders td cells only - the SortableInitiativeRow renders the <tr>
+  // Note: parent SortableInitiativeRow renders <tr>, drag column, and checkbox column. We render only data columns to match header order.
   return (
     <>
-      <td className="py-2 px-2 w-8 align-middle">
-        {/* drag handle rendered by parent */}
-      </td>
-      <td className="py-2 px-3 w-10 align-middle">
-        <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(initiative.id)} onClick={e => e.stopPropagation()} />
-      </td>
-      <td className="py-2 px-4 w-12 align-middle">
-        {initiative.isBigRock ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : <div className="w-4 h-4" />}
-      </td>
       {colVisible(visibleColumns, 'name') && (
       <td className="py-2 px-4 align-middle min-w-[180px]">
         <Input

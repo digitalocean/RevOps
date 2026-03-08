@@ -84,16 +84,19 @@ export function ShareProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md rounded-2xl shadow-xl border-0 bg-white overflow-hidden">
-        <div className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 px-6 pt-6 pb-4">
+      <DialogContent
+        className="sm:max-w-md rounded-2xl shadow-xl border-0 bg-white overflow-hidden flex flex-col max-h-[90vh]"
+        aria-describedby="share-dialog-description"
+      >
+        <div className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 px-6 pt-6 pb-4 flex-shrink-0">
           <DialogHeader className="space-y-1">
             <DialogTitle className="text-lg font-semibold text-gray-900">Share project</DialogTitle>
-            <DialogDescription className="text-sm text-gray-600">
+            <DialogDescription id="share-dialog-description" className="text-sm text-gray-600">
               {projectName || 'Project'} — invite by email. Shared users see this project in their list.
             </DialogDescription>
           </DialogHeader>
         </div>
-        <div className="px-6 py-4 space-y-4">
+        <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
           <div className="flex gap-2">
             <Input
               type="email"
@@ -120,26 +123,26 @@ export function ShareProjectDialog({
             ) : members.length === 0 ? (
               <p className="text-sm text-gray-500">No one else has access yet. Add by email above.</p>
             ) : (
-              <ul className="space-y-2 max-h-48 overflow-y-auto">
+              <ul className="space-y-2 max-h-40 overflow-y-auto">
                 {members.map((m) => (
-                  <li key={m.id} className="flex items-center justify-between text-sm py-1.5 px-3 rounded-lg bg-gray-50">
-                    <span className="flex items-center gap-2">
-                      <span className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-medium">
+                  <li key={m.id} className="flex items-center justify-between gap-2 text-sm py-1.5 px-3 rounded-lg bg-gray-50">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-medium flex-shrink-0">
                         {m.initials || (m.email || '').slice(0, 2).toUpperCase()}
                       </span>
-                      <span className="font-medium text-gray-900">{m.name || m.email}</span>
+                      <span className="font-medium text-gray-900 truncate">{m.name || m.email}</span>
                       {m.is_creator && (
-                        <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded">Creator</span>
+                        <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded flex-shrink-0">Creator</span>
                       )}
                     </span>
-                    <span className="text-gray-500 text-xs">{m.email}</span>
+                    <span className="text-gray-500 text-xs truncate max-w-[140px]" title={m.email}>{m.email}</span>
                   </li>
                 ))}
               </ul>
             )}
           </div>
         </div>
-        <DialogFooter className="px-6 pb-6 pt-2 border-t border-gray-100">
+        <DialogFooter className="px-6 pb-6 pt-2 border-t border-gray-100 flex-shrink-0">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl">
             Done
           </Button>

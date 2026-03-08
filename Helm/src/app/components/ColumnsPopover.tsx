@@ -64,7 +64,13 @@ interface ColumnsPopoverProps {
 }
 
 function isTaskField(f: CustomFieldDef) {
-  return f.target === 'item' || (f as { applies_to?: string }).applies_to === 'task' || !(f as { applies_to?: string }).applies_to;
+  const target = (f as { target?: string }).target;
+  const appliesTo = (f as { applies_to?: string }).applies_to;
+  if (target === 'item' || target === 'task') return true;
+  if (appliesTo === 'task' || appliesTo === 'item') return true;
+  if (!target && !appliesTo) return true;
+  if (appliesTo === 'tracker' || appliesTo === 'project') return false;
+  return true;
 }
 
 export function ColumnsPopover({
@@ -84,9 +90,14 @@ export function ColumnsPopover({
   useEffect(() => {
     if (projectId) {
       const saved = loadVisibleColumns(projectId, userId);
-      onVisibleColumnsChange(saved);
+      const taskFieldIds = customFields.filter(isTaskField).map((f) => f.id);
+      const merged = new Set(saved);
+      taskFieldIds.forEach((id) => {
+        if (!saved.has(id)) merged.add(id);
+      });
+      onVisibleColumnsChange(merged);
     }
-  }, [projectId, userId]);
+  }, [projectId, userId, customFields.length]);
 
   const toggle = (id: string) => {
     const next = new Set(visibleColumns);

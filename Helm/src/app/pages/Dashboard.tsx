@@ -856,6 +856,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         onOpenChange={setShowCustomFields}
         workspaceId={null}
         projectId={selectedProjectId}
+        onAdded={refresh}
       />
 
       <NewProjectDialog

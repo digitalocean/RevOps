@@ -162,28 +162,24 @@ export function useMeridianData(): MeridianDataResult {
       setProjects(projList);
       setCrew(Array.isArray(crewRes) ? crewRes : []);
       const pid = overrideProjectId ?? selectedProjectId ?? (projList[0]?.id ?? null);
-      // Fetch custom fields scoped to project (backend resolves workspace automatically)
-      if (pid) {
-        get<{ id: string; name: string; field_type: string; target: string }[]>(
-          apiPath(`api/custom-fields?project_id=${pid}`)
-        ).then(cf => setCustomFields(Array.isArray(cf) ? cf : [])).catch(() => {});
-      }
       if (projList.length && !selectedProjectId && overrideProjectId === undefined) setSelectedProjectId(projList[0].id);
       if (!pid) {
         setSprints([]);
         setInitiatives([]);
         setSections([]);
-        setSelectedProjectId(null);
+        setCustomFields([]);
         setLoading(false);
         setFromApi(true);
         return;
       }
-      const [sprintsRes, itemsRes, trackersRes] = await Promise.all([
+      const [sprintsRes, itemsRes, trackersRes, cfRes] = await Promise.all([
         get<Sprint[]>(`${apiPath('api/sprints')}?project_id=${pid}`).catch(() => []),
         get<unknown[]>(`${apiPath('api/items')}?project_id=${pid}`).catch(() => []),
         get<{ id: string; name: string; sort_order?: number }[]>(`${apiPath('api/trackers')}?project_id=${pid}`).catch(() => []),
+        get<{ id: string; name: string; field_type: string; target: string }[]>(apiPath(`api/custom-fields?project_id=${pid}`)).catch(() => []),
       ]);
       setSprints(Array.isArray(sprintsRes) ? sprintsRes : []);
+      setCustomFields(Array.isArray(cfRes) ? cfRes : []);
       const itemList = Array.isArray(itemsRes) ? itemsRes : [];
       const mapped = (itemList as Record<string, unknown>[]).map((i: Record<string, unknown>) =>
         mapItemToInitiative({

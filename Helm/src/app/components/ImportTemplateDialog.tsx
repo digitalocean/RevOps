@@ -59,17 +59,23 @@ export function ImportTemplateDialog({
     if (!projectId || !headers.length) return;
     setImporting(true);
     try {
-      const titleIdx = headers.findIndex((h) => /title|task|name|item|initiative/i.test(h));
+      const titleIdx = headers.findIndex((h) => /^title$|^task$|^name$|^item$|^initiative$/i.test((h || '').trim()));
       const firstCol = titleIdx >= 0 ? titleIdx : 0;
+      const descIdx = headers.findIndex((h) => /description|^desc$/i.test((h || '').trim()));
       const createdFieldIds: Record<string, string> = {};
       for (const name of customFieldNames) {
-        const field = await post<{ id: string }>('/api/custom-fields', {
-          project_id: projectId,
-          name: name.trim(),
-          target: 'item',
-          field_type: 'text',
-        });
-        if (field?.id) createdFieldIds[name] = field.id;
+        try {
+          const field = await post<{ id: string }>('/api/custom-fields', {
+            project_id: projectId,
+            name: name.trim(),
+            target: 'item',
+            field_type: 'text',
+          });
+          if (field?.id) createdFieldIds[name] = field.id;
+        } catch (err) {
+          toast.error(`Could not create field "${name}": ${err instanceof Error ? err.message : 'Unknown error'}`);
+          throw err;
+        }
       }
       let taskCount = 0;
       for (const row of rows) {
@@ -77,12 +83,12 @@ export function ImportTemplateDialog({
         if (!title) continue;
         const payload: Record<string, unknown> = {
           title,
-          description: (row[headers.findIndex((h) => /description|desc/i.test(h))] ?? row[1] ?? '').trim() || undefined,
+          description: (descIdx >= 0 ? (row[descIdx] ?? '').trim() : (row[1] ?? '').trim()) || undefined,
           status: 'not_started',
           priority: 'medium',
         };
         const item = await onCreateTask(payload, trackerId);
-        const taskId = item?.id;
+        const taskId = item && typeof item === 'object' && 'id' in item ? String((item as { id?: string }).id) : null;
         if (taskId && Object.keys(createdFieldIds).length > 0) {
           const values = customFieldNames
             .map((name) => {
@@ -93,11 +99,17 @@ export function ImportTemplateDialog({
               return { fieldId: createdFieldIds[name], valueText: val };
             })
             .filter(Boolean) as { fieldId: string; valueText: string }[];
-          if (values.length) await patch(`/api/tasks/${taskId}/field-values`, { values });
+          if (values.length) {
+            try {
+              await patch(`/api/tasks/${taskId}/field-values`, { values });
+            } catch (err) {
+              toast.error(`Could not save custom values for task "${title}"`);
+            }
+          }
         }
         taskCount += 1;
       }
-      toast.success(`Created ${customFieldNames.length} custom fields and ${taskCount} tasks`);
+      toast.success(`Created ${customFieldNames.length} custom field(s) and ${taskCount} task(s)`);
       onSuccess();
       onClose();
       setRawText('');

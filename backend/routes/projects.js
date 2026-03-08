@@ -153,26 +153,33 @@ router.post('/:id/members', async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
     const emailNorm = String(email).trim().toLowerCase();
+    const userRow = await pool.query({
+      name: 'projects_user_by_email',
+      text: 'SELECT id, full_name FROM users WHERE LOWER(email) = $1',
+      values: [emailNorm],
+    });
+    const invitedUserId = userRow.rows[0]?.id || null;
+    const invitedFullName = userRow.rows[0]?.full_name || emailNorm;
+
     let crewRow = await pool.query({
       name: 'projects_crew_by_workspace_email',
-      text: 'SELECT id FROM crew WHERE workspace_id = $1 AND LOWER(email) = $2 AND active = true',
+      text: 'SELECT id, user_id FROM crew WHERE workspace_id = $1 AND LOWER(email) = $2 AND (active = true OR active IS NULL)',
       values: [workspaceId, emailNorm],
     });
     if (!crewRow.rows.length) {
-      const userRow = await pool.query({
-        name: 'projects_user_by_email',
-        text: 'SELECT id, full_name FROM users WHERE LOWER(email) = $1',
-        values: [emailNorm],
-      });
-      const initials = userRow.rows.length
-        ? (userRow.rows[0].full_name || emailNorm).slice(0, 2).toUpperCase()
-        : emailNorm.slice(0, 2).toUpperCase();
+      const initials = (invitedFullName || emailNorm).slice(0, 2).toUpperCase();
       const { rows: inserted } = await pool.query({
         name: 'projects_crew_insert',
         text: 'INSERT INTO crew(workspace_id, user_id, name, email, initials, role) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
-        values: [workspaceId, userRow.rows[0]?.id || null, userRow.rows[0]?.full_name || emailNorm, emailNorm, initials, 'Member'],
+        values: [workspaceId, invitedUserId, invitedFullName, emailNorm, initials, 'Member'],
       });
       crewRow = { rows: inserted };
+    } else if (invitedUserId && !crewRow.rows[0].user_id) {
+      await pool.query({
+        name: 'projects_crew_link_user',
+        text: 'UPDATE crew SET user_id = $2 WHERE id = $1',
+        values: [crewRow.rows[0].id, invitedUserId],
+      });
     }
     const crewId = crewRow.rows[0].id;
     await pool.query({

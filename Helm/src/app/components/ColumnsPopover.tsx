@@ -1,9 +1,4 @@
-import { useState, useEffect } from 'react';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from './ui/popover';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 
@@ -84,6 +79,7 @@ export function ColumnsPopover({
   customFields = [],
 }: ColumnsPopoverProps) {
   const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
   const taskFields = customFields.filter(isTaskField);
   const allColumns = [
     ...COLUMN_IDS,
@@ -97,6 +93,15 @@ export function ColumnsPopover({
     }
   }, [projectId, userId]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('click', onDocClick, true);
+    return () => document.removeEventListener('click', onDocClick, true);
+  }, [open]);
+
   const toggle = (id: string) => {
     const next = new Set(visibleColumns);
     if (next.has(id)) next.delete(id);
@@ -106,27 +111,38 @@ export function ColumnsPopover({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="sm">
-          Columns
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-56 p-3 max-h-[70vh] overflow-y-auto" align="end">
-        <p className="text-xs font-medium text-gray-500 mb-2">Visible columns</p>
-        <div className="space-y-2">
-          {allColumns.map((col) => (
-            <label key={col.id} className="flex items-center gap-2 cursor-pointer">
-              <Checkbox
-                checked={visibleColumns.has(col.id)}
-                onCheckedChange={() => toggle(col.id)}
-              />
-              <span className="text-sm">{col.label}</span>
-            </label>
-          ))}
+    <div className="relative inline-block" ref={panelRef}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+        aria-expanded={open}
+        aria-haspopup="true"
+      >
+        Columns
+      </Button>
+      {open && (
+        <div
+          className="absolute right-0 top-full z-[100] mt-1 w-56 rounded-md border border-gray-200 bg-white p-3 shadow-lg max-h-[70vh] overflow-y-auto"
+          role="dialog"
+          aria-label="Choose visible columns"
+        >
+          <p className="text-xs font-medium text-gray-500 mb-2">Visible columns</p>
+          <div className="space-y-2">
+            {allColumns.map((col) => (
+              <label key={col.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded px-1 py-0.5 -mx-1">
+                <Checkbox
+                  checked={visibleColumns.has(col.id)}
+                  onCheckedChange={() => toggle(col.id)}
+                />
+                <span className="text-sm">{col.label}</span>
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-2">Saved per project. Persists after login and refresh.</p>
         </div>
-        <p className="text-xs text-gray-400 mt-2">Saved per project. Persists after login and refresh.</p>
-      </PopoverContent>
-    </Popover>
+      )}
+    </div>
   );
 }

@@ -1,0 +1,6 @@
+Title,Description,Status,Priority,Department,Estimated Hours
+Plan kickoff,Outline goals and timeline,Not Started,P1,Engineering,8
+Design mockups,Create UI mockups for review,Not Started,P2,Design,16
+Backend API,Implement REST endpoints,In Progress,P1,Engineering,24
+QA testing,Run test suite and log bugs,Not Started,P2,Operations,12
+Launch checklist,Final prep and go-live,Not Started,P0,Product,4

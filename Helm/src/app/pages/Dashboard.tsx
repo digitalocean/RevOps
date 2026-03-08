@@ -105,7 +105,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const [showShareProject, setShowShareProject] = useState(false);
   const [addInitiativeParentId, setAddInitiativeParentId] = useState<string | null>(null);
   const [addInitiativeTrackerId, setAddInitiativeTrackerId] = useState<string | null>(null);
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => new Set(['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate']));
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [celebrateCount, setCelebrateCount] = useState(0);
   const [filters, setFilters] = useState({

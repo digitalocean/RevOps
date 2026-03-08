@@ -31,8 +31,11 @@ function storageKey(projectId: string | null, userId?: string | null): string {
   return userId ? `${STORAGE_KEY_PREFIX}${userId}_${projectId}` : `${STORAGE_KEY_PREFIX}${projectId}`;
 }
 
+/** Default built-in columns to show when user has not saved a preference (keeps table usable). */
+const DEFAULT_VISIBLE_COLUMN_IDS = COLUMN_IDS.map((c) => c.id);
+
 function loadVisibleColumns(projectId: string | null, userId?: string | null): Set<string> {
-  if (typeof window === 'undefined' || !projectId) return new Set<string>();
+  if (typeof window === 'undefined' || !projectId) return new Set(DEFAULT_VISIBLE_COLUMN_IDS);
   try {
     const key = storageKey(projectId, userId);
     const fallbackKey = userId ? storageKey(projectId, null) : '';
@@ -41,10 +44,10 @@ function loadVisibleColumns(projectId: string | null, userId?: string | null): S
     const rawToUse = raw || rawFallback;
     if (rawToUse) {
       const arr = JSON.parse(rawToUse) as string[];
-      return new Set(Array.isArray(arr) ? arr : []);
+      return new Set(Array.isArray(arr) && arr.length > 0 ? arr : DEFAULT_VISIBLE_COLUMN_IDS);
     }
   } catch (_) {}
-  return new Set<string>();
+  return new Set(DEFAULT_VISIBLE_COLUMN_IDS);
 }
 
 export function saveVisibleColumns(projectId: string | null, visible: Set<string>, userId?: string | null) {

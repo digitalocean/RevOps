@@ -59,6 +59,14 @@ router.post('/', async (req, res) => {
       text: 'INSERT INTO trackers(project_id, name) VALUES($1, $2) RETURNING *',
       values: [project_id, String(name).trim()],
     });
+    const newTracker = rows[0];
+    if (newTracker && newTracker.id) {
+      await pool.query({
+        name: 'trackers_assign_uncategorized',
+        text: 'UPDATE items SET tracker_id = $1 WHERE project_id = $2 AND tracker_id IS NULL',
+        values: [newTracker.id, project_id],
+      });
+    }
     res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

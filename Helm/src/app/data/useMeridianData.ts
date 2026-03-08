@@ -203,7 +203,7 @@ export function useMeridianData(): MeridianDataResult {
       const trackers = Array.isArray(trackersRes) ? trackersRes : [];
       const uncategorized = mapped.filter((init) => !init.tracker_id);
       const sectionList: TrackerSection[] = [
-        { id: 'uncategorized', title: 'Tasks', initiatives: uncategorized },
+        ...(uncategorized.length > 0 ? [{ id: 'uncategorized' as const, title: 'Tasks', initiatives: uncategorized }] : []),
         ...trackers.map((t) => ({
           id: t.id,
           title: t.name,

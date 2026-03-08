@@ -11,12 +11,12 @@ function projectDotColor(project: Project, index: number): string {
   return PROJECT_DOT_COLORS[index % PROJECT_DOT_COLORS.length];
 }
 
-export type NavView = 'summit_board' | 'manifest' | 'expedition_map' | 'field_notes' | 'observatory' | 'base_camp' | 'my_tasks' | 'workload' | 'personal_tasks';
+export type NavView = 'summit_board' | 'manifest' | 'expedition_map' | 'field_notes' | 'observatory' | 'base_camp' | 'my_tasks' | 'personal_tasks';
 
-const VIEW_ORDER: NavView[] = ['my_tasks', 'manifest', 'expedition_map', 'field_notes', 'observatory', 'workload', 'base_camp', 'summit_board'];
+const VIEW_ORDER: NavView[] = ['my_tasks', 'manifest', 'expedition_map', 'field_notes', 'observatory', 'base_camp', 'summit_board'];
 const VIEW_LABELS: Record<NavView, string> = {
   summit_board: 'Board', manifest: 'Trackers', expedition_map: 'Gantt',
-  field_notes: 'Field Notes', observatory: 'Analytics', base_camp: 'Base Camp', my_tasks: 'My Tasks', workload: 'Workload',
+  field_notes: 'Field Notes', observatory: 'Analytics', base_camp: 'Base Camp', my_tasks: 'My Tasks',
   personal_tasks: 'Personal tasks',
 };
 const VIEW_ICONS: Record<NavView, React.ReactNode> = {
@@ -27,7 +27,6 @@ const VIEW_ICONS: Record<NavView, React.ReactNode> = {
   observatory: <BarChart3 className="w-3.5 h-3.5" />,
   base_camp: <Triangle className="w-3.5 h-3.5" />,
   my_tasks: <Inbox className="w-3.5 h-3.5" />,
-  workload: <Users className="w-3.5 h-3.5" />,
   personal_tasks: <ListTodo className="w-3.5 h-3.5" />,
 };
 
@@ -197,7 +196,7 @@ export function NavigationSidebar({
                                 <span className="truncate font-medium">{tracker.title}</span>
                                 <span className="text-[10px] text-gray-400 ml-auto flex-shrink-0 tabular-nums">{allTasks.length}</span>
                               </button>
-                              {tracker.id !== 'uncategorized' && (onDeleteSection || onRenameSection) && (
+                              {tracker.id !== 'uncategorized' && (trackerSections?.length ?? 0) > 1 && (onDeleteSection || onRenameSection) && (
                                 <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                   {onRenameSection && (
                                     <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100" onClick={(e) => { e.stopPropagation(); const n = window.prompt('Section name', tracker.title); if (n != null && n.trim()) onRenameSection(tracker.id, n.trim()); }} title="Edit section name">

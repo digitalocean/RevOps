@@ -61,7 +61,7 @@ interface ColumnsPopoverProps {
   customFields?: CustomFieldDef[];
 }
 
-function isTaskField(f: CustomFieldDef) {
+function isTaskFieldForColumns(f: CustomFieldDef) {
   const target = (f as { target?: string }).target;
   const appliesTo = (f as { applies_to?: string }).applies_to;
   if (target === 'item' || target === 'task') return true;
@@ -80,7 +80,7 @@ export function ColumnsPopover({
 }: ColumnsPopoverProps) {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const taskFields = customFields.filter(isTaskField);
+  const taskFields = customFields.filter(isTaskFieldForColumns);
   const allColumns = [
     ...COLUMN_IDS,
     ...taskFields.map((f) => ({ id: f.id, label: f.name })),
@@ -89,9 +89,11 @@ export function ColumnsPopover({
   useEffect(() => {
     if (projectId) {
       const saved = loadVisibleColumns(projectId, userId);
-      onVisibleColumnsChange(saved);
+      const merged = new Set(saved);
+      taskFields.forEach((f) => merged.add(f.id));
+      onVisibleColumnsChange(merged);
     }
-  }, [projectId, userId]);
+  }, [projectId, userId, customFields.length]);
 
   useEffect(() => {
     if (!open) return;

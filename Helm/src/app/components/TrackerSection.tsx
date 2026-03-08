@@ -60,6 +60,8 @@ interface TrackerSectionProps {
   onDeleteItem?: (id: string) => Promise<void>;
   onDeleteSection?: (trackerId: string) => Promise<void>;
   onRenameSection?: (trackerId: string, newName: string) => Promise<void>;
+  /** When false, Edit/Delete are hidden (e.g. for primary/uncategorized or only section). */
+  showSectionActions?: boolean;
   onItemCompleted?: () => void;
   focusedId?: string | null;
   onFocusChange?: (id: string | null) => void;
@@ -511,6 +513,7 @@ export function TrackerSection({
   onDeleteItem,
   onDeleteSection,
   onRenameSection,
+  showSectionActions = true,
   onItemCompleted,
   focusedId,
   onFocusChange,
@@ -593,7 +596,7 @@ export function TrackerSection({
               {filteredInitiatives.length}
             </span>
           </button>
-          {section.id !== 'uncategorized' && (onDeleteSection || onRenameSection) && (
+          {showSectionActions && section.id !== 'uncategorized' && (onDeleteSection || onRenameSection) && (
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
               {onRenameSection && (
                 <Button

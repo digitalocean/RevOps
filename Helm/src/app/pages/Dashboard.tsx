@@ -37,7 +37,6 @@ import { ProjectTemplatesDialog } from '../components/ProjectTemplatesDialog';
 import { EmptyProjectState } from '../components/EmptyProjectState';
 import { DueBanner } from '../components/DueBanner';
 import { PomodoroTimer } from '../components/PomodoroTimer';
-import { TeamWorkloadView } from '../components/TeamWorkloadView';
 import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
 import { HelpCircle, ChevronUp, Filter, Share2, Sparkles, AlertCircle, FileSpreadsheet } from 'lucide-react';
@@ -54,7 +53,6 @@ const VIEW_TABS: { id: NavView; label: string }[] = [
   { id: 'expedition_map', label: 'Gantt' },
   { id: 'field_notes', label: 'Field Notes' },
   { id: 'observatory', label: 'Analytics' },
-  { id: 'workload', label: 'Workload' },
   { id: 'base_camp', label: 'Base Camp' },
 ];
 
@@ -403,7 +401,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   // Dynamic document.title
   useEffect(() => {
     const proj = selectedProject?.name;
-    const view = { manifest: 'Trackers', summit_board: 'Board', expedition_map: 'Gantt', field_notes: 'Notes', observatory: 'Analytics', my_tasks: 'My Tasks', base_camp: 'Settings', workload: 'Workload' }[currentView] || '';
+    const view = { manifest: 'Trackers', summit_board: 'Board', expedition_map: 'Gantt', field_notes: 'Notes', observatory: 'Analytics', my_tasks: 'My Tasks', base_camp: 'Settings' }[currentView] || '';
     document.title = proj ? `${proj} · ${view} — To-DO` : 'To-DO';
   }, [selectedProject, currentView]);
 
@@ -645,14 +643,6 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
 
             {currentView === 'observatory' ? (
               <AnalyticsView projectId={selectedProjectId} />
-            ) : currentView === 'workload' ? (
-              <TeamWorkloadView
-                initiatives={initiatives}
-                crew={crew}
-                currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
-                onUpdateItem={updateItem}
-                onDeleteItem={deleteItem}
-              />
             ) : currentView === 'my_tasks' ? (
               <MyTasksView
                 initiatives={initiatives}
@@ -681,13 +671,15 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 projectId={selectedProjectId}
                 customFields={customFields}
                 visibleColumns={visibleColumns}
-                onApplyToTracker={(columnId) => {
+                onToggleColumn={(columnId) => {
                   const next = new Set(visibleColumns);
-                  next.add(columnId);
+                  if (next.has(columnId)) next.delete(columnId);
+                  else next.add(columnId);
                   setVisibleColumns(next);
                   if (selectedProjectId) saveVisibleColumns(selectedProjectId, next, currentUser?.id);
                 }}
                 onOpenCustomFields={() => setShowCustomFields(true)}
+                onOpenShare={() => setShowShareProject(true)}
               />
             ) : currentView === 'summit_board' ? (
               <SummitBoardKanban
@@ -700,7 +692,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               />
             ) : (
               <div className="space-y-4">
-                {initiatives.length === 0 && (!trackerSections || trackerSections.length <= 1) && selectedProject ? (
+                {initiatives.length === 0 && (!trackerSections || trackerSections.length === 0) && selectedProject ? (
                   <EmptyProjectState
                     projectName={selectedProject.name}
                     onImport={() => setShowImport(true)}
@@ -722,6 +714,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     visibleColumns={visibleColumns}
                     onDeleteSection={deleteSection}
                     onRenameSection={(trackerId, newName) => updateSection(trackerId, { name: newName })}
+                    showSectionActions={section.id !== 'uncategorized' && trackerSections.length > 1}
                     onUpdateFieldValue={async (taskId, fieldId, value) => {
                       const payload: { fieldId: string; valueText?: string; valueNumber?: number; valueDate?: string; valueBoolean?: boolean } = { fieldId };
                       if (typeof value === 'string') payload.valueText = value;

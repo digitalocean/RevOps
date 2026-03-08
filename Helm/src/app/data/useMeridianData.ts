@@ -88,6 +88,7 @@ export interface Project {
   workspace_id?: string;
   description?: string;
   color?: string;
+  is_personal?: boolean;
 }
 
 export interface Sprint {

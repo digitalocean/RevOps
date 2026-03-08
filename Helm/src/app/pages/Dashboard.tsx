@@ -25,6 +25,7 @@ import { AnalyticsView } from '../components/AnalyticsView';
 import { SummitBoardKanban } from '../components/SummitBoardKanban';
 import { FilterSlidePanel, type FilterRow } from '../components/FilterSlidePanel';
 import { FieldNotesView } from '../components/FieldNotesView';
+import { PersonalTasksView } from '../components/PersonalTasksView';
 import { ColumnsPopover } from '../components/ColumnsPopover';
 import { NewSectionDialog } from '../components/NewSectionDialog';
 import { ShareProjectDialog } from '../components/ShareProjectDialog';
@@ -348,26 +349,38 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     setDrawerInitiative(initiative);
   };
 
-  const handleSpreadsheetImport = async (rows: ImportRow[]) => {
+  const STATUS_TO_SLUG: Record<string, string> = {
+    'not_started': 'not_started', 'in_progress': 'in_progress', 'in_review': 'in_review',
+    'on_track': 'on_track', 'complete': 'complete', 'blocked': 'blocked', 'at_risk': 'at_risk',
+  };
+  const PRIORITY_TO_SLUG: Record<string, string> = {
+    'critical': 'critical', 'high': 'high', 'medium': 'medium', 'low': 'low',
+  };
+  const createItemPayload = (row: ImportRow) => ({
+    title: row.title,
+    description: row.description || '',
+    status: STATUS_TO_SLUG[row.status || ''] || 'not_started',
+    priority: PRIORITY_TO_SLUG[row.priority || ''] || 'medium',
+    category: row.category || undefined,
+    due_date: row.due_date || undefined,
+  } as Parameters<typeof createItem>[1]);
+
+  const handleSpreadsheetImport = async (data: { rows?: ImportRow[]; sections?: Array<{ name: string; tasks: ImportRow[] }> }) => {
     if (!selectedProjectId) return;
-    const STATUS_TO_SLUG: Record<string, string> = {
-      'not_started': 'not_started', 'in_progress': 'in_progress', 'in_review': 'in_review',
-      'on_track': 'on_track', 'complete': 'complete', 'blocked': 'blocked', 'at_risk': 'at_risk',
-    };
-    const PRIORITY_TO_SLUG: Record<string, string> = {
-      'critical': 'critical', 'high': 'high', 'medium': 'medium', 'low': 'low',
-    };
-    const trackerId = trackerSections.find(s => s.id !== 'uncategorized')?.id ?? null;
-    await Promise.all(rows.map(row =>
-      createItem(selectedProjectId, {
-        title: row.title,
-        description: row.description || '',
-        status: STATUS_TO_SLUG[row.status || ''] || 'not_started',
-        priority: PRIORITY_TO_SLUG[row.priority || ''] || 'medium',
-        category: row.category || undefined,
-        due_date: row.due_date || undefined,
-      } as Parameters<typeof createItem>[1], undefined, trackerId ?? undefined)
-    ));
+    if (data.sections?.length) {
+      for (const sec of data.sections) {
+        const section = await createSection(selectedProjectId, sec.name);
+        const trackerId = section?.id ?? null;
+        for (const row of sec.tasks) {
+          await createItem(selectedProjectId, createItemPayload(row), undefined, trackerId ?? undefined);
+        }
+      }
+    } else if (data.rows?.length) {
+      const trackerId = trackerSections.find(s => s.id !== 'uncategorized')?.id ?? null;
+      await Promise.all(data.rows.map(row =>
+        createItem(selectedProjectId, createItemPayload(row), undefined, trackerId ?? undefined)
+      ));
+    }
   };
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
@@ -405,6 +418,17 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 selectedProjectId={selectedProjectId}
                 onSelectProject={(id) => { setSelectedProjectId(id); setSidebarOpen(false); }}
                 onOpenNewProject={() => { setShowNewProject(true); setSidebarOpen(false); }}
+                onOpenPersonalTasks={() => {
+                  const personal = projects.find(p => p.is_personal);
+                  if (personal) {
+                    setSelectedProjectId(personal.id);
+                    setCurrentView('personal_tasks');
+                    refresh(personal.id);
+                  } else {
+                    createProject({ name: 'Personal tasks', is_personal: true }).then(() => setCurrentView('personal_tasks'));
+                  }
+                  setSidebarOpen(false);
+                }}
                 initiatives={initiatives}
                 trackerSections={trackerSections}
                 crew={crew}
@@ -426,6 +450,16 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
             selectedProjectId={selectedProjectId}
             onSelectProject={(id) => setSelectedProjectId(id)}
             onOpenNewProject={() => setShowNewProject(true)}
+            onOpenPersonalTasks={() => {
+              const personal = projects.find(p => p.is_personal);
+              if (personal) {
+                setSelectedProjectId(personal.id);
+                setCurrentView('personal_tasks');
+                refresh(personal.id);
+              } else {
+                createProject({ name: 'Personal tasks', is_personal: true }).then(() => setCurrentView('personal_tasks'));
+              }
+            }}
             initiatives={initiatives}
             trackerSections={trackerSections}
             crew={crew}
@@ -609,6 +643,16 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 onUpdateItem={updateItem}
                 onDeleteItem={deleteItem}
               />
+            ) : currentView === 'personal_tasks' ? (
+              <PersonalTasksView
+                projectId={selectedProjectId}
+                projectName={selectedProject?.name ?? 'Personal tasks'}
+                tasks={initiatives}
+                onCreateTask={async (payload) => selectedProjectId && createItem(selectedProjectId, payload)}
+                onUpdateTask={updateItem}
+                onDeleteTask={deleteItem}
+                onOpenTask={(task) => setDrawerInitiative(task)}
+              />
             ) : currentView === 'expedition_map' ? (
               <GanttChart initiatives={initiatives} />
             ) : currentView === 'field_notes' ? (
@@ -631,7 +675,6 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 {initiatives.length === 0 && selectedProject ? (
                   <EmptyProjectState
                     projectName={selectedProject.name}
-                    onAddTask={() => { setAddInitiativeParentId(null); setAddInitiativeTrackerId(null); setShowAddInitiative(true); }}
                     onImport={() => setShowImport(true)}
                     onCreateSection={() => setShowNewSection(true)}
                     onUseTemplate={() => setShowTemplates(true)}
@@ -840,6 +883,24 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           projectName={projects.find(p => p.id === (templatesProjectId || selectedProjectId))?.name || selectedProject?.name}
           onClose={() => { setShowTemplates(false); setTemplatesProjectId(null); }}
           onApplied={() => { refresh(); setShowTemplates(false); setTemplatesProjectId(null); }}
+          onApplyWithData={async (trackers) => {
+            const pid = templatesProjectId || selectedProjectId;
+            if (!pid) return;
+            const statusFromLabel: Record<string, string> = {
+              'not started': 'not_started', 'not started': 'not_started', 'in progress': 'in_progress', 'in review': 'in_review',
+              'complete': 'complete', 'done': 'complete', 'blocked': 'blocked', 'on track': 'on_track',
+            };
+            const priFromLabel: Record<string, string> = { 'p0': 'critical', 'p1': 'high', 'p2': 'medium', 'p3': 'low' };
+            for (const sec of trackers) {
+              const section = await createSection(pid, sec.name);
+              const trackerId = section?.id ?? null;
+              for (const task of sec.tasks) {
+                const status = task.status ? (statusFromLabel[task.status.toLowerCase()] ?? STATUS_TO_SLUG[task.status] ?? 'not_started') : 'not_started';
+                const priority = task.priority ? (priFromLabel[task.priority.toLowerCase()] ?? PRIORITY_TO_SLUG[task.priority] ?? 'medium') : 'medium';
+                await createItem(pid, { title: task.title, description: '', status, priority }, undefined, trackerId ?? undefined);
+              }
+            }
+          }}
         />
       )}
 

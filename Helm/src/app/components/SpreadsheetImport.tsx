@@ -10,11 +10,18 @@ interface ImportRow {
   category?: string;
   due_date?: string;
   owner?: string;
+  /** When present, row belongs to this section (tracker) */
+  section?: string;
+}
+
+export interface ImportSections {
+  sections: Array<{ name: string; tasks: ImportRow[] }>;
 }
 
 interface SpreadsheetImportProps {
   projectId: string | null;
-  onImport: (rows: ImportRow[]) => Promise<void>;
+  /** Called with flat rows, or with sections when a Section column is detected */
+  onImport: (data: { rows?: ImportRow[]; sections?: Array<{ name: string; tasks: ImportRow[] }> }) => Promise<void>;
   onClose: () => void;
 }
 
@@ -30,7 +37,7 @@ const PRIORITY_MAP: Record<string, string> = {
   'medium': 'medium', 'med': 'medium', 'p2': 'medium', 'low': 'low', 'p3': 'low',
 };
 
-function parseCSV(raw: string): string[][] {
+export function parseCSV(raw: string): string[][] {
   const lines = raw.trim().split(/\r?\n/);
   return lines.map(line => {
     const cols: string[] = [];
@@ -52,7 +59,7 @@ function parseCSV(raw: string): string[][] {
   });
 }
 
-function detectColumns(headers: string[]): Record<string, number> {
+export function detectColumns(headers: string[]): Record<string, number> {
   const map: Record<string, number> = {};
   const lower = headers.map((h) => h.toLowerCase().trim());
   // Prefer "title"/"task" for task title; use "name" only if no better match (avoids mapping "Name" when "Title" exists)
@@ -64,10 +71,15 @@ function detectColumns(headers: string[]): Record<string, number> {
   }
   lower.forEach((l, i) => {
     if (map.title === i) return;
+    if (['section', 'tracker', 'group', 'sprint'].some((k) => l === k || l.includes(k))) {
+      if (map.section === undefined) map.section = i;
+    }
     if (['desc', 'description', 'notes', 'details', 'summary'].some((k) => l.includes(k))) map.description = i;
     else if (['status', 'state'].some((k) => l.includes(k))) map.status = i;
     else if (['priority', 'prio', 'urgency'].some((k) => l.includes(k))) map.priority = i;
-    else if (['category', 'type', 'area', 'team', 'dept'].some((k) => l.includes(k))) map.category = i;
+    else if (['category', 'type', 'area', 'team', 'dept'].some((k) => l.includes(k))) {
+      if (map.category === undefined) map.category = i;
+    }
     else if (['due', 'deadline', 'date', 'target'].some((k) => l.includes(k))) map.due_date = i;
     else if (['owner', 'assignee', 'assigned', 'responsible'].some((k) => l.includes(k))) map.owner = i;
   });
@@ -96,6 +108,7 @@ function mapRow(row: string[], colMap: Record<string, number>): ImportRow | null
     }
   }
   if (colMap.owner !== undefined) raw.owner = row[colMap.owner]?.trim();
+  if (colMap.section !== undefined) raw.section = row[colMap.section]?.trim() || undefined;
   return raw;
 }
 
@@ -151,8 +164,20 @@ export function SpreadsheetImport({ projectId, onImport, onClose }: SpreadsheetI
     if (!projectId || !preview.length) return;
     setImporting(true);
     try {
-      await onImport(preview);
-      toast.success(`Imported ${preview.length} tasks`);
+      const useSections = colMap.section !== undefined && preview.some((r) => r.section?.trim());
+      if (useSections) {
+        const sectionNames = [...new Set(preview.map((r) => (r.section?.trim() || 'Tasks')))];
+        const sections = sectionNames.map((name) => ({
+          name,
+          tasks: preview.filter((r) => (r.section?.trim() || 'Tasks') === name),
+        }));
+        await onImport({ sections });
+        const total = sections.reduce((acc, s) => acc + s.tasks.length, 0);
+        toast.success(`Imported ${sections.length} sections, ${total} tasks`);
+      } else {
+        await onImport({ rows: preview });
+        toast.success(`Imported ${preview.length} tasks`);
+      }
       onClose();
     } catch { toast.error('Import failed'); }
     finally { setImporting(false); }
@@ -244,7 +269,7 @@ export function SpreadsheetImport({ projectId, onImport, onClose }: SpreadsheetI
                   <div className="bg-gray-50 rounded-xl p-4 space-y-3 mb-4">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Map your columns</p>
                     <div className="grid grid-cols-2 gap-3">
-                      {(['title', 'description', 'status', 'priority', 'category', 'due_date', 'owner'] as const).map(field => (
+                      {(['title', 'section', 'description', 'status', 'priority', 'category', 'due_date', 'owner'] as const).map(field => (
                         <div key={field} className="flex items-center gap-2">
                           <span className="text-xs text-gray-600 w-20 capitalize">{field.replace('_', ' ')}</span>
                           <select

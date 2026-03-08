@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutDashboard, FileText, BarChart3, GripVertical, Triangle, Plus, ChevronRight, ChevronDown, Settings, Anchor, Layers, Inbox, Users } from 'lucide-react';
+import { LayoutDashboard, FileText, BarChart3, GripVertical, Triangle, Plus, ChevronRight, ChevronDown, Settings, Anchor, Layers, Inbox, Users, ListTodo } from 'lucide-react';
 import type { Project } from '../data/useMeridianData';
 import type { Initiative, TrackerSection as TrackerSectionType } from '../data/mockData';
 
@@ -10,12 +10,13 @@ function projectDotColor(project: Project, index: number): string {
   return PROJECT_DOT_COLORS[index % PROJECT_DOT_COLORS.length];
 }
 
-export type NavView = 'summit_board' | 'manifest' | 'expedition_map' | 'field_notes' | 'observatory' | 'base_camp' | 'my_tasks' | 'workload';
+export type NavView = 'summit_board' | 'manifest' | 'expedition_map' | 'field_notes' | 'observatory' | 'base_camp' | 'my_tasks' | 'workload' | 'personal_tasks';
 
 const VIEW_ORDER: NavView[] = ['my_tasks', 'manifest', 'expedition_map', 'field_notes', 'observatory', 'workload', 'base_camp', 'summit_board'];
 const VIEW_LABELS: Record<NavView, string> = {
   summit_board: 'Board', manifest: 'Trackers', expedition_map: 'Gantt',
   field_notes: 'Field Notes', observatory: 'Analytics', base_camp: 'Base Camp', my_tasks: 'My Tasks', workload: 'Workload',
+  personal_tasks: 'Personal tasks',
 };
 const VIEW_ICONS: Record<NavView, React.ReactNode> = {
   summit_board: <LayoutDashboard className="w-3.5 h-3.5" />,
@@ -26,6 +27,7 @@ const VIEW_ICONS: Record<NavView, React.ReactNode> = {
   base_camp: <Triangle className="w-3.5 h-3.5" />,
   my_tasks: <Inbox className="w-3.5 h-3.5" />,
   workload: <Users className="w-3.5 h-3.5" />,
+  personal_tasks: <ListTodo className="w-3.5 h-3.5" />,
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -47,6 +49,7 @@ interface NavigationSidebarProps {
   onOpenCustomFields: () => void;
   currentView: NavView;
   onNavigateView: (view: NavView) => void;
+  onOpenPersonalTasks?: () => void;
   fieldNotesCount?: number;
   myTasksCount?: number;
   onOpenItem?: (itemId: string) => void;
@@ -54,8 +57,8 @@ interface NavigationSidebarProps {
 
 export function NavigationSidebar({
   projects, selectedProjectId, onSelectProject, onOpenNewProject,
-  trackerSections = [], crew, onOpenAddCrew, currentView, onNavigateView, fieldNotesCount = 0,
-  myTasksCount = 0, onOpenItem,
+  trackerSections = [], crew, onOpenAddCrew, currentView, onNavigateView, onOpenPersonalTasks,
+  fieldNotesCount = 0, myTasksCount = 0, onOpenItem,
 }: NavigationSidebarProps) {
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
     () => new Set(selectedProjectId ? [selectedProjectId] : [])
@@ -86,8 +89,23 @@ export function NavigationSidebar({
       </div>
 
       <div className="flex-1 overflow-y-auto">
+        {/* Personal tasks */}
+        {onOpenPersonalTasks && (
+          <div className="px-3 pt-3 pb-2">
+            <button
+              type="button"
+              onClick={onOpenPersonalTasks}
+              className={`w-full flex items-center gap-2 px-2 py-2 rounded-md text-left text-sm font-medium transition-colors ${
+                currentView === 'personal_tasks' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+            >
+              <ListTodo className="w-4 h-4 flex-shrink-0" />
+              <span className="flex-1">Personal tasks</span>
+            </button>
+          </div>
+        )}
         {/* My Tasks global link */}
-        <div className="px-3 pt-3 pb-2">
+        <div className="px-3 pt-2 pb-2">
           <button type="button" onClick={() => onNavigateView('my_tasks')}
             className={`w-full flex items-center gap-2 px-2 py-2 rounded-md text-left text-sm font-medium transition-colors ${
               currentView === 'my_tasks' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'

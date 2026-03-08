@@ -211,7 +211,7 @@ export function CustomFieldsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[680px] p-0 gap-0 overflow-hidden">
+      <DialogContent aria-describedby={undefined} className="sm:max-w-[680px] p-0 gap-0 overflow-hidden">
         <DialogHeader className="sr-only">
           <DialogTitle>Custom Fields</DialogTitle>
         </DialogHeader>

@@ -95,7 +95,7 @@ export function InitiativeDetailsDialog({ initiative, crew = [], onClose, onSave
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl max-h-[90vh] p-0 overflow-hidden rounded-2xl shadow-xl border border-gray-200">
+      <DialogContent aria-describedby={undefined} className="max-w-4xl max-h-[90vh] p-0 overflow-hidden rounded-2xl shadow-xl border border-gray-200">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-100 bg-gray-50/50">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">

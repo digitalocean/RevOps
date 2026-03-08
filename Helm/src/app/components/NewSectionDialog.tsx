@@ -56,7 +56,7 @@ export function NewSectionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px] rounded-2xl shadow-[0_24px_48px_rgba(0,0,0,0.12)] border border-gray-200/90 p-0 overflow-hidden">
+      <DialogContent aria-describedby={undefined} className="sm:max-w-[420px] rounded-2xl shadow-[0_24px_48px_rgba(0,0,0,0.12)] border border-gray-200/90 p-0 overflow-hidden">
         <div className="bg-gradient-to-br from-emerald-500/10 via-white to-teal-500/5 px-6 pt-6 pb-4">
           <DialogHeader className="flex flex-row items-start gap-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">

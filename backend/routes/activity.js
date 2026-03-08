@@ -15,27 +15,18 @@ router.get('/', async (req, res) => {
     }
     const lim = Math.min(Number(limit) || 50, 100);
 
-    let rows = await pool.query(
-      `SELECT a.id, a.project_id, a.crew_id, a.action, a.entity_type, a.entity_id, a.details, a.created_at,
-              c.name as crew_name, c.initials as crew_initials
-       FROM activity_log a
-       LEFT JOIN crew c ON a.crew_id = c.id
-       WHERE a.project_id = $1
-       ORDER BY a.created_at DESC
-       LIMIT $2`,
-      [project_id, lim]
-    ).then(r => r.rows);
+    let rows = (await pool.query({
+      name: 'activity_list',
+      text: 'SELECT a.id, a.project_id, a.crew_id, a.action, a.entity_type, a.entity_id, a.details, a.created_at, c.name as crew_name, c.initials as crew_initials FROM activity_log a LEFT JOIN crew c ON a.crew_id = c.id WHERE a.project_id = $1 ORDER BY a.created_at DESC LIMIT $2',
+      values: [project_id, lim],
+    })).rows;
 
     if (rows.length === 0) {
-      const items = await pool.query(
-        `SELECT i.id, i.title, i.updated_at, i.created_at, c.name as assignee_name, c.initials as assignee_initials
-         FROM items i
-         LEFT JOIN crew c ON i.assignee_id = c.id
-         WHERE i.project_id = $1
-         ORDER BY COALESCE(i.updated_at, i.created_at) DESC
-         LIMIT $2`,
-        [project_id, lim]
-      ).then(r => r.rows);
+      const items = (await pool.query({
+        name: 'activity_fallback_items',
+        text: 'SELECT i.id, i.title, i.updated_at, i.created_at, c.name as assignee_name, c.initials as assignee_initials FROM items i LEFT JOIN crew c ON i.assignee_id = c.id WHERE i.project_id = $1 ORDER BY COALESCE(i.updated_at, i.created_at) DESC LIMIT $2',
+        values: [project_id, lim],
+      })).rows;
       rows = items.map((i, idx) => ({
         id: `item-${i.id}`,
         project_id,

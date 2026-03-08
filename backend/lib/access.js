@@ -9,26 +9,29 @@
 
 async function getAccessibleWorkspaceIds(pool, userId) {
   if (!userId) return [];
-  const { rows } = await pool.query(
-    `SELECT id FROM workspaces
-     WHERE owner_id = $1
-     UNION
-     SELECT workspace_id AS id FROM crew WHERE user_id = $1`,
-    [userId, userId]
-  );
+  const { rows } = await pool.query({
+    name: 'access_workspace_ids',
+    text: `SELECT id FROM workspaces WHERE owner_id = $1 UNION SELECT workspace_id AS id FROM crew WHERE user_id = $1`,
+    values: [userId, userId],
+  });
   return rows.map((r) => r.id);
 }
 
 /** Get or create a single default workspace for the user (used when UI has no workspace concept). */
 async function getOrCreateDefaultWorkspaceId(pool, userId) {
   if (!userId) return null;
-  let { rows } = await pool.query('SELECT id FROM workspaces WHERE owner_id = $1 ORDER BY created_at LIMIT 1', [userId]);
+  let { rows } = await pool.query({
+    name: 'access_workspace_by_owner',
+    text: 'SELECT id FROM workspaces WHERE owner_id = $1 ORDER BY created_at LIMIT 1',
+    values: [userId],
+  });
   if (rows.length > 0) return rows[0].id;
   const slug = 'my-workspace-' + String(userId).replace(/-/g, '').slice(0, 12);
-  const { rows: inserted } = await pool.query(
-    `INSERT INTO workspaces (name, slug, owner_id) VALUES ($1, $2, $3) RETURNING id`,
-    ['My Workspace', slug, userId]
-  );
+  const { rows: inserted } = await pool.query({
+    name: 'access_workspace_insert',
+    text: 'INSERT INTO workspaces (name, slug, owner_id) VALUES ($1, $2, $3) RETURNING id',
+    values: ['My Workspace', slug, userId],
+  });
   return inserted[0]?.id ?? null;
 }
 
@@ -38,19 +41,18 @@ async function getAccessibleProjectIds(pool, userId) {
   const projectIdsFromWorkspace = [];
   if (workspaceIds.length > 0) {
     const placeholders = workspaceIds.map((_, i) => `$${i + 1}`).join(',');
-    const { rows } = await pool.query(
-      `SELECT id FROM projects
-       WHERE workspace_id IN (${placeholders})
-       AND (is_personal = false OR created_by = $${workspaceIds.length + 1})`,
-      [...workspaceIds, userId]
-    );
+    const { rows } = await pool.query({
+      name: 'access_projects_by_workspace',
+      text: `SELECT id FROM projects WHERE workspace_id IN (${placeholders}) AND (is_personal = false OR created_by = $${workspaceIds.length + 1})`,
+      values: [...workspaceIds, userId],
+    });
     projectIdsFromWorkspace.push(...rows.map((r) => r.id));
   }
-  const { rows: sharedRows } = await pool.query(
-    `SELECT DISTINCT pm.project_id AS id FROM project_members pm
-     JOIN crew c ON c.id = pm.crew_id AND c.user_id = $1`,
-    [userId]
-  );
+  const { rows: sharedRows } = await pool.query({
+    name: 'access_projects_shared',
+    text: 'SELECT DISTINCT pm.project_id AS id FROM project_members pm JOIN crew c ON c.id = pm.crew_id AND c.user_id = $1',
+    values: [userId],
+  });
   const sharedIds = sharedRows.map((r) => r.id);
   const combined = [...new Set([...projectIdsFromWorkspace.map(String), ...sharedIds.map(String)])];
   return combined;

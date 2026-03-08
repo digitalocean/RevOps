@@ -15,7 +15,11 @@ router.get('/', async (req, res) => {
     if (!project_id) return res.json([]);
     const ok = await canAccessProject(pool, userId, project_id);
     if (!ok) return res.json([]);
-    const { rows } = await pool.query('SELECT * FROM board_columns WHERE project_id = $1 ORDER BY sort_order', [project_id]);
+    const { rows } = await pool.query({
+      name: 'columns_list',
+      text: 'SELECT * FROM board_columns WHERE project_id = $1 ORDER BY sort_order',
+      values: [project_id],
+    });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -29,10 +33,11 @@ router.post('/', async (req, res) => {
     const ok = await canAccessProject(pool, userId, project_id);
     if (!ok) return res.status(403).json({ error: 'Access denied to this project' });
     const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-    const { rows } = await pool.query(
-      'INSERT INTO board_columns(project_id,name,slug,color,is_done) VALUES($1,$2,$3,$4,$5) RETURNING *',
-      [project_id, name, slug, color, is_done]
-    );
+    const { rows } = await pool.query({
+      name: 'columns_insert',
+      text: 'INSERT INTO board_columns(project_id,name,slug,color,is_done) VALUES($1,$2,$3,$4,$5) RETURNING *',
+      values: [project_id, name, slug, color, is_done],
+    });
     res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -41,7 +46,11 @@ router.patch('/:id', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const bc = await pool.query('SELECT project_id FROM board_columns WHERE id = $1', [req.params.id]);
+    const bc = await pool.query({
+      name: 'columns_get_project',
+      text: 'SELECT project_id FROM board_columns WHERE id = $1',
+      values: [req.params.id],
+    });
     if (!bc.rows.length) return res.status(404).json({ error: 'Not found' });
     const ok = await canAccessProject(pool, userId, bc.rows[0].project_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
@@ -49,7 +58,11 @@ router.patch('/:id', async (req, res) => {
     const fields = Object.keys(req.body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No fields' });
     const sets = fields.map((f, i) => `${f}=$${i + 2}`).join(',');
-    const { rows } = await pool.query(`UPDATE board_columns SET ${sets} WHERE id=$1 RETURNING *`, [req.params.id, ...fields.map(f => req.body[f])]);
+    const { rows } = await pool.query({
+      name: 'columns_patch',
+      text: `UPDATE board_columns SET ${sets} WHERE id=$1 RETURNING *`,
+      values: [req.params.id, ...fields.map(f => req.body[f])],
+    });
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -58,11 +71,19 @@ router.delete('/:id', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const bc = await pool.query('SELECT project_id FROM board_columns WHERE id = $1', [req.params.id]);
+    const bc = await pool.query({
+      name: 'columns_get_project_del',
+      text: 'SELECT project_id FROM board_columns WHERE id = $1',
+      values: [req.params.id],
+    });
     if (!bc.rows.length) return res.status(404).json({ error: 'Not found' });
     const ok = await canAccessProject(pool, userId, bc.rows[0].project_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
-    await pool.query('DELETE FROM board_columns WHERE id=$1', [req.params.id]);
+    await pool.query({
+      name: 'columns_delete',
+      text: 'DELETE FROM board_columns WHERE id=$1',
+      values: [req.params.id],
+    });
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

@@ -6,7 +6,11 @@ const { requireUser, getAccessibleProjectIds } = require('../lib/access');
 router.get('/', async (req, res) => {
   try {
     requireUser(req, res);  // auth check but no project scoping needed
-    const { rows } = await pool.query('SELECT * FROM project_templates ORDER BY name ASC');
+    const { rows } = await pool.query({
+      name: 'templates_list',
+      text: 'SELECT * FROM project_templates ORDER BY name ASC',
+      values: [],
+    });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -25,7 +29,11 @@ router.post('/projects/:id/apply-template', async (req, res) => {
       return res.status(403).json({ error: 'Access denied to this project' });
     }
 
-    const tmpl = await pool.query('SELECT * FROM project_templates WHERE id=$1', [template_id]);
+    const tmpl = await pool.query({
+      name: 'templates_get_one',
+      text: 'SELECT * FROM project_templates WHERE id=$1',
+      values: [template_id],
+    });
     if (!tmpl.rows.length) return res.status(404).json({ error: 'Template not found' });
 
     const trackers = tmpl.rows[0].trackers || [];
@@ -33,10 +41,11 @@ router.post('/projects/:id/apply-template', async (req, res) => {
 
     for (const tracker of trackers) {
       // Create tracker
-      const tr = await pool.query(
-        'INSERT INTO trackers(project_id, name) VALUES($1,$2) RETURNING *',
-        [projectId, tracker.name]
-      );
+      const tr = await pool.query({
+        name: 'templates_tracker_insert',
+        text: 'INSERT INTO trackers(project_id, name) VALUES($1,$2) RETURNING *',
+        values: [projectId, tracker.name],
+      });
       const trackerId = tr.rows[0].id;
 
       // Create tasks
@@ -49,16 +58,11 @@ router.post('/projects/:id/apply-template', async (req, res) => {
           'In Review': 'in_review',
         };
         const priorityMap = { 'P0': 'critical', 'P1': 'high', 'P2': 'medium' };
-        await pool.query(
-          `INSERT INTO items(project_id, tracker_id, title, status, priority, sort_order)
-           VALUES($1,$2,$3,$4,$5,$6)`,
-          [
-            projectId, trackerId, task.title,
-            statusMap[task.status] || 'not_started',
-            priorityMap[task.priority] || 'medium',
-            i,
-          ]
-        );
+        await pool.query({
+          name: 'templates_item_insert',
+          text: 'INSERT INTO items(project_id, tracker_id, title, status, priority, sort_order) VALUES($1,$2,$3,$4,$5,$6)',
+          values: [projectId, trackerId, task.title, statusMap[task.status] || 'not_started', priorityMap[task.priority] || 'medium', i],
+        });
       }
       created.push(tracker.name);
     }

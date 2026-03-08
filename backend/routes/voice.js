@@ -67,10 +67,11 @@ router.post('/create', async (req, res) => {
 
     if (item_type === 'note') {
       // Notes: always use the transcript as the note content (real-time, no GPT rewrite)
-      const { rows } = await pool.query(
-        `INSERT INTO log_entries(project_id,sprint_id,author_id,entry_type,content) VALUES($1,$2,$3,'voice',$4) RETURNING *`,
-        [project_id || null, sprint_id || null, author_id || null, text]
-      );
+      const { rows } = await pool.query({
+        name: 'voice_log_insert',
+        text: "INSERT INTO log_entries(project_id,sprint_id,author_id,entry_type,content) VALUES($1,$2,$3,'voice',$4) RETURNING *",
+        values: [project_id || null, sprint_id || null, author_id || null, text],
+      });
       result = { type: 'log', entry: rows[0] };
     } else {
       // Work items: use AI to extract structure (DigitalOcean Gradient or OpenAI)
@@ -83,27 +84,30 @@ router.post('/create', async (req, res) => {
       });
       if (content) {
         const parsed = JSON.parse(content);
-        const { rows } = await pool.query(
-          `INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,$6,$7,'not_started') RETURNING *`,
-          [project_id, sprint_id || null, parsed.type || item_type, parsed.title || text.slice(0, 200), parsed.description || '', parsed.priority || 'medium', parsed.points || 3]
-        );
+        const { rows } = await pool.query({
+          name: 'voice_item_insert',
+          text: "INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,$6,$7,'not_started') RETURNING *",
+          values: [project_id, sprint_id || null, parsed.type || item_type, parsed.title || text.slice(0, 200), parsed.description || '', parsed.priority || 'medium', parsed.points || 3],
+        });
         result = { type: 'item', item: rows[0] };
       } else {
         const title = text.slice(0, 500).trim() || 'Voice task';
         const itemType = (item_type === 'story' ? 'story' : 'task');
-        const { rows } = await pool.query(
-          `INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,'medium',3,'not_started') RETURNING *`,
-          [project_id, sprint_id || null, itemType, title, text]
-        );
+        const { rows } = await pool.query({
+          name: 'voice_item_insert_fallback',
+          text: "INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,'medium',3,'not_started') RETURNING *",
+          values: [project_id, sprint_id || null, itemType, title, text],
+        });
         result = { type: 'item', item: rows[0] };
       }
     }
 
     try {
-      await pool.query(
-        `INSERT INTO voice_recordings(crew_id,transcript,item_type) VALUES($1,$2,$3)`,
-        [author_id || null, text, item_type]
-      );
+      await pool.query({
+        name: 'voice_recording_insert',
+        text: 'INSERT INTO voice_recordings(crew_id,transcript,item_type) VALUES($1,$2,$3)',
+        values: [author_id || null, text, item_type],
+      });
     } catch (logErr) {
       console.warn('Voice recording log failed:', logErr.message);
     }

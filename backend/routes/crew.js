@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
       q += ` AND workspace_id = $2`;
     }
     q += ' ORDER BY name';
-    const { rows } = await pool.query(q, params);
+    const { rows } = await pool.query({ name: 'crew_list', text: q, values: params });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -31,10 +31,11 @@ router.post('/', async (req, res) => {
     if (!workspace_id || !allowedWorkspaceIds.some(id => String(id) === String(workspace_id))) {
       return res.status(403).json({ error: 'Access denied to this workspace' });
     }
-    const { rows } = await pool.query(
-      'INSERT INTO crew(workspace_id,name,email,initials,color,role) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
-      [workspace_id, name, email, initials, color, role]
-    );
+    const { rows } = await pool.query({
+      name: 'crew_insert',
+      text: 'INSERT INTO crew(workspace_id,name,email,initials,color,role) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
+      values: [workspace_id, name, email, initials, color, role],
+    });
     res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -43,7 +44,11 @@ router.patch('/:id', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const crewRow = await pool.query('SELECT workspace_id FROM crew WHERE id = $1', [req.params.id]);
+    const crewRow = await pool.query({
+      name: 'crew_get_workspace',
+      text: 'SELECT workspace_id FROM crew WHERE id = $1',
+      values: [req.params.id],
+    });
     if (!crewRow.rows.length) return res.status(404).json({ error: 'Not found' });
     const allowedWorkspaceIds = await getAccessibleWorkspaceIds(pool, userId);
     if (!allowedWorkspaceIds.some(id => String(id) === String(crewRow.rows[0].workspace_id))) {
@@ -53,7 +58,11 @@ router.patch('/:id', async (req, res) => {
     const fields = Object.keys(req.body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No fields' });
     const sets = fields.map((f, i) => `${f}=$${i + 2}`).join(',');
-    const { rows } = await pool.query(`UPDATE crew SET ${sets} WHERE id=$1 RETURNING *`, [req.params.id, ...fields.map(f => req.body[f])]);
+    const { rows } = await pool.query({
+      name: 'crew_patch',
+      text: `UPDATE crew SET ${sets} WHERE id=$1 RETURNING *`,
+      values: [req.params.id, ...fields.map(f => req.body[f])],
+    });
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -62,13 +71,21 @@ router.delete('/:id', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const crewRow = await pool.query('SELECT workspace_id FROM crew WHERE id = $1', [req.params.id]);
+    const crewRow = await pool.query({
+      name: 'crew_get_workspace_del',
+      text: 'SELECT workspace_id FROM crew WHERE id = $1',
+      values: [req.params.id],
+    });
     if (!crewRow.rows.length) return res.status(404).json({ error: 'Not found' });
     const allowedWorkspaceIds = await getAccessibleWorkspaceIds(pool, userId);
     if (!allowedWorkspaceIds.some(id => String(id) === String(crewRow.rows[0].workspace_id))) {
       return res.status(404).json({ error: 'Not found' });
     }
-    await pool.query('UPDATE crew SET active=false WHERE id=$1', [req.params.id]);
+    await pool.query({
+      name: 'crew_deactivate',
+      text: 'UPDATE crew SET active=false WHERE id=$1',
+      values: [req.params.id],
+    });
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

@@ -34,23 +34,26 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
           const avatar = profile.photos?.[0]?.value || null;
           const googleId = profile.id;
 
-          const existing = await pool.query(
-            'SELECT id, email, name, avatar_url FROM users WHERE google_id = $1 OR email = $2 LIMIT 1',
-            [googleId, email]
-          );
+          const existing = await pool.query({
+            name: 'auth_google_find_user',
+            text: 'SELECT id, email, name, avatar_url FROM users WHERE google_id = $1 OR email = $2 LIMIT 1',
+            values: [googleId, email],
+          });
 
           let user;
           if (existing.rows.length) {
-            await pool.query(
-              'UPDATE users SET name = $1, avatar_url = $2, google_id = $3 WHERE id = $4',
-              [name, avatar, googleId, existing.rows[0].id]
-            );
+            await pool.query({
+              name: 'auth_google_update_user',
+              text: 'UPDATE users SET name = $1, avatar_url = $2, google_id = $3 WHERE id = $4',
+              values: [name, avatar, googleId, existing.rows[0].id],
+            });
             user = { id: existing.rows[0].id, email, name, avatar_url: avatar };
           } else {
-            const insert = await pool.query(
-              `INSERT INTO users (email, name, avatar_url, google_id) VALUES ($1, $2, $3, $4) RETURNING id, email, name, avatar_url`,
-              [email, name, avatar, googleId]
-            );
+            const insert = await pool.query({
+              name: 'auth_google_insert_user',
+              text: 'INSERT INTO users (email, name, avatar_url, google_id) VALUES ($1, $2, $3, $4) RETURNING id, email, name, avatar_url',
+              values: [email, name, avatar, googleId],
+            });
             user = insert.rows[0];
           }
           return done(null, user);
@@ -82,10 +85,11 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
     const hash = await bcrypt.hash(String(password), SALT_ROUNDS);
-    const { rows } = await pool.query(
-      `INSERT INTO users (email, name, password_hash) VALUES ($1, $2, $3) RETURNING id, email, name`,
-      [emailTrim, (name && String(name).trim()) || emailTrim.split('@')[0], hash]
-    );
+    const { rows } = await pool.query({
+      name: 'auth_register_insert',
+      text: 'INSERT INTO users (email, name, password_hash) VALUES ($1, $2, $3) RETURNING id, email, name',
+      values: [emailTrim, (name && String(name).trim()) || emailTrim.split('@')[0], hash],
+    });
     const user = rows[0];
     req.login({ id: user.id, email: user.email, name: user.name, avatar_url: null }, (err) => {
       if (err) return res.status(500).json({ error: err.message });
@@ -105,10 +109,11 @@ router.post('/login', async (req, res, next) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
     const emailTrim = String(email).trim().toLowerCase();
-    const { rows } = await pool.query(
-      'SELECT id, email, name, avatar_url, password_hash FROM users WHERE email = $1',
-      [emailTrim]
-    );
+    const { rows } = await pool.query({
+      name: 'auth_login_find',
+      text: 'SELECT id, email, name, avatar_url, password_hash FROM users WHERE email = $1',
+      values: [emailTrim],
+    });
     if (!rows.length) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }

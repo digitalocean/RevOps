@@ -31,13 +31,14 @@ router.get('/', async (req, res) => {
       query += ` AND i.project_id = $${params.length}`;
     }
     query += ' ORDER BY i.sort_order ASC, i.created_at ASC';
-    const { rows } = await pool.query(query, params);
+    const { rows } = await pool.query({ name: 'items_list', text: query, values: params });
     if (rows.length > 0) {
       const itemIds = rows.map((r) => r.id);
-      const fvRes = await pool.query(
-        'SELECT task_id, field_id, value_text, value_number, value_date, value_boolean FROM custom_field_values WHERE task_id = ANY($1)',
-        [itemIds]
-      ).catch(() => ({ rows: [] }));
+      const fvRes = await pool.query({
+        name: 'items_field_values',
+        text: 'SELECT task_id, field_id, value_text, value_number, value_date, value_boolean FROM custom_field_values WHERE task_id = ANY($1)',
+        values: [itemIds],
+      }).catch(() => ({ rows: [] }));
       const byTask = {};
       (fvRes.rows || []).forEach((r) => {
         if (!byTask[r.task_id]) byTask[r.task_id] = {};
@@ -55,11 +56,11 @@ router.get('/:id', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const { rows } = await pool.query(
-      `SELECT i.*, c.name as assignee_name, c.initials as assignee_initials, c.color as assignee_color
-       FROM items i LEFT JOIN crew c ON i.assignee_id = c.id WHERE i.id = $1`,
-      [req.params.id]
-    );
+    const { rows } = await pool.query({
+      name: 'items_get_one',
+      text: 'SELECT i.*, c.name as assignee_name, c.initials as assignee_initials, c.color as assignee_color FROM items i LEFT JOIN crew c ON i.assignee_id = c.id WHERE i.id = $1',
+      values: [req.params.id],
+    });
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     const ok = await canAccessProject(pool, userId, rows[0].project_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
@@ -80,10 +81,11 @@ router.post('/', async (req, res) => {
     if (!ok) return res.status(403).json({ error: 'Access denied to this project' });
     const labelsArr = Array.isArray(labels) ? labels : [];
     const customValsObj = custom_vals && typeof custom_vals === 'object' ? custom_vals : {};
-    const { rows } = await pool.query(`
-      INSERT INTO items(project_id,sprint_id,parent_id,tracker_id,type,title,description,status,column_id,priority,points,assignee_id,due_date,labels,custom_vals,category)
-      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *
-    `, [project_id, sprint_id || null, parent_id || null, tracker_id || null, type, title, description || '', status, column_id || null, priority, points ?? 3, assignee_id || null, due_date || null, labelsArr, JSON.stringify(customValsObj), category || null]);
+    const { rows } = await pool.query({
+      name: 'items_insert',
+      text: 'INSERT INTO items(project_id,sprint_id,parent_id,tracker_id,type,title,description,status,column_id,priority,points,assignee_id,due_date,labels,custom_vals,category) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *',
+      values: [project_id, sprint_id || null, parent_id || null, tracker_id || null, type, title, description || '', status, column_id || null, priority, points ?? 3, assignee_id || null, due_date || null, labelsArr, JSON.stringify(customValsObj), category || null],
+    });
     res.status(201).json(rows[0]);
     logActivity(pool, project_id, userId, 'item_created', rows[0].id, { title });
     // Real-time broadcast
@@ -94,13 +96,17 @@ router.post('/', async (req, res) => {
 // Helper: log activity
 async function logActivity(pool, projectId, userId, action, entityId, details = {}) {
   try {
-    const crew = await pool.query('SELECT id FROM crew WHERE user_id = $1 LIMIT 1', [userId]);
+    const crew = await pool.query({
+      name: 'items_crew_by_user',
+      text: 'SELECT id FROM crew WHERE user_id = $1 LIMIT 1',
+      values: [userId],
+    });
     const crewId = crew.rows[0]?.id || null;
-    await pool.query(
-      `INSERT INTO activity_log (project_id, crew_id, action, entity_type, entity_id, details)
-       VALUES ($1, $2, $3, 'item', $4, $5)`,
-      [projectId, crewId, action, entityId, JSON.stringify(details)]
-    );
+    await pool.query({
+      name: 'items_activity_insert',
+      text: `INSERT INTO activity_log (project_id, crew_id, action, entity_type, entity_id, details) VALUES ($1, $2, $3, 'item', $4, $5)`,
+      values: [projectId, crewId, action, entityId, JSON.stringify(details)],
+    });
   } catch { /* non-fatal */ }
 }
 
@@ -109,7 +115,11 @@ router.patch('/:id', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const itemCheck = await pool.query('SELECT project_id, title, status, priority, assignee_id FROM items WHERE id = $1', [req.params.id]);
+    const itemCheck = await pool.query({
+      name: 'items_get_for_patch',
+      text: 'SELECT project_id, title, status, priority, assignee_id FROM items WHERE id = $1',
+      values: [req.params.id],
+    });
     if (!itemCheck.rows.length) return res.status(404).json({ error: 'Not found' });
     const existing = itemCheck.rows[0];
     const ok = await canAccessProject(pool, userId, existing.project_id);
@@ -119,10 +129,11 @@ router.patch('/:id', async (req, res) => {
     if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
     const sets  = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
     const vals  = fields.map(f => f === 'custom_vals' ? JSON.stringify(req.body[f]) : req.body[f]);
-    const { rows } = await pool.query(
-      `UPDATE items SET ${sets}, updated_at=NOW() WHERE id=$1 RETURNING *`,
-      [req.params.id, ...vals]
-    );
+    const { rows } = await pool.query({
+      name: 'items_patch',
+      text: `UPDATE items SET ${sets}, updated_at=NOW() WHERE id=$1 RETURNING *`,
+      values: [req.params.id, ...vals],
+    });
     if (!rows.length) return res.status(404).json({ error: 'Not found' });
     res.json(rows[0]);
     // Real-time broadcast
@@ -138,7 +149,11 @@ router.patch('/:id', async (req, res) => {
     } else if ('assignee_id' in req.body) {
       let assigneeName = null;
       if (req.body.assignee_id) {
-        const cr = await pool.query('SELECT name FROM crew WHERE id = $1', [req.body.assignee_id]).catch(() => ({ rows: [] }));
+        const cr = await pool.query({
+          name: 'items_crew_name',
+          text: 'SELECT name FROM crew WHERE id = $1',
+          values: [req.body.assignee_id],
+        }).catch(() => ({ rows: [] }));
         assigneeName = cr.rows[0]?.name || null;
       }
       logActivity(pool, existing.project_id, userId, 'assignee_changed', req.params.id,
@@ -154,11 +169,19 @@ router.delete('/:id', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const itemCheck = await pool.query('SELECT project_id, title FROM items WHERE id = $1', [req.params.id]);
+    const itemCheck = await pool.query({
+      name: 'items_get_for_del',
+      text: 'SELECT project_id, title FROM items WHERE id = $1',
+      values: [req.params.id],
+    });
     if (!itemCheck.rows.length) return res.status(404).json({ error: 'Not found' });
     const ok = await canAccessProject(pool, userId, itemCheck.rows[0].project_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
-    await pool.query('DELETE FROM items WHERE id=$1', [req.params.id]);
+    await pool.query({
+      name: 'items_delete',
+      text: 'DELETE FROM items WHERE id=$1',
+      values: [req.params.id],
+    });
     res.json({ success: true });
     // Real-time broadcast
     try { req.app.locals.broadcast({ type: 'item_deleted', projectId: itemCheck.rows[0].project_id, itemId: req.params.id }); } catch (_) {}
@@ -174,13 +197,11 @@ router.get('/:id/dependencies', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const { rows } = await pool.query(
-      `SELECT d.*, i.title as depends_on_title, i.status as depends_on_status
-       FROM item_dependencies d
-       JOIN items i ON i.id = d.depends_on_id
-       WHERE d.item_id = $1`,
-      [req.params.id]
-    );
+    const { rows } = await pool.query({
+      name: 'items_deps_list',
+      text: 'SELECT d.*, i.title as depends_on_title, i.status as depends_on_status FROM item_dependencies d JOIN items i ON i.id = d.depends_on_id WHERE d.item_id = $1',
+      values: [req.params.id],
+    });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -193,10 +214,11 @@ router.post('/:id/dependencies', async (req, res) => {
     const { depends_on_id } = req.body;
     if (!depends_on_id) return res.status(400).json({ error: 'depends_on_id required' });
     if (depends_on_id === req.params.id) return res.status(400).json({ error: 'A task cannot depend on itself' });
-    const { rows } = await pool.query(
-      `INSERT INTO item_dependencies(item_id, depends_on_id) VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING *`,
-      [req.params.id, depends_on_id]
-    );
+    const { rows } = await pool.query({
+      name: 'items_deps_insert',
+      text: 'INSERT INTO item_dependencies(item_id, depends_on_id) VALUES($1,$2) ON CONFLICT DO NOTHING RETURNING *',
+      values: [req.params.id, depends_on_id],
+    });
     res.status(201).json(rows[0] || { ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -205,7 +227,11 @@ router.post('/:id/dependencies', async (req, res) => {
 router.delete('/:id/dependencies/:depId', async (req, res) => {
   try {
     requireUser(req, res);
-    await pool.query('DELETE FROM item_dependencies WHERE item_id=$1 AND depends_on_id=$2', [req.params.id, req.params.depId]);
+    await pool.query({
+      name: 'items_deps_delete',
+      text: 'DELETE FROM item_dependencies WHERE item_id=$1 AND depends_on_id=$2',
+      values: [req.params.id, req.params.depId],
+    });
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -218,7 +244,11 @@ router.patch('/reorder', async (req, res) => {
     const { order } = req.body; // [{id, sort_order}]
     if (!Array.isArray(order)) return res.status(400).json({ error: 'order array required' });
     for (const { id, sort_order } of order) {
-      await pool.query('UPDATE items SET sort_order=$1, updated_at=NOW() WHERE id=$2', [sort_order, id]);
+      await pool.query({
+        name: 'items_reorder_one',
+        text: 'UPDATE items SET sort_order=$1, updated_at=NOW() WHERE id=$2',
+        values: [sort_order, id],
+      });
     }
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }

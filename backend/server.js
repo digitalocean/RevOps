@@ -153,6 +153,7 @@ app.use('/custom-fields', customFields);
 app.use('/voice', voice);
 app.use('/columns', columns);
 app.use('/activity', activity);
+app.use('/templates', require('./routes/templates'));
 app.use('/', require('./routes/comments'));
 app.use('/notifications', require('./routes/notifications'));
 app.use('/', require('./routes/timeLogs'));
@@ -163,7 +164,7 @@ app.use('/', require('./routes/savedViews'));
 // ── Health Check (both /api/health and /health for platform checks) ─
 const healthHandler = async (req, res) => {
   try {
-    await pool.query('SELECT 1');
+    await pool.query({ name: 'health_check', text: 'SELECT 1', values: [] });
     res.json({ status: 'ok', db: 'connected', schema: schemaEnsured, time: new Date().toISOString() });
   } catch (e) {
     res.status(500).json({ status: 'error', db: 'disconnected', message: e.message });

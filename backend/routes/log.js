@@ -23,7 +23,7 @@ router.get('/', async (req, res) => {
     }
     if (sprint_id) { p.push(sprint_id); q += ` AND l.sprint_id = $${p.length}`; }
     q += ' ORDER BY l.created_at DESC';
-    const { rows } = await pool.query(q, p);
+    const { rows } = await pool.query({ name: 'log_list', text: q, values: p });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -38,10 +38,11 @@ router.post('/', async (req, res) => {
       const ok = await canAccessProject(pool, userId, project_id);
       if (!ok) return res.status(403).json({ error: 'Access denied to this project' });
     }
-    const { rows } = await pool.query(
-      'INSERT INTO log_entries(project_id,sprint_id,author_id,entry_type,content,voice_url) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
-      [project_id || null, sprint_id || null, author_id || null, entry_type, String(content).trim(), voice_url || null]
-    );
+    const { rows } = await pool.query({
+      name: 'log_insert',
+      text: 'INSERT INTO log_entries(project_id,sprint_id,author_id,entry_type,content,voice_url) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
+      values: [project_id || null, sprint_id || null, author_id || null, entry_type, String(content).trim(), voice_url || null],
+    });
     res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -50,11 +51,19 @@ router.delete('/:id', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const le = await pool.query('SELECT project_id FROM log_entries WHERE id = $1', [req.params.id]);
+    const le = await pool.query({
+      name: 'log_get_project',
+      text: 'SELECT project_id FROM log_entries WHERE id = $1',
+      values: [req.params.id],
+    });
     if (!le.rows.length) return res.status(404).json({ error: 'Not found' });
     const ok = await canAccessProject(pool, userId, le.rows[0].project_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
-    await pool.query('DELETE FROM log_entries WHERE id=$1', [req.params.id]);
+    await pool.query({
+      name: 'log_delete',
+      text: 'DELETE FROM log_entries WHERE id=$1',
+      values: [req.params.id],
+    });
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

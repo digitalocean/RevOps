@@ -12,7 +12,7 @@ async function getAccessibleWorkspaceIds(pool, userId) {
   const { rows } = await pool.query({
     name: 'access_workspace_ids',
     text: `SELECT id FROM workspaces WHERE owner_id = $1 UNION SELECT workspace_id AS id FROM crew WHERE user_id = $1`,
-    values: [userId, userId],
+    values: [userId],
   });
   return rows.map((r) => r.id);
 }

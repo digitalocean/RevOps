@@ -58,6 +58,20 @@ async function getAccessibleProjectIds(pool, userId) {
   return combined;
 }
 
+/** True if user can delete/edit project (creator or project member with owner/admin/moderator/editor role). */
+async function canManageProject(pool, userId, projectId) {
+  if (!userId || !projectId) return false;
+  const { rows } = await pool.query({
+    name: 'access_can_manage_project',
+    text: `SELECT 1 FROM projects WHERE id = $1 AND created_by = $2
+           UNION ALL
+           SELECT 1 FROM project_members pm JOIN crew c ON c.id = pm.crew_id AND c.user_id = $2
+           WHERE pm.project_id = $1 AND pm.role IN ('owner', 'admin', 'moderator', 'editor')`,
+    values: [projectId, userId],
+  });
+  return rows.length > 0;
+}
+
 function requireUser(req, res) {
   if (!req.user || !req.user.id) {
     res.status(401).json({ error: 'Sign in required' });
@@ -70,5 +84,6 @@ module.exports = {
   getAccessibleWorkspaceIds,
   getAccessibleProjectIds,
   getOrCreateDefaultWorkspaceId,
+  canManageProject,
   requireUser,
 };

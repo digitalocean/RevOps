@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { pool } = require('../server');
-const { getAccessibleProjectIds, requireUser } = require('../lib/access');
+const { getAccessibleProjectIds, requireUser, canManageProject } = require('../lib/access');
 
 async function canAccessProject(pool, userId, projectId) {
   const ids = await getAccessibleProjectIds(pool, userId);
@@ -103,6 +103,30 @@ router.patch('/:id/rows/:rowId', async (req, res) => {
       values: [JSON.stringify(req.body.data), req.params.rowId],
     });
     res.json(rows[0]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /:id — delete section/tracker (owner/moderator/editor only)
+router.delete('/:id', async (req, res) => {
+  try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const trackerId = req.params.id;
+    const tr = await pool.query({
+      name: 'trackers_get_project_for_delete',
+      text: 'SELECT project_id FROM trackers WHERE id = $1',
+      values: [trackerId],
+    });
+    if (!tr.rows.length) return res.status(404).json({ error: 'Not found' });
+    const projectId = tr.rows[0].project_id;
+    const canManage = await canManageProject(pool, userId, projectId);
+    if (!canManage) return res.status(403).json({ error: 'Only project owner or moderator can delete sections' });
+    await pool.query({
+      name: 'trackers_delete',
+      text: 'DELETE FROM trackers WHERE id = $1',
+      values: [trackerId],
+    });
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

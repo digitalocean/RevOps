@@ -1,5 +1,11 @@
-import { Plus, User, Search, LogOut, Sparkles, Menu } from 'lucide-react';
+import { Plus, User, Search, LogOut, Sparkles, Menu, MoreHorizontal, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 import type { Project } from '../data/useMeridianData';
 import { NotificationsBell } from './NotificationsBell';
 
@@ -8,6 +14,7 @@ interface WorkspaceHeaderProps {
   selectedProjectId: string | null;
   onSelectProject: (id: string) => void;
   onOpenNewProject: () => void;
+  onDeleteProject?: (projectId: string) => void | Promise<void>;
   onToggleActivity?: () => void;
   selectedProjectName?: string;
   sprintLabel?: string;
@@ -29,6 +36,7 @@ export function WorkspaceHeader({
   selectedProjectId,
   onSelectProject,
   onOpenNewProject,
+  onDeleteProject,
   currentUser = null,
   onLogin,
   onLogout,
@@ -94,6 +102,28 @@ export function WorkspaceHeader({
           >
             <Plus className="w-4 h-4" />
           </Button>
+          {selectedProjectId && onDeleteProject && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type="button" variant="ghost" size="sm" className="h-9 w-9 p-0 ml-0.5 text-gray-400 hover:text-gray-600" title="Project options">
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem
+                  className="text-red-600 focus:text-red-700 gap-2 cursor-pointer"
+                  onSelect={() => {
+                    const name = projects.find((p) => p.id === selectedProjectId)?.name ?? 'this project';
+                    if (window.confirm(`Delete "${name}"? This cannot be undone.`)) {
+                      onDeleteProject(selectedProjectId);
+                    }
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" /> Delete project
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         {/* Right: search, AI, date, user */}

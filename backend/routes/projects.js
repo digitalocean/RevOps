@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { pool } = require('../server');
-const { getAccessibleWorkspaceIds, getAccessibleProjectIds, getOrCreateDefaultWorkspaceId, requireUser } = require('../lib/access');
+const { getAccessibleWorkspaceIds, getAccessibleProjectIds, getOrCreateDefaultWorkspaceId, requireUser, canManageProject } = require('../lib/access');
 
 router.get('/', async (req, res) => {
   try {
@@ -186,6 +186,23 @@ router.post('/:id/members', async (req, res) => {
       values: [projectId],
     });
     res.status(201).json(members);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// DELETE /:id — delete project (owner/moderator/editor only)
+router.delete('/:id', async (req, res) => {
+  try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const projectId = req.params.id;
+    const canManage = await canManageProject(pool, userId, projectId);
+    if (!canManage) return res.status(403).json({ error: 'Only project owner or moderator can delete the project' });
+    await pool.query({
+      name: 'projects_delete',
+      text: 'DELETE FROM projects WHERE id = $1',
+      values: [projectId],
+    });
+    res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Plus, MoreHorizontal, Clock, Star, Loader2, Check, X, GripVertical } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, MoreHorizontal, Clock, Star, Loader2, Check, X, GripVertical, Trash2 } from 'lucide-react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -65,6 +65,7 @@ interface TrackerSectionProps {
   onCreateSubItem?: (parentId: string) => void;
   onUpdateItem?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: string | null; progress?: number }) => Promise<unknown>;
   onDeleteItem?: (id: string) => Promise<void>;
+  onDeleteSection?: (trackerId: string) => Promise<void>;
   onItemCompleted?: () => void;
   focusedId?: string | null;
   onFocusChange?: (id: string | null) => void;
@@ -599,6 +600,7 @@ export function TrackerSection({
   onCreateSubItem,
   onUpdateItem,
   onDeleteItem,
+  onDeleteSection,
   onItemCompleted,
   focusedId,
   onFocusChange,
@@ -669,7 +671,7 @@ export function TrackerSection({
   return (
     <>
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="border-b border-gray-200 px-4 py-3 bg-gray-50">
+        <div className="border-b border-gray-200 px-4 py-3 bg-gray-50 flex items-center justify-between gap-2">
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
@@ -681,6 +683,27 @@ export function TrackerSection({
               {filteredInitiatives.length}
             </span>
           </button>
+          {section.id !== 'uncategorized' && onDeleteSection && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50" onClick={(e) => e.stopPropagation()}>
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="z-[100] w-48">
+                <DropdownMenuItem
+                  className="text-red-600 focus:text-red-700 gap-2 cursor-pointer"
+                  onSelect={() => {
+                    if (window.confirm(`Delete section "${section.title}"? Tasks in it will become uncategorized.`)) {
+                      onDeleteSection(section.id);
+                    }
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" /> Delete section
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
 
         {isExpanded && (

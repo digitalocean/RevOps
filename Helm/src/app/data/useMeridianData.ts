@@ -118,6 +118,8 @@ export interface MeridianDataResult {
   createSection: (projectId: string, name: string) => Promise<{ id: string; name: string } | null>;
   updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number; progress?: number; category?: string | null }) => Promise<unknown>;
   deleteItem: (itemId: string) => Promise<void>;
+  deleteSection: (trackerId: string) => Promise<void>;
+  deleteProject: (projectId: string) => Promise<void>;
   sprints: Sprint[];
   crew: { id: string; name: string; initials: string; role: string }[];
   customFields: { id: string; name: string; field_type: string; target: string }[];
@@ -337,6 +339,17 @@ export function useMeridianData(): MeridianDataResult {
     await load();
   }, [load]);
 
+  const deleteSection = useCallback(async (trackerId: string): Promise<void> => {
+    await del(apiPath(`api/trackers/${trackerId}`));
+    await load();
+  }, [load]);
+
+  const deleteProject = useCallback(async (projectId: string): Promise<void> => {
+    await del(apiPath(`api/projects/${projectId}`));
+    if (selectedProjectId === projectId) setSelectedProjectId(null);
+    await load();
+  }, [load, selectedProjectId]);
+
   const done = initiatives.filter((i) => i.status === 'Complete').length;
   const inProgress = initiatives.filter((i) => i.status === 'On Track' || i.status === 'At Risk').length;
   const atRisk = initiatives.filter((i) => i.status === 'At Risk' || i.status === 'Blocked').length;
@@ -365,6 +378,8 @@ export function useMeridianData(): MeridianDataResult {
     createItem,
     updateItem,
     deleteItem,
+    deleteSection,
+    deleteProject,
     sprints,
     customFields,
   };

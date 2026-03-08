@@ -85,6 +85,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     createSection,
     updateItem,
     deleteItem,
+    deleteSection,
+    deleteProject,
     crew,
     customFields,
   } = useMeridianData();
@@ -479,6 +481,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           selectedProjectId={selectedProjectId}
           onSelectProject={(id) => setSelectedProjectId(id)}
           onOpenNewProject={() => setShowNewProject(true)}
+          onDeleteProject={deleteProject}
           onToggleActivity={() => setShowActivityPanel(!showActivityPanel)}
           selectedProjectName={selectedProject?.name}
           sprintLabel={selectedSprint ? `${selectedSprint.start_date || ''} – ${selectedSprint.end_date || ''}` : undefined}
@@ -672,7 +675,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               />
             ) : (
               <div className="space-y-4">
-                {initiatives.length === 0 && selectedProject ? (
+                {initiatives.length === 0 && (!trackerSections || trackerSections.length <= 1) && selectedProject ? (
                   <EmptyProjectState
                     projectName={selectedProject.name}
                     onImport={() => setShowImport(true)}
@@ -692,6 +695,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
                     customFields={customFields}
                     visibleColumns={visibleColumns}
+                    onDeleteSection={deleteSection}
                     onUpdateFieldValue={async (taskId, fieldId, value) => {
                       const payload: { fieldId: string; valueText?: string; valueNumber?: number; valueDate?: string; valueBoolean?: boolean } = { fieldId };
                       if (typeof value === 'string') payload.valueText = value;

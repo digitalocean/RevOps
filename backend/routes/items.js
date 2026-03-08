@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { pool } = require('../server');
-const { getAccessibleProjectIds, requireUser } = require('../lib/access');
+const { getAccessibleProjectIds, requireUser, canManageProject } = require('../lib/access');
 
 async function canAccessProject(pool, userId, projectId) {
   const ids = await getAccessibleProjectIds(pool, userId);
@@ -164,7 +164,7 @@ router.patch('/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE item (user must have access to item's project)
+// DELETE item (owner/moderator/editor only)
 router.delete('/:id', async (req, res) => {
   try {
     const userId = requireUser(req, res);
@@ -175,8 +175,8 @@ router.delete('/:id', async (req, res) => {
       values: [req.params.id],
     });
     if (!itemCheck.rows.length) return res.status(404).json({ error: 'Not found' });
-    const ok = await canAccessProject(pool, userId, itemCheck.rows[0].project_id);
-    if (!ok) return res.status(404).json({ error: 'Not found' });
+    const canManage = await canManageProject(pool, userId, itemCheck.rows[0].project_id);
+    if (!canManage) return res.status(403).json({ error: 'Only project owner or moderator can delete tasks' });
     await pool.query({
       name: 'items_delete',
       text: 'DELETE FROM items WHERE id=$1',

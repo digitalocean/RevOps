@@ -1,13 +1,7 @@
 import { useState } from 'react';
-import { LayoutDashboard, FileText, BarChart3, GripVertical, Triangle, Plus, ChevronRight, ChevronDown, Settings, Anchor, Layers, Inbox, Users, ListTodo, MoreHorizontal, Trash2 } from 'lucide-react';
+import { LayoutDashboard, FileText, BarChart3, GripVertical, Triangle, Plus, ChevronRight, ChevronDown, Settings, Anchor, Layers, Inbox, Users, ListTodo, Trash2, Pencil } from 'lucide-react';
 import type { Project } from '../data/useMeridianData';
 import type { Initiative, TrackerSection as TrackerSectionType } from '../data/mockData';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from './ui/dropdown-menu';
 import { Button } from './ui/button';
 
 const PROJECT_DOT_COLORS = ['#22c55e', '#7c3aed', '#2563eb', '#ea580c', '#dc2626', '#0891b2'];
@@ -204,25 +198,18 @@ export function NavigationSidebar({
                                 <span className="text-[10px] text-gray-400 ml-auto flex-shrink-0 tabular-nums">{allTasks.length}</span>
                               </button>
                               {tracker.id !== 'uncategorized' && (onDeleteSection || onRenameSection) && (
-                                <DropdownMenu modal={false}>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-gray-600 shrink-0" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-                                      <MoreHorizontal className="w-3 h-3" />
+                                <span className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                  {onRenameSection && (
+                                    <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100" onClick={(e) => { e.stopPropagation(); const n = window.prompt('Section name', tracker.title); if (n != null && n.trim()) onRenameSection(tracker.id, n.trim()); }} title="Edit section name">
+                                      <Pencil className="w-3 h-3" />
                                     </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="start" className="w-44">
-                                    {onRenameSection && (
-                                      <DropdownMenuItem onClick={(e) => e.stopPropagation()} onSelect={() => { const n = window.prompt('Section name', tracker.title); if (n != null && n.trim()) onRenameSection(tracker.id, n.trim()); }}>
-                                        Edit
-                                      </DropdownMenuItem>
-                                    )}
-                                    {onDeleteSection && (
-                                      <DropdownMenuItem className="text-red-600 focus:text-red-700" onClick={(e) => e.stopPropagation()} onSelect={() => { if (window.confirm(`Delete "${tracker.title}"?`)) onDeleteSection(tracker.id); }}>
-                                        <Trash2 className="w-3 h-3 mr-1.5" /> Delete
-                                      </DropdownMenuItem>
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
+                                  )}
+                                  {onDeleteSection && (
+                                    <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50" onClick={(e) => { e.stopPropagation(); if (window.confirm(`Delete "${tracker.title}"?`)) onDeleteSection(tracker.id); }} title="Delete section">
+                                      <Trash2 className="w-3 h-3" />
+                                    </Button>
+                                  )}
+                                </span>
                               )}
 
                               {isTrackerOpen && (

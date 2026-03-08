@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Plus, MoreHorizontal, Clock, Star, X, GripVertical, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Clock, Star, X, GripVertical, Trash2, Pencil } from 'lucide-react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -13,13 +13,6 @@ import { Progress } from './ui/progress';
 import { Checkbox } from './ui/checkbox';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from './ui/dropdown-menu';
 import { TaskDetailDrawer } from './TaskDetailDrawer';
 import type { Initiative, Priority, Status, Category, TrackerSection as TrackerSectionType } from '../data/mockData';
 
@@ -381,34 +374,35 @@ function InitiativeRowEditable({
           onSave={onUpdateFieldValue}
         />
       ))}
-      <td className="py-2 px-4 align-middle w-12" onClick={(e) => e.stopPropagation()}>
-        <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild>
-            <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-              <MoreHorizontal className="w-4 h-4 text-gray-400" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="z-[100] w-48" onCloseAutoFocus={(e) => e.preventDefault()}>
-            <DropdownMenuItem
-              className="gap-2 cursor-pointer"
-              onSelect={() => onFocusChange?.(initiative.id)}
+      <td className="py-2 px-4 align-middle w-24" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 gap-1"
+            onClick={() => onFocusChange?.(initiative.id)}
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            Edit
+          </Button>
+          {onDelete && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 gap-1"
+              onClick={() => {
+                if (window.confirm(`Delete "${initiative.name}"? This cannot be undone.`)) {
+                  onDelete(initiative.id);
+                }
+              }}
             >
-              Edit
-            </DropdownMenuItem>
-            {onDelete && (
-              <DropdownMenuItem
-                className="text-red-600 focus:text-red-700 gap-2 cursor-pointer"
-                onSelect={() => {
-                  if (window.confirm(`Delete "${initiative.name}"? This cannot be undone.`)) {
-                    onDelete(initiative.id);
-                  }
-                }}
-              >
-                <Trash2 className="w-4 h-4" /> Delete
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete
+            </Button>
+          )}
+        </div>
       </td>
     </>
   );
@@ -600,39 +594,38 @@ export function TrackerSection({
             </span>
           </button>
           {section.id !== 'uncategorized' && (onDeleteSection || onRenameSection) && (
-            <div onClick={(e) => e.stopPropagation()}>
-              <DropdownMenu modal={false}>
-                <DropdownMenuTrigger asChild>
-                  <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-                    <MoreHorizontal className="w-4 h-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="z-[100] w-48">
-                {onRenameSection && (
-                  <DropdownMenuItem
-                    className="gap-2 cursor-pointer"
-                    onSelect={() => {
-                      const newName = window.prompt('Section name', section.title);
-                      if (newName != null && newName.trim()) onRenameSection(section.id, newName.trim());
-                    }}
-                  >
-                    Edit
-                  </DropdownMenuItem>
-                )}
-                {onDeleteSection && (
-                  <DropdownMenuItem
-                    className="text-red-600 focus:text-red-700 gap-2 cursor-pointer"
-                    onSelect={() => {
-                      if (window.confirm(`Delete section "${section.title}"? Tasks in it will become uncategorized.`)) {
-                        onDeleteSection(section.id);
-                      }
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" /> Delete
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              {onRenameSection && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 gap-1"
+                  onClick={() => {
+                    const newName = window.prompt('Section name', section.title);
+                    if (newName != null && newName.trim()) onRenameSection(section.id, newName.trim());
+                  }}
+                >
+                  <Pencil className="w-3 h-3" />
+                  Edit
+                </Button>
+              )}
+              {onDeleteSection && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 gap-1"
+                  onClick={() => {
+                    if (window.confirm(`Delete section "${section.title}"? Tasks in it will become uncategorized.`)) {
+                      onDeleteSection(section.id);
+                    }
+                  }}
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Delete
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -662,7 +655,7 @@ export function TrackerSection({
                   {customFields?.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).map((f) => (
                     <th key={f.id} className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">{f.name}</th>
                   ))}
-                  <th className="py-2 px-4 w-12" />
+                  <th className="py-2 px-4 w-24 text-left text-xs font-semibold text-gray-600 uppercase">Actions</th>
                 </tr>
               </thead>
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

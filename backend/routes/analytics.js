@@ -14,17 +14,19 @@ router.get('/projects/:id/analytics', async (req, res) => {
     }
 
     const [itemsRes, velocityRes] = await Promise.all([
-      pool.query(
-        `SELECT id, title, status, priority, category, due_date, created_at, updated_at
+      pool.query({
+        name: 'analytics_items_by_project',
+        text: `SELECT id, title, status, priority, category, due_date, created_at, updated_at
          FROM items WHERE project_id = $1`,
-        [projectId]
-      ),
-      pool.query(
-        `SELECT DATE_TRUNC('week', updated_at) AS week, COUNT(*) AS count
+        values: [projectId],
+      }),
+      pool.query({
+        name: 'analytics_velocity_by_project',
+        text: `SELECT DATE_TRUNC('week', updated_at) AS week, COUNT(*) AS count
          FROM items WHERE project_id = $1 AND status IN ('done','complete','peak','closed','resolved') AND updated_at >= NOW() - INTERVAL '8 weeks'
          GROUP BY 1 ORDER BY 1`,
-        [projectId]
-      ),
+        values: [projectId],
+      }),
     ]);
 
     const items = itemsRes.rows;

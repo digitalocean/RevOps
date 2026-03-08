@@ -15,7 +15,11 @@ router.get('/', async (req, res) => {
     if (!project_id) return res.json([]);
     const ok = await canAccessProject(pool, userId, project_id);
     if (!ok) return res.json([]);
-    const { rows } = await pool.query('SELECT * FROM trackers WHERE project_id=$1 ORDER BY sort_order', [project_id]);
+    const { rows } = await pool.query({
+      name: 'trackers_list_by_project',
+      text: 'SELECT * FROM trackers WHERE project_id=$1 ORDER BY sort_order',
+      values: [project_id],
+    });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -24,11 +28,19 @@ router.get('/:id/rows', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const tr = await pool.query('SELECT project_id FROM trackers WHERE id = $1', [req.params.id]);
+    const tr = await pool.query({
+      name: 'trackers_get_project',
+      text: 'SELECT project_id FROM trackers WHERE id = $1',
+      values: [req.params.id],
+    });
     if (!tr.rows.length) return res.status(404).json({ error: 'Not found' });
     const ok = await canAccessProject(pool, userId, tr.rows[0].project_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
-    const { rows } = await pool.query('SELECT * FROM tracker_rows WHERE tracker_id=$1 ORDER BY sort_order', [req.params.id]);
+    const { rows } = await pool.query({
+      name: 'tracker_rows_list',
+      text: 'SELECT * FROM tracker_rows WHERE tracker_id=$1 ORDER BY sort_order',
+      values: [req.params.id],
+    });
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -55,12 +67,20 @@ router.post('/:id/rows', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const tr = await pool.query('SELECT project_id FROM trackers WHERE id = $1', [req.params.id]);
+    const tr = await pool.query({
+      name: 'trackers_get_project_for_rows',
+      text: 'SELECT project_id FROM trackers WHERE id = $1',
+      values: [req.params.id],
+    });
     if (!tr.rows.length) return res.status(404).json({ error: 'Not found' });
     const ok = await canAccessProject(pool, userId, tr.rows[0].project_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
     const { data = {} } = req.body;
-    const { rows } = await pool.query('INSERT INTO tracker_rows(tracker_id,data) VALUES($1,$2) RETURNING *', [req.params.id, JSON.stringify(data)]);
+    const { rows } = await pool.query({
+      name: 'tracker_rows_insert',
+      text: 'INSERT INTO tracker_rows(tracker_id,data) VALUES($1,$2) RETURNING *',
+      values: [req.params.id, JSON.stringify(data)],
+    });
     res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -69,11 +89,19 @@ router.patch('/:id/rows/:rowId', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const tr = await pool.query('SELECT project_id FROM trackers WHERE id = $1', [req.params.id]);
+    const tr = await pool.query({
+      name: 'trackers_get_project_patch',
+      text: 'SELECT project_id FROM trackers WHERE id = $1',
+      values: [req.params.id],
+    });
     if (!tr.rows.length) return res.status(404).json({ error: 'Not found' });
     const ok = await canAccessProject(pool, userId, tr.rows[0].project_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
-    const { rows } = await pool.query('UPDATE tracker_rows SET data=$1 WHERE id=$2 RETURNING *', [JSON.stringify(req.body.data), req.params.rowId]);
+    const { rows } = await pool.query({
+      name: 'tracker_rows_update',
+      text: 'UPDATE tracker_rows SET data=$1 WHERE id=$2 RETURNING *',
+      values: [JSON.stringify(req.body.data), req.params.rowId],
+    });
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

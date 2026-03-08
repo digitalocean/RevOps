@@ -21,7 +21,7 @@ router.get('/projects/:id/analytics', async (req, res) => {
       ),
       pool.query(
         `SELECT DATE_TRUNC('week', updated_at) AS week, COUNT(*) AS count
-         FROM items WHERE project_id = $1 AND status IN ('done', 'complete') AND updated_at >= NOW() - INTERVAL '6 weeks'
+         FROM items WHERE project_id = $1 AND status IN ('done','complete','peak','closed','resolved') AND updated_at >= NOW() - INTERVAL '8 weeks'
          GROUP BY 1 ORDER BY 1`,
         [projectId]
       ),
@@ -40,7 +40,7 @@ router.get('/projects/:id/analytics', async (req, res) => {
       byPriority[p] = (byPriority[p] || 0) + 1;
     });
 
-    const doneCount = items.filter((i) => (i.status || '').toLowerCase() === 'done' || (i.status || '').toLowerCase() === 'complete').length;
+    const doneCount = items.filter((i) => ['done','complete','closed','resolved'].includes((i.status || '').toLowerCase())).length;
     const completionRate = total > 0 ? Math.round((doneCount / total) * 100) : 0;
     const withProgress = items.filter((i) => i.updated_at);
     const velocityWeeks = velocityRes.rows.map((r) => ({

@@ -346,3 +346,123 @@ CREATE TABLE IF NOT EXISTS field_notes (
 );
 
 CREATE INDEX IF NOT EXISTS field_notes_project ON field_notes(project_id);
+
+-- Add progress column to items if not present
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='items' AND column_name='progress') THEN
+    ALTER TABLE items ADD COLUMN progress INT DEFAULT 0 CHECK (progress >= 0 AND progress <= 100);
+  END IF;
+END $$;
+
+-- Comments on items
+CREATE TABLE IF NOT EXISTS item_comments (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id     UUID REFERENCES items(id) ON DELETE CASCADE NOT NULL,
+  author_id   UUID REFERENCES users(id) ON DELETE SET NULL,
+  body        TEXT NOT NULL,
+  mentions    TEXT[] DEFAULT '{}',
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS item_comments_item ON item_comments(item_id);
+
+-- Attachments on items (stored as URL/name pairs — actual file stored externally or as data URL)
+CREATE TABLE IF NOT EXISTS item_attachments (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id     UUID REFERENCES items(id) ON DELETE CASCADE NOT NULL,
+  uploader_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  name        TEXT NOT NULL,
+  url         TEXT NOT NULL,
+  size_bytes  INT DEFAULT 0,
+  mime_type   TEXT DEFAULT 'application/octet-stream',
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS item_attachments_item ON item_attachments(item_id);
+
+-- Add start_date to items if not present
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='items' AND column_name='start_date') THEN
+    ALTER TABLE items ADD COLUMN start_date TIMESTAMPTZ DEFAULT NULL;
+  END IF;
+END $$;
+
+-- ── NEW FEATURES ──────────────────────────────────────────────────────────────
+
+-- Recurring task config
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='items' AND column_name='repeat_interval') THEN
+    ALTER TABLE items ADD COLUMN repeat_interval VARCHAR(20) DEFAULT NULL; -- 'daily','weekly','monthly','none'
+    ALTER TABLE items ADD COLUMN repeat_ends_on   DATE        DEFAULT NULL;
+  END IF;
+END $$;
+
+-- Time tracking
+CREATE TABLE IF NOT EXISTS time_logs (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id     UUID REFERENCES items(id) ON DELETE CASCADE NOT NULL,
+  user_id     UUID REFERENCES users(id) ON DELETE SET NULL,
+  minutes     INT NOT NULL DEFAULT 0,
+  note        TEXT,
+  logged_at   DATE DEFAULT CURRENT_DATE,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS time_logs_item ON time_logs(item_id);
+
+-- Task dependencies
+CREATE TABLE IF NOT EXISTS item_dependencies (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  item_id        UUID REFERENCES items(id) ON DELETE CASCADE NOT NULL,
+  depends_on_id  UUID REFERENCES items(id) ON DELETE CASCADE NOT NULL,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(item_id, depends_on_id)
+);
+
+-- Notifications
+CREATE TABLE IF NOT EXISTS notifications (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id     UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  type        VARCHAR(40) NOT NULL,  -- 'mention','due_soon','status_change','comment'
+  title       TEXT NOT NULL,
+  body        TEXT,
+  item_id     UUID REFERENCES items(id) ON DELETE SET NULL,
+  project_id  UUID REFERENCES projects(id) ON DELETE SET NULL,
+  read        BOOLEAN DEFAULT FALSE,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS notifications_user ON notifications(user_id, read, created_at DESC);
+
+-- Project templates
+CREATE TABLE IF NOT EXISTS project_templates (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        VARCHAR(120) NOT NULL UNIQUE,
+  description TEXT,
+  icon        VARCHAR(10) DEFAULT '📋',
+  trackers    JSONB DEFAULT '[]',  -- [{name, tasks:[{title,status,priority}]}]
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Milestones on items
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='items' AND column_name='is_milestone') THEN
+    ALTER TABLE items ADD COLUMN is_milestone BOOLEAN DEFAULT FALSE;
+  END IF;
+END $$;
+
+-- Sort order for drag-reorder (already exists, ensure column present)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='items' AND column_name='sort_order') THEN
+    ALTER TABLE items ADD COLUMN sort_order INT DEFAULT 0;
+  END IF;
+END $$;
+
+-- Seed default project templates
+INSERT INTO project_templates (name, description, icon, trackers) VALUES
+('Q2 Planning Sprint', 'Standard quarterly planning with Eng, Design, Sales tracks', '🗓️',
+ '[{"name":"Engineering","tasks":[{"title":"Backend API design","priority":"P0","status":"Not Started"},{"title":"Database migrations","priority":"P1","status":"Not Started"},{"title":"Unit test coverage","priority":"P2","status":"Not Started"}]},{"name":"Design","tasks":[{"title":"Wireframes","priority":"P0","status":"Not Started"},{"title":"Component library","priority":"P1","status":"Not Started"}]},{"name":"Go-To-Market","tasks":[{"title":"Launch copy","priority":"P1","status":"Not Started"},{"title":"Sales deck","priority":"P2","status":"Not Started"}]}]'),
+('Product Launch', 'Full product launch checklist', '🚀',
+ '[{"name":"Pre-Launch","tasks":[{"title":"Feature complete","priority":"P0"},{"title":"QA sign-off","priority":"P0"},{"title":"Docs updated","priority":"P1"}]},{"name":"Launch Day","tasks":[{"title":"Deploy to prod","priority":"P0"},{"title":"Announce on socials","priority":"P1"},{"title":"Monitor dashboards","priority":"P0"}]},{"name":"Post-Launch","tasks":[{"title":"Gather user feedback","priority":"P1"},{"title":"Fix critical bugs","priority":"P0"}]}]'),
+('Weekly OKR Review', 'Weekly review tracker for OKR alignment', '🎯',
+ '[{"name":"Key Results","tasks":[{"title":"Review KR progress","priority":"P0"},{"title":"Update status in tracker","priority":"P1"}]},{"name":"Blockers","tasks":[{"title":"Identify blockers","priority":"P0"},{"title":"Escalate to leadership","priority":"P1"}]}]')
+ON CONFLICT DO NOTHING;

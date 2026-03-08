@@ -6,7 +6,12 @@ router.get('/', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const { workspace_id, target } = req.query;
+    let { workspace_id, project_id, target } = req.query;
+    // Allow lookup by project_id — auto-resolve workspace
+    if (!workspace_id && project_id) {
+      const prow = await pool.query('SELECT workspace_id FROM projects WHERE id = $1', [project_id]);
+      if (prow.rows.length) workspace_id = prow.rows[0].workspace_id;
+    }
     if (!workspace_id) return res.json([]);
     const allowed = await getAccessibleWorkspaceIds(pool, userId);
     if (!allowed.some(id => String(id) === String(workspace_id))) return res.json([]);
@@ -35,7 +40,12 @@ router.post('/', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const { workspace_id, target, name, field_type = 'text', options = [], applies_to, options_json } = req.body;
+    let { workspace_id, project_id, target, name, field_type = 'text', options = [], applies_to, options_json } = req.body;
+    // Auto-resolve workspace from project_id
+    if (!workspace_id && project_id) {
+      const prow = await pool.query('SELECT workspace_id FROM projects WHERE id = $1', [project_id]);
+      if (prow.rows.length) workspace_id = prow.rows[0].workspace_id;
+    }
     if (!name || !target) return res.status(400).json({ error: 'name and target required' });
     const allowed = await getAccessibleWorkspaceIds(pool, userId);
     if (!allowed.some(id => String(id) === String(workspace_id))) return res.status(403).json({ error: 'Access denied' });

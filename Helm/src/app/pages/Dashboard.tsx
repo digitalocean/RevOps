@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
 import { NavigationSidebar, type NavView } from '../components/NavigationSidebar';
 import { WorkspaceHeader } from '../components/WorkspaceHeader';
@@ -14,13 +14,13 @@ import { BulkActionsBar } from '../components/BulkActionsBar';
 import { AnalyticsDashboard } from '../components/AnalyticsDashboard';
 import { SavedViewsMenu } from '../components/SavedViewsMenu';
 import { KeyboardShortcutsDialog } from '../components/KeyboardShortcutsDialog';
-import { InitiativeDetailsDialog } from '../components/InitiativeDetailsDialog';
+import { TaskDetailDrawer } from '../components/TaskDetailDrawer';
 import { AddInitiativeDialog } from '../components/AddInitiativeDialog';
+import { SpreadsheetImport, type ImportRow } from '../components/SpreadsheetImport';
 import { TeamMembersDialog } from '../components/TeamMembersDialog';
 import { CustomFieldsDialog } from '../components/CustomFieldsDialog';
 import { NewProjectDialog } from '../components/NewProjectDialog';
 import { NewSprintDialog } from '../components/NewSprintDialog';
-import { ObservatoryView } from '../components/ObservatoryView';
 import { AnalyticsView } from '../components/AnalyticsView';
 import { SummitBoardKanban } from '../components/SummitBoardKanban';
 import { FilterSlidePanel, type FilterRow } from '../components/FilterSlidePanel';
@@ -30,20 +30,30 @@ import { NewSectionDialog } from '../components/NewSectionDialog';
 import { ShareProjectDialog } from '../components/ShareProjectDialog';
 import { CompletionCelebration } from '../components/CompletionCelebration';
 import { AuthDialog } from '../components/AuthDialog';
+import { MyTasksView } from '../components/MyTasksView';
+import { ProjectTemplatesDialog } from '../components/ProjectTemplatesDialog';
+import { EmptyProjectState } from '../components/EmptyProjectState';
+import { DueBanner } from '../components/DueBanner';
+import { PomodoroTimer } from '../components/PomodoroTimer';
+import { TeamWorkloadView } from '../components/TeamWorkloadView';
 import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { HelpCircle, ChevronUp, Filter, Share2 } from 'lucide-react';
+import { HelpCircle, ChevronUp, Filter, Share2, Sparkles, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { useMeridianData } from '../data/useMeridianData';
+import { useWebSocket } from '../hooks/useWebSocket';
+import { useKeyboardNav } from '../hooks/useKeyboardNav';
 import type { Status, Priority, Category, Initiative } from '../data/mockData';
 import { get, post, patch } from '../api/meridian';
 
 const VIEW_TABS: { id: NavView; label: string }[] = [
+  { id: 'my_tasks', label: 'My Tasks' },
   { id: 'manifest', label: 'Trackers' },
+  { id: 'summit_board', label: 'Board' },
   { id: 'expedition_map', label: 'Gantt' },
   { id: 'field_notes', label: 'Field Notes' },
   { id: 'observatory', label: 'Analytics' },
+  { id: 'workload', label: 'Workload' },
   { id: 'base_camp', label: 'Base Camp' },
-  { id: 'summit_board', label: 'Board' },
 ];
 
 type AuthUser = { id: string; email?: string; name?: string; initials?: string } | null;
@@ -106,8 +116,49 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const [selectedInitiativeFromSearch, setSelectedInitiativeFromSearch] = useState<Initiative | null>(null);
   const [internalUser, setInternalUser] = useState<AuthUser>(null);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [focusedId, setFocusedId] = useState<string | null>(null);
+  const [showImport, setShowImport] = useState(false);
+  const [drawerInitiative, setDrawerInitiative] = useState<Initiative | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false); // mobile sidebar
+  const [showPomodoro, setShowPomodoro] = useState(false);
+  const [pomodoroTask, setPomodoroTask] = useState<string | undefined>(undefined);
+  const [templatesProjectId, setTemplatesProjectId] = useState<string | null>(null);
 
   const currentUser = propsCurrentUser !== undefined ? propsCurrentUser : internalUser;
+
+  // Real-time WebSocket — refresh data on item/comment events
+  useWebSocket({
+    onMessage: useCallback((msg: { type: string }) => {
+      if (['item_updated', 'item_created', 'item_deleted', 'comment_added'].includes(msg.type)) {
+        refresh();
+      }
+    }, [refresh]),
+  });
+
+  // Keyboard navigation across all visible tasks
+  const allVisibleItems = initiatives.map(i => ({ id: i.id }));
+  useKeyboardNav({
+    items: allVisibleItems,
+    focusedId,
+    setFocusedId,
+    onOpenItem: (id) => {
+      const init = initiatives.find(i => i.id === id);
+      if (init) setDrawerInitiative(init);
+    },
+    onCompleteItem: async (id) => {
+      await updateItem(id, { status: 'Complete' });
+      toast.success('Marked complete ✓');
+    },
+    onDeleteItem: async (id) => {
+      const init = initiatives.find(i => i.id === id);
+      if (init && confirm(`Delete "${init.name}"?`)) {
+        await deleteItem(id);
+        setFocusedId(null);
+      }
+    },
+    enabled: !showGlobalSearch && !showAddInitiative && !showTeamMembers && !showImport,
+  });
 
   // Auth: fetch current user on load only when not provided by parent (e.g. AuthGate)
   useEffect(() => {
@@ -130,6 +181,51 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
       else setInternalUser(null);
     }
   };
+
+  // Restore filters from localStorage when project changes
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    try {
+      const saved = localStorage.getItem(`filters_${selectedProjectId}`);
+      if (saved) {
+        const { rows, andOr } = JSON.parse(saved);
+        if (Array.isArray(rows)) {
+          setFilterRows(rows);
+          if (andOr === 'AND' || andOr === 'OR') setFilterAndOr(andOr);
+          // Apply the restored filters immediately
+          const derived = rows.reduce((acc: typeof filters, r: { field: string; operator: string; value: string }) => {
+            if (r.operator !== 'is') return acc;
+            if (r.field === 'Status' && r.value) acc.status = [...acc.status, r.value as typeof filters.status[0]];
+            if (r.field === 'Priority' && r.value) acc.priority = [...acc.priority, r.value as typeof filters.priority[0]];
+            if (r.field === 'Category' && r.value) acc.category = [...acc.category, r.value as typeof filters.category[0]];
+            if (r.field === 'Owner' && r.value) acc.owner = [...acc.owner, r.value];
+            return acc;
+          }, { status: [], priority: [], category: [], owner: [], bigRocksOnly: false });
+          setFilters(derived);
+        }
+      }
+    } catch { /* ignore */ }
+  }, [selectedProjectId]);
+
+  // Handle duplicate item event from TrackerSection three-dot menu
+  useEffect(() => {
+    const handler = async (e: Event) => {
+      const { id } = (e as CustomEvent).detail;
+      const item = initiatives.find((i) => i.id === id);
+      if (!item || !selectedProjectId) return;
+      try {
+        await createItem(selectedProjectId, {
+          title: item.name + ' (copy)',
+          description: item.description,
+        }, undefined, item.tracker_id ?? undefined);
+        toast.success('Item duplicated');
+      } catch {
+        toast.error('Failed to duplicate item');
+      }
+    };
+    window.addEventListener('todo:duplicate-item', handler);
+    return () => window.removeEventListener('todo:duplicate-item', handler);
+  }, [initiatives, selectedProjectId, createItem]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -190,6 +286,18 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [initiatives]);
 
+  const handleImportRows = async (rows: { title: string; description?: string; status?: string; priority?: string; category?: string; due_date?: string }[]) => {
+    if (!selectedProjectId) return;
+    let created = 0;
+    for (const row of rows) {
+      try {
+        await createItem(selectedProjectId, { title: row.title, description: row.description });
+        created++;
+      } catch {}
+    }
+    if (created > 0) toast.success(`Imported ${created} tasks`);
+  };
+
   const handleBulkStatusChange = async (status: Status) => {
     const count = selectedIds.length;
     try {
@@ -237,7 +345,29 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   };
 
   const handleSelectInitiativeFromSearch = (initiative: Initiative) => {
-    setSelectedInitiativeFromSearch(initiative);
+    setDrawerInitiative(initiative);
+  };
+
+  const handleSpreadsheetImport = async (rows: ImportRow[]) => {
+    if (!selectedProjectId) return;
+    const STATUS_TO_SLUG: Record<string, string> = {
+      'not_started': 'not_started', 'in_progress': 'in_progress', 'in_review': 'in_review',
+      'on_track': 'on_track', 'complete': 'complete', 'blocked': 'blocked', 'at_risk': 'at_risk',
+    };
+    const PRIORITY_TO_SLUG: Record<string, string> = {
+      'critical': 'critical', 'high': 'high', 'medium': 'medium', 'low': 'low',
+    };
+    const trackerId = trackerSections.find(s => s.id !== 'uncategorized')?.id ?? null;
+    await Promise.all(rows.map(row =>
+      createItem(selectedProjectId, {
+        title: row.title,
+        description: row.description || '',
+        status: STATUS_TO_SLUG[row.status || ''] || 'not_started',
+        priority: PRIORITY_TO_SLUG[row.priority || ''] || 'medium',
+        category: row.category || undefined,
+        due_date: row.due_date || undefined,
+      } as Parameters<typeof createItem>[1], undefined, trackerId ?? undefined)
+    ));
   };
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
@@ -252,26 +382,62 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     }
   }, [celebrateCount]);
 
+  // Dynamic document.title
+  useEffect(() => {
+    const proj = selectedProject?.name;
+    const view = { manifest: 'Trackers', summit_board: 'Board', expedition_map: 'Gantt', field_notes: 'Notes', observatory: 'Analytics', my_tasks: 'My Tasks', base_camp: 'Settings', workload: 'Workload' }[currentView] || '';
+    document.title = proj ? `${proj} · ${view} — To-DO` : 'To-DO';
+  }, [selectedProject, currentView]);
+
   return (
     <div className="flex flex-col h-screen bg-[var(--bg-app)]">
       {fromApi && !error && (
         <div className="h-1 flex-shrink-0 bg-green-500" title="Connected to To-DO" />
       )}
       <div className="flex flex-1 min-h-0">
-        <NavigationSidebar
-        projects={projects}
-        selectedProjectId={selectedProjectId}
-        onSelectProject={(id) => setSelectedProjectId(id)}
-        onOpenNewProject={() => setShowNewProject(true)}
-        initiatives={initiatives}
-        trackerSections={trackerSections}
-        crew={crew}
-        onOpenAddCrew={() => setShowTeamMembers(true)}
-        onOpenCustomFields={() => setShowCustomFields(true)}
-        currentView={currentView}
-        onNavigateView={(v) => setCurrentView(v)}
-        fieldNotesCount={initiatives.length}
-        />
+        {/* Mobile sidebar overlay */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 z-40 lg:hidden">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
+            <div className="absolute left-0 top-0 h-full z-50">
+              <NavigationSidebar
+                projects={projects}
+                selectedProjectId={selectedProjectId}
+                onSelectProject={(id) => { setSelectedProjectId(id); setSidebarOpen(false); }}
+                onOpenNewProject={() => { setShowNewProject(true); setSidebarOpen(false); }}
+                initiatives={initiatives}
+                trackerSections={trackerSections}
+                crew={crew}
+                onOpenAddCrew={() => setShowTeamMembers(true)}
+                onOpenCustomFields={() => setShowCustomFields(true)}
+                currentView={currentView}
+                onNavigateView={(v) => { setCurrentView(v); setSidebarOpen(false); }}
+                fieldNotesCount={0}
+                myTasksCount={initiatives.filter(i => currentUser && i.assignee_id === currentUser.id && i.status !== 'Complete').length}
+                onOpenItem={(id) => { const init = initiatives.find(i => i.id === id); if (init) setDrawerInitiative(init); }}
+              />
+            </div>
+          </div>
+        )}
+        {/* Desktop sidebar */}
+        <div className="hidden lg:block">
+          <NavigationSidebar
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            onSelectProject={(id) => setSelectedProjectId(id)}
+            onOpenNewProject={() => setShowNewProject(true)}
+            initiatives={initiatives}
+            trackerSections={trackerSections}
+            crew={crew}
+            onOpenAddCrew={() => setShowTeamMembers(true)}
+            onOpenCustomFields={() => setShowCustomFields(true)}
+            currentView={currentView}
+            onNavigateView={(v) => setCurrentView(v)}
+            fieldNotesCount={0}
+            myTasksCount={initiatives.filter(i => currentUser && i.assignee_id === currentUser.id && i.status !== 'Complete').length}
+            onOpenItem={(id) => { const init = initiatives.find(i => i.id === id); if (init) setDrawerInitiative(init); }}
+          />
+        </div>
         <>
       <div className="flex-1 flex flex-col overflow-hidden bg-[var(--bg-app)] min-w-0">
         <WorkspaceHeader
@@ -289,11 +455,35 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           connected={fromApi && !error}
           connectionError={error}
           onRetry={refresh}
+          onOpenItem={(id) => { const init = initiatives.find(i => i.id === id); if (init) setDrawerInitiative(init); }}
+          onToggleMobileSidebar={() => setSidebarOpen(o => !o)}
         />
         <KPIStatsBar kpiData={kpiData} />
-        
+        <DueBanner
+          initiatives={initiatives}
+          onOpenTask={(task) => setDrawerInitiative(task)}
+        />
         <div className="flex-1 overflow-auto bg-gray-50">
           <div className="max-w-[1600px] mx-auto p-6">
+            {projects.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-24 text-center">
+                <div className="w-16 h-16 rounded-2xl bg-indigo-100 flex items-center justify-center mb-4">
+                  <Sparkles className="w-8 h-8 text-indigo-500" />
+                </div>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to To-DO</h2>
+                <p className="text-gray-500 mb-6 max-w-md">Create your first project to start tracking tasks, manage your team, and ship faster.</p>
+                <div className="flex gap-3">
+                  <button onClick={() => setShowNewProject(true)}
+                    className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">
+                    Create a project
+                  </button>
+                  <button onClick={() => setShowTemplates(true)}
+                    className="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-indigo-400" /> Start from template
+                  </button>
+                </div>
+              </div>
+            )}
             {selectedProject && (
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
@@ -353,7 +543,17 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                         </span>
                       )}
                     </Button>
-                    <ExportMenu />
+                    <ExportMenu initiatives={initiatives} projectName={selectedProject?.name} />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setShowImport(true)}
+                      title="Import from spreadsheet"
+                    >
+                      <FileSpreadsheet className="w-4 h-4" />
+                      Import
+                    </Button>
                     <ColumnsPopover
                       projectId={selectedProjectId}
                       userId={currentUser?.id}
@@ -392,6 +592,23 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
 
             {currentView === 'observatory' ? (
               <AnalyticsView projectId={selectedProjectId} />
+            ) : currentView === 'workload' ? (
+              <TeamWorkloadView
+                initiatives={initiatives}
+                crew={crew}
+                currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
+                onUpdateItem={updateItem}
+                onDeleteItem={deleteItem}
+              />
+            ) : currentView === 'my_tasks' ? (
+              <MyTasksView
+                initiatives={initiatives}
+                crew={crew}
+                currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
+                projects={projects}
+                onUpdateItem={updateItem}
+                onDeleteItem={deleteItem}
+              />
             ) : currentView === 'expedition_map' ? (
               <GanttChart initiatives={initiatives} />
             ) : currentView === 'field_notes' ? (
@@ -411,14 +628,25 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               />
             ) : (
               <div className="space-y-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900">Trackers</h3>
-                </div>
+                {initiatives.length === 0 && selectedProject ? (
+                  <EmptyProjectState
+                    projectName={selectedProject.name}
+                    onAddTask={() => { setAddInitiativeParentId(null); setAddInitiativeTrackerId(null); setShowAddInitiative(true); }}
+                    onImport={() => setShowImport(true)}
+                    onCreateSection={() => setShowNewSection(true)}
+                    onUseTemplate={() => setShowTemplates(true)}
+                  />
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-lg font-semibold text-gray-900">Trackers</h3>
+                    </div>
                 {trackerSections.map((section) => (
                   <TrackerSection
                     key={section.id}
                     section={section}
                     crew={crew}
+                    currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
                     customFields={customFields}
                     visibleColumns={visibleColumns}
                     onUpdateFieldValue={async (taskId, fieldId, value) => {
@@ -434,6 +662,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     selectedIds={selectedIds}
                     onSelectionChange={setSelectedIds}
                     projectId={selectedProjectId}
+                    focusedId={focusedId}
+                    onFocusChange={setFocusedId}
                     onAddItem={() => {
                       setAddInitiativeParentId(null);
                       setAddInitiativeTrackerId(section.id === 'uncategorized' ? null : section.id);
@@ -452,6 +682,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                   <CategoryPriorityStatusMetrics initiatives={initiatives} />
                   <DueDateMetrics initiatives={initiatives} />
                 </div>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -462,19 +694,26 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         <ActivityPanel projectId={selectedProjectId} onClose={() => setShowActivityPanel(false)} />
       )}
 
-      {selectedInitiativeFromSearch && (
-        <InitiativeDetailsDialog 
-          initiative={selectedInitiativeFromSearch}
+      {(selectedInitiativeFromSearch || drawerInitiative) && (
+        <TaskDetailDrawer
+          initiative={(drawerInitiative || selectedInitiativeFromSearch)!}
           crew={crew}
-          onClose={() => setSelectedInitiativeFromSearch(null)}
-          onSave={async (id, payload) => {
-            await updateItem(id, payload);
-            setSelectedInitiativeFromSearch(null);
-          }}
+          currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
+          onClose={() => { setDrawerInitiative(null); setSelectedInitiativeFromSearch(null); }}
+          onSave={async (id, payload) => { await updateItem(id, payload); }}
           onDelete={async (id) => {
             await deleteItem(id);
+            setDrawerInitiative(null);
             setSelectedInitiativeFromSearch(null);
           }}
+        />
+      )}
+
+      {showImport && (
+        <SpreadsheetImport
+          projectId={selectedProjectId}
+          onImport={handleSpreadsheetImport}
+          onClose={() => setShowImport(false)}
         />
       )}
 
@@ -494,6 +733,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         open={showGlobalSearch}
         onOpenChange={setShowGlobalSearch}
         onSelectInitiative={handleSelectInitiativeFromSearch}
+        initiatives={initiatives}
+        projects={projects}
       />
 
       <KeyboardShortcutsDialog
@@ -534,14 +775,21 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
       <CustomFieldsDialog
         open={showCustomFields}
         onOpenChange={setShowCustomFields}
-        workspaceId={selectedProjectId ? (projects.find((p) => p.id === selectedProjectId)?.workspace_id ?? projects[0]?.workspace_id ?? null) : (projects[0]?.workspace_id ?? null)}
+        workspaceId={null}
+        projectId={selectedProjectId}
       />
 
       <NewProjectDialog
         open={showNewProject}
         onOpenChange={setShowNewProject}
         onCreate={async (payload) => {
-          await createProject(payload);
+          const result = await createProject(payload);
+          return result;
+        }}
+        onCreated={(newProjectId) => {
+          setSelectedProjectId(newProjectId);
+          setTemplatesProjectId(newProjectId);
+          setShowTemplates(true);
         }}
       />
 
@@ -566,6 +814,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         priorityOptions={['P0', 'P1', 'P2', 'P3'] as Priority[]}
         categoryOptions={['Engineering', 'Design', 'Sales', 'Product', 'Operations'] as Category[]}
         ownerOptions={crew.map((c) => c.name)}
+        projectId={selectedProjectId}
       />
 
       <AuthDialog
@@ -584,6 +833,16 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         }}
       />
 
+      {showTemplates && (
+        <ProjectTemplatesDialog
+          open={showTemplates}
+          projectId={templatesProjectId || selectedProjectId}
+          projectName={projects.find(p => p.id === (templatesProjectId || selectedProjectId))?.name || selectedProject?.name}
+          onClose={() => { setShowTemplates(false); setTemplatesProjectId(null); }}
+          onApplied={() => { refresh(); setShowTemplates(false); setTemplatesProjectId(null); }}
+        />
+      )}
+
       {/* Floating help button */}
       <TooltipProvider>
         <Tooltip>
@@ -601,6 +860,39 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
+
+      {/* Focus timer button */}
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              className="fixed bottom-20 right-6 rounded-full w-12 h-12 bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg z-40"
+              onClick={() => { setPomodoroTask(drawerInitiative?.name); setShowPomodoro(true); }}
+            >
+              🍅
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="left" className="text-xs">
+            <p>Focus Timer (Pomodoro)</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+
+      {showPomodoro && (
+        <PomodoroTimer
+          taskName={pomodoroTask}
+          onClose={() => setShowPomodoro(false)}
+          onLogTime={async (minutes) => {
+            if (drawerInitiative) {
+              try {
+                await post(`/api/items/${drawerInitiative.id}/time-logs`, { minutes, note: 'Logged via Focus Timer' });
+                toast.success(`Logged ${minutes}m to "${drawerInitiative.name}"`);
+              } catch {}
+            }
+          }}
+        />
+      )}
         </>
       </div>
     </div>

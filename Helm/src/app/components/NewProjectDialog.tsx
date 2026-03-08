@@ -33,12 +33,14 @@ interface NewProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreate: (payload: NewProjectPayload) => Promise<unknown>;
+  onCreated?: (projectId: string) => void;
 }
 
 export function NewProjectDialog({
   open,
   onOpenChange,
   onCreate,
+  onCreated,
 }: NewProjectDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -54,13 +56,16 @@ export function NewProjectDialog({
     }
     setCreating(true);
     try {
-      await onCreate({
+      const result = await onCreate({
         name: n,
         description: description.trim() || undefined,
         color,
         is_personal: isPersonal,
       });
       toast.success(isPersonal ? 'Personal project created (only you can see it)' : 'Project created');
+      if (onCreated && result && typeof result === 'object' && 'id' in (result as object)) {
+        onCreated((result as { id: string }).id);
+      }
       setName('');
       setDescription('');
       setColor(PROJECT_COLORS[0].value);

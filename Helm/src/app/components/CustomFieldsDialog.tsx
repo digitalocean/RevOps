@@ -73,13 +73,15 @@ interface CustomFieldsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   workspaceId: string | null;
+  projectId?: string | null;
   onAdded?: () => void;
 }
 
 export function CustomFieldsDialog({
   open,
   onOpenChange,
-  workspaceId,
+  workspaceId: _workspaceId,
+  projectId,
   onAdded,
 }: CustomFieldsDialogProps) {
   const [list, setList] = useState<CustomField[]>([]);
@@ -94,11 +96,11 @@ export function CustomFieldsDialog({
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    if (!open || !workspaceId) return;
+    if (!open || !projectId) return;
     setLoading(true);
     try {
       const res = await get<CustomField[]>(
-        `${apiPath('api/custom-fields')}?workspace_id=${workspaceId}`
+        `${apiPath('api/custom-fields')}?project_id=${projectId}`
       ).catch(() => []);
       setList(Array.isArray(res) ? res : []);
       if (!selected) setSelected(null);
@@ -110,9 +112,9 @@ export function CustomFieldsDialog({
   };
 
   useEffect(() => {
-    if (open && workspaceId) load();
-    else if (!workspaceId) setList([]);
-  }, [open, workspaceId]);
+    if (open && projectId) load();
+    else if (!projectId) setList([]);
+  }, [open, projectId]);
 
   useEffect(() => {
     if (selected) {
@@ -143,8 +145,8 @@ export function CustomFieldsDialog({
       toast.error('Field name is required');
       return;
     }
-    if (!workspaceId) {
-      toast.error('Select a workspace first');
+    if (!projectId) {
+      toast.error('Select a project first');
       return;
     }
     setSaving(true);
@@ -160,7 +162,7 @@ export function CustomFieldsDialog({
         toast.success('Field updated');
       } else {
         await post(apiPath('api/custom-fields'), {
-          workspace_id: workspaceId,
+          project_id: projectId,
           target: targetFromApplies(appliesTo),
           name: n,
           field_type: fieldType,
@@ -279,7 +281,7 @@ export function CustomFieldsDialog({
               placeholder="e.g. Story Points, Pillar"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              disabled={!workspaceId}
+              disabled={!projectId}
               className="mb-4 w-full px-3.5 py-2.5 border-[#E4E4EC] rounded-lg text-sm focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/10"
             />
 
@@ -405,10 +407,10 @@ export function CustomFieldsDialog({
           </div>
         </div>
 
-        {!workspaceId && (
+        {!projectId && (
           <div className="absolute inset-0 bg-white/80 flex items-center justify-center rounded-lg">
             <p className="text-sm text-amber-700 bg-amber-50 px-4 py-2 rounded-lg">
-              Select a workspace in the sidebar first.
+              Select a project first to manage custom fields.
             </p>
           </div>
         )}

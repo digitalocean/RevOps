@@ -159,4 +159,20 @@ router.post('/:id/members', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// DELETE /:id/members/:memberId — remove a member from project (owner only)
+router.delete('/:id/members/:memberId', async (req, res) => {
+  try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const projectId = req.params.id;
+    const proj = await pool.query('SELECT created_by FROM projects WHERE id = $1', [projectId]);
+    if (!proj.rows.length) return res.status(404).json({ error: 'Not found' });
+    if (String(proj.rows[0].created_by) !== String(userId)) {
+      return res.status(403).json({ error: 'Only the project owner can remove members' });
+    }
+    await pool.query('DELETE FROM project_members WHERE id = $1 AND project_id = $2', [req.params.memberId, projectId]);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

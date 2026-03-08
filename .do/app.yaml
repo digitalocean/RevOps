@@ -80,9 +80,9 @@ static_sites:
       - key: NPM_CONFIG_PRODUCTION
         value: "false"
         scope: BUILD_TIME
-      # Set to your app URL (e.g. https://your-app-xxxx.ondigitalocean.app) so the UI can reach the API
+      # Set to your app's public URL (e.g. https://your-app-xxxx.ondigitalocean.app) so the UI can reach the API
       - key: VITE_API_URL
-        value: "https://revops-ntkll.ondigitalocean.app"
+        value: "https://your-app-name.ondigitalocean.app"
         scope: BUILD_TIME
     github:
       deploy_on_push: true

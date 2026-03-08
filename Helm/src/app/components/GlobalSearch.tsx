@@ -1,172 +1,118 @@
-import { useState, useEffect } from 'react';
-import { Search, Command, FileText, User, Calendar, Star } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from './ui/dialog';
-import { Input } from './ui/input';
-import { Badge } from './ui/badge';
+import { useState, useEffect, useMemo } from 'react';
+import { Search, Command, FileText, User, Calendar, Star, Tag, ArrowRight } from 'lucide-react';
+import { Dialog, DialogContent } from './ui/dialog';
 import { ScrollArea } from './ui/scroll-area';
-import { mockInitiatives, type Initiative } from '../data/mockData';
+import type { Initiative, Status } from '../data/mockData';
+
+const STATUS_DOT: Record<Status, string> = {
+  'On Track': 'bg-emerald-500', 'At Risk': 'bg-amber-500', 'In Review': 'bg-violet-500',
+  'Complete': 'bg-blue-500', 'Blocked': 'bg-red-500', 'Not Started': 'bg-gray-300',
+};
 
 interface GlobalSearchProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectInitiative: (initiative: Initiative) => void;
+  initiatives?: Initiative[];
+  projects?: { id: string; name: string }[];
 }
 
-export function GlobalSearch({ open, onOpenChange, onSelectInitiative }: GlobalSearchProps) {
+export function GlobalSearch({ open, onOpenChange, onSelectInitiative, initiatives = [], projects = [] }: GlobalSearchProps) {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Initiative[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  useEffect(() => {
-    if (!query.trim()) {
-      setResults([]);
-      setSelectedIndex(0);
-      return;
-    }
+  const results = useMemo(() => {
+    if (!query.trim()) return initiatives.slice(0, 8);
+    const q = query.toLowerCase();
+    return initiatives.filter(i =>
+      i.name.toLowerCase().includes(q) ||
+      (i.description || '').toLowerCase().includes(q) ||
+      i.owner.toLowerCase().includes(q) ||
+      i.category.toLowerCase().includes(q) ||
+      i.status.toLowerCase().includes(q) ||
+      i.priority.toLowerCase().includes(q)
+    ).slice(0, 20);
+  }, [query, initiatives]);
 
-    const lowerQuery = query.toLowerCase();
-    const filtered = mockInitiatives.filter(initiative => 
-      initiative.name.toLowerCase().includes(lowerQuery) ||
-      initiative.description.toLowerCase().includes(lowerQuery) ||
-      initiative.owner.toLowerCase().includes(lowerQuery) ||
-      initiative.category.toLowerCase().includes(lowerQuery)
-    );
-
-    setResults(filtered);
-    setSelectedIndex(0);
-  }, [query]);
+  useEffect(() => { setSelectedIndex(0); }, [query]);
+  useEffect(() => { if (!open) { setQuery(''); setSelectedIndex(0); } }, [open]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handler = (e: KeyboardEvent) => {
       if (!open) return;
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedIndex(prev => Math.min(prev + 1, results.length - 1));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedIndex(prev => Math.max(prev - 1, 0));
-      } else if (e.key === 'Enter' && results[selectedIndex]) {
-        e.preventDefault();
-        handleSelect(results[selectedIndex]);
-      }
+      if (e.key === 'ArrowDown') { e.preventDefault(); setSelectedIndex(i => Math.min(i + 1, results.length - 1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); setSelectedIndex(i => Math.max(i - 1, 0)); }
+      else if (e.key === 'Enter' && results[selectedIndex]) { e.preventDefault(); handleSelect(results[selectedIndex]); }
     };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, [open, results, selectedIndex]);
 
-  const handleSelect = (initiative: Initiative) => {
-    onSelectInitiative(initiative);
-    onOpenChange(false);
-    setQuery('');
+  const handleSelect = (init: Initiative) => { onSelectInitiative(init); onOpenChange(false); };
+
+  const hl = (text: string) => {
+    if (!query.trim()) return <>{text}</>;
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx < 0) return <>{text}</>;
+    return <>{text.slice(0, idx)}<mark className="bg-yellow-100 text-yellow-800 rounded px-0.5">{text.slice(idx, idx + query.length)}</mark>{text.slice(idx + query.length)}</>;
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl p-0 gap-0">
-        <DialogHeader className="px-4 pt-4 pb-0">
-          <div className="flex items-center gap-2 border-b border-gray-200 pb-4">
-            <Search className="w-5 h-5 text-gray-400" />
-            <Input
-              placeholder="Search initiatives, owners, descriptions..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="border-0 shadow-none focus-visible:ring-0 text-base"
-              autoFocus
-            />
-            <div className="flex items-center gap-1 text-xs text-gray-400">
-              <Command className="w-3 h-3" />
-              <span>K</span>
-            </div>
+      <DialogContent className="max-w-2xl p-0 gap-0 overflow-hidden rounded-2xl shadow-2xl border-gray-200">
+        <div className="flex items-center gap-3 px-4 py-3.5 border-b border-gray-100">
+          <Search className="w-5 h-5 text-gray-400 flex-shrink-0" />
+          <input type="text" placeholder="Search tasks, owners, status…" value={query} onChange={e => setQuery(e.target.value)}
+            className="flex-1 text-base text-gray-900 placeholder-gray-400 outline-none bg-transparent" autoFocus />
+          <div className="flex items-center gap-1 text-xs text-gray-400 bg-gray-100 rounded px-2 py-1 flex-shrink-0">
+            <Command className="w-3 h-3" /><span>K</span>
           </div>
-        </DialogHeader>
-
-        <ScrollArea className="max-h-[400px]">
+        </div>
+        <ScrollArea className="max-h-[440px]">
           <div className="p-2">
+            {!query && results.length > 0 && <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 px-3 py-2">Recent tasks</p>}
             {query && results.length === 0 && (
-              <div className="py-8 text-center text-sm text-gray-500">
-                No initiatives found for "{query}"
+              <div className="py-10 text-center">
+                <Search className="w-10 h-10 text-gray-200 mx-auto mb-2" />
+                <p className="text-sm text-gray-500">No tasks matching <strong>"{query}"</strong></p>
               </div>
             )}
-
-            {results.map((initiative, index) => (
-              <button
-                key={initiative.id}
-                onClick={() => handleSelect(initiative)}
-                className={`w-full text-left p-3 rounded-lg mb-1 transition-colors ${
-                  index === selectedIndex 
-                    ? 'bg-blue-50 border border-blue-200' 
-                    : 'hover:bg-gray-50 border border-transparent'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5">
-                    <FileText className="w-4 h-4 text-gray-400" />
+            {results.map((init, index) => {
+              const dot = STATUS_DOT[init.status] || 'bg-gray-300';
+              const isSelected = index === selectedIndex;
+              const dueStr = init.endDate && !isNaN(init.endDate.getTime()) ? init.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
+              return (
+                <button key={init.id} onClick={() => handleSelect(init)} onMouseEnter={() => setSelectedIndex(index)}
+                  className={`w-full text-left px-3 py-3 rounded-xl mb-0.5 flex items-center gap-3 transition-colors ${isSelected ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}>
+                  <div className="flex-shrink-0">
+                    {init.isBigRock ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : <FileText className="w-4 h-4 text-gray-300" />}
                   </div>
-                  
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      {initiative.isBigRock && (
-                        <Star className="w-3 h-3 text-amber-500 fill-amber-500 flex-shrink-0" />
-                      )}
-                      <h4 className="text-sm font-medium text-gray-900 truncate">
-                        {initiative.name}
-                      </h4>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-sm font-medium truncate ${isSelected ? 'text-indigo-700' : 'text-gray-800'}`}>{hl(init.name)}</span>
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dot}`} />
+                      <span className="text-xs text-gray-400 flex-shrink-0">{init.status}</span>
                     </div>
-                    
-                    <p className="text-xs text-gray-600 line-clamp-2 mb-2">
-                      {initiative.description}
-                    </p>
-                    
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="outline" className="text-xs py-0 h-5">
-                        {initiative.category}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs py-0 h-5">
-                        {initiative.priority}
-                      </Badge>
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <User className="w-3 h-3" />
-                        {initiative.owner}
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-gray-500">
-                        <Calendar className="w-3 h-3" />
-                        {initiative.endDate.toLocaleDateString()}
-                      </div>
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                      <span className="text-xs text-gray-400 flex items-center gap-1"><Tag className="w-3 h-3" />{init.category}</span>
+                      {init.owner && init.owner !== '—' && <span className="text-xs text-gray-400 flex items-center gap-1"><User className="w-3 h-3" />{hl(init.owner)}</span>}
+                      {dueStr && <span className="text-xs text-gray-400 flex items-center gap-1"><Calendar className="w-3 h-3" />{dueStr}</span>}
+                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${init.priority === 'P0' ? 'bg-red-100 text-red-700' : init.priority === 'P1' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>{init.priority}</span>
                     </div>
                   </div>
-                </div>
-              </button>
-            ))}
+                  <ArrowRight className={`w-4 h-4 flex-shrink-0 transition-opacity ${isSelected ? 'opacity-100 text-indigo-400' : 'opacity-0'}`} />
+                </button>
+              );
+            })}
           </div>
         </ScrollArea>
-
-        <div className="border-t border-gray-200 px-4 py-2 bg-gray-50">
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded text-xs">↑↓</kbd>
-                <span>Navigate</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded text-xs">↵</kbd>
-                <span>Select</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <kbd className="px-1.5 py-0.5 bg-white border border-gray-300 rounded text-xs">ESC</kbd>
-                <span>Close</span>
-              </div>
-            </div>
-            {results.length > 0 && (
-              <span>{results.length} result{results.length !== 1 ? 's' : ''}</span>
-            )}
+        <div className="border-t border-gray-100 px-4 py-2 bg-gray-50 flex items-center justify-between">
+          <div className="flex items-center gap-3 text-xs text-gray-400">
+            <span><kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded font-mono text-[10px]">↑↓</kbd> Navigate</span>
+            <span><kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded font-mono text-[10px]">↵</kbd> Open</span>
+            <span><kbd className="px-1 py-0.5 bg-white border border-gray-300 rounded font-mono text-[10px]">esc</kbd> Close</span>
           </div>
+          <span className="text-xs text-gray-400">{results.length} result{results.length !== 1 ? 's' : ''}</span>
         </div>
       </DialogContent>
     </Dialog>

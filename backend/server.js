@@ -121,6 +121,11 @@ app.use('/api/custom-fields',require('./routes/customFields'));
 app.use('/api/voice',        require('./routes/voice'));
 app.use('/api/columns',      require('./routes/columns'));
 app.use('/api/activity',     require('./routes/activity'));
+app.use('/api',              require('./routes/comments'));   // GET/POST /api/items/:id/comments, /api/comments/:id
+app.use('/api/notifications', require('./routes/notifications'));  // GET/PATCH /api/notifications
+app.use('/api',              require('./routes/timeLogs'));        // GET/POST /api/items/:id/time-logs
+app.use('/api/templates',    require('./routes/templates'));       // GET /api/templates
+app.use('/api',              require('./routes/templates'));       // POST /api/projects/:id/apply-template
 app.use('/api',              require('./routes/analytics'));   // GET /api/projects/:id/analytics
 app.use('/api',              require('./routes/fieldValues')); // GET/PATCH /api/tasks/:id/field-values
 app.use('/api',              require('./routes/savedViews'));  // GET/POST /api/projects/:id/views, PATCH/DELETE /api/views/:id
@@ -148,6 +153,9 @@ app.use('/custom-fields', customFields);
 app.use('/voice', voice);
 app.use('/columns', columns);
 app.use('/activity', activity);
+app.use('/', require('./routes/comments'));
+app.use('/notifications', require('./routes/notifications'));
+app.use('/', require('./routes/timeLogs'));
 app.use('/', require('./routes/analytics'));
 app.use('/', require('./routes/fieldValues'));
 app.use('/', require('./routes/savedViews'));
@@ -176,9 +184,28 @@ const dbEnsureHandler = async (req, res) => {
 app.get('/api/db/ensure', dbEnsureHandler);
 app.get('/db/ensure', dbEnsureHandler);
 
+// ── WebSocket for real-time collaboration ─
+const http = require('http');
+const { WebSocketServer } = require('ws');
+const httpServer = http.createServer(app);
+const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+const wsClients = new Set();
+wss.on('connection', (ws) => {
+  wsClients.add(ws);
+  ws.on('close', () => wsClients.delete(ws));
+  ws.on('error', () => wsClients.delete(ws));
+});
+app.locals.broadcast = (payload) => {
+  const msg = JSON.stringify(payload);
+  for (const client of wsClients) {
+    try { if (client.readyState === 1) client.send(msg); } catch (_) {}
+  }
+};
+
 // ── Start: listen first, then ensure schema (with retry) ─
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`\nTo-DO API running on port ${PORT}`);
-  console.log(`   Health: http://localhost:${PORT}/api/health\n`);
+  console.log(`   Health: http://localhost:${PORT}/api/health`);
+  console.log(`   WS:     ws://localhost:${PORT}/ws\n`);
   runSchemaWithRetry();
 });

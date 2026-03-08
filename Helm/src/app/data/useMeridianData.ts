@@ -40,6 +40,7 @@ function mapItemToInitiative(item: {
   status?: string | null;
   priority?: string | null;
   points?: number | null;
+  progress?: number | null;
   assignee_id?: string | null;
   assignee_initials?: string | null;
   assignee_name?: string | null;
@@ -67,7 +68,7 @@ function mapItemToInitiative(item: {
     description: item.description || '',
     startDate: new Date(),
     endDate,
-    progress: status === 'Complete' ? 100 : status === 'Not Started' ? 0 : 50,
+    progress: typeof item.progress === 'number' ? item.progress : (status === 'Complete' ? 100 : status === 'Not Started' ? 0 : 50),
     tracker_id: item.tracker_id ?? null,
     assignee_id: item.assignee_id ?? null,
     field_values: item.field_values ?? undefined,
@@ -112,9 +113,9 @@ export interface MeridianDataResult {
   setSelectedProjectId: (id: string | null) => void;
   createProject: (payload: { name: string; description?: string; color?: string; is_personal?: boolean }) => Promise<Project | null>;
   createSprint: (projectId: string, name: string, start_date?: string, end_date?: string) => Promise<Sprint | null>;
-  createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; type?: string }, parentId?: string | null, trackerId?: string | null) => Promise<unknown>;
+  createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; status?: string; category?: string; due_date?: string; type?: string }, parentId?: string | null, trackerId?: string | null) => Promise<unknown>;
   createSection: (projectId: string, name: string) => Promise<{ id: string; name: string } | null>;
-  updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number; category?: string | null }) => Promise<unknown>;
+  updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number; progress?: number; category?: string | null }) => Promise<unknown>;
   deleteItem: (itemId: string) => Promise<void>;
   sprints: Sprint[];
   crew: { id: string; name: string; initials: string; role: string }[];
@@ -149,16 +150,20 @@ export function useMeridianData(): MeridianDataResult {
     setLoading(true);
     setError(null);
     try {
-      const [projRes, crewRes, cfRes] = await Promise.all([
+      const [projRes, crewRes] = await Promise.all([
         get<Project[]>(apiPath('api/projects')).catch(() => []),
         get<{ id: string; name: string; initials: string; role: string }[]>(apiPath('api/crew')).catch(() => []),
-        get<{ id: string; name: string; field_type: string; target: string }[]>(apiPath('api/custom-fields')).catch(() => []),
       ]);
       const projList = Array.isArray(projRes) ? projRes : [];
       setProjects(projList);
       setCrew(Array.isArray(crewRes) ? crewRes : []);
-      setCustomFields(Array.isArray(cfRes) ? cfRes : []);
       const pid = overrideProjectId ?? selectedProjectId ?? (projList[0]?.id ?? null);
+      // Fetch custom fields scoped to project (backend resolves workspace automatically)
+      if (pid) {
+        get<{ id: string; name: string; field_type: string; target: string }[]>(
+          apiPath(`api/custom-fields?project_id=${pid}`)
+        ).then(cf => setCustomFields(Array.isArray(cf) ? cf : [])).catch(() => {});
+      }
       if (projList.length && !selectedProjectId && overrideProjectId === undefined) setSelectedProjectId(projList[0].id);
       if (!pid) {
         setSprints([]);
@@ -176,7 +181,7 @@ export function useMeridianData(): MeridianDataResult {
       ]);
       setSprints(Array.isArray(sprintsRes) ? sprintsRes : []);
       const itemList = Array.isArray(itemsRes) ? itemsRes : [];
-      const mapped = itemList.map((i: Record<string, unknown>) =>
+      const mapped = (itemList as Record<string, unknown>[]).map((i: Record<string, unknown>) =>
         mapItemToInitiative({
           id: String(i.id),
           title: String(i.title ?? ''),
@@ -260,7 +265,7 @@ export function useMeridianData(): MeridianDataResult {
 
   const createItem = useCallback(async (
     projectId: string,
-    payload: { title: string; description?: string; priority?: string; type?: string },
+    payload: { title: string; description?: string; priority?: string; status?: string; category?: string; due_date?: string; type?: string; assignee_id?: string },
     parentId?: string | null,
     trackerId?: string | null
   ): Promise<unknown> => {
@@ -270,8 +275,11 @@ export function useMeridianData(): MeridianDataResult {
       description: payload.description || '',
       priority: payload.priority || 'medium',
       type: payload.type || 'task',
-      status: 'not_started',
+      status: payload.status || 'not_started',
     };
+    if (payload.category) body.category = payload.category;
+    if (payload.due_date) body.due_date = payload.due_date.includes('T') ? payload.due_date : `${payload.due_date}T00:00:00.000Z`;
+    if (payload.assignee_id) body.assignee_id = payload.assignee_id;
     if (parentId) body.parent_id = parentId;
     if (trackerId) body.tracker_id = trackerId;
     const res = await post(apiPath('api/items'), body);
@@ -294,26 +302,30 @@ export function useMeridianData(): MeridianDataResult {
   const statusToSlug: Record<string, string> = {
     'Not Started': 'not_started',
     'On Track': 'in_progress',
-    'At Risk': 'in_progress',
+    'At Risk': 'at_risk',
     'In Review': 'in_review',
     'Blocked': 'blocked',
     'Complete': 'done',
   };
-  const priorityToSlug: Record<string, string> = { P0: 'high', P1: 'medium', P2: 'low' };
+  const priorityToSlug: Record<string, string> = { P0: 'critical', P1: 'high', P2: 'medium', P3: 'low' };
 
   const updateItem = useCallback(async (
     itemId: string,
-    payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number; category?: string | null }
+    payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number; progress?: number; category?: string | null; repeat_interval?: string | null; is_milestone?: boolean; start_date?: string | null }
   ): Promise<unknown> => {
     const body: Record<string, unknown> = {};
     if (payload.title !== undefined) body.title = payload.title;
     if (payload.description !== undefined) body.description = payload.description;
-    if (payload.status !== undefined) body.status = statusToSlug[payload.status] || 'not_started';
-    if (payload.priority !== undefined) body.priority = priorityToSlug[payload.priority] || 'medium';
+    if (payload.status !== undefined) body.status = statusToSlug[payload.status] || payload.status;
+    if (payload.priority !== undefined) body.priority = priorityToSlug[payload.priority] || payload.priority;
     if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id;
     if (payload.due_date !== undefined) body.due_date = payload.due_date;
     if (payload.points !== undefined) body.points = payload.points;
+    if (payload.progress !== undefined) body.progress = payload.progress;
     if (payload.category !== undefined) body.category = payload.category;
+    if (payload.repeat_interval !== undefined) body.repeat_interval = payload.repeat_interval;
+    if (payload.is_milestone !== undefined) body.is_milestone = payload.is_milestone;
+    if (payload.start_date !== undefined) body.start_date = payload.start_date;
     const res = await patch(apiPath(`api/items/${itemId}`), body as Record<string, string>);
     await load();
     return res;

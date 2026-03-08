@@ -1,5 +1,6 @@
 import { X, Plus, Filter } from 'lucide-react';
 import { Button } from './ui/button';
+import { useEffect } from 'react';
 import type { Status, Priority, Category } from '../data/mockData';
 
 export interface FilterRow {
@@ -48,22 +49,21 @@ interface FilterSlidePanelProps {
   priorityOptions: Priority[];
   categoryOptions: Category[];
   ownerOptions: string[];
+  projectId?: string | null;
 }
 
 export function FilterSlidePanel({
-  open,
-  onClose,
-  filterRows,
-  onFilterRowsChange,
-  filterAndOr,
-  onFilterAndOrChange,
-  onApply,
-  onSaveAsView,
-  statusOptions,
-  priorityOptions,
-  categoryOptions,
-  ownerOptions,
+  open, onClose, filterRows, onFilterRowsChange, filterAndOr, onFilterAndOrChange,
+  onApply, onSaveAsView, statusOptions, priorityOptions, categoryOptions, ownerOptions, projectId,
 }: FilterSlidePanelProps) {
+  // Persist to localStorage on every change
+  useEffect(() => {
+    if (!projectId) return;
+    try {
+      localStorage.setItem(`filters_${projectId}`, JSON.stringify({ rows: filterRows, andOr: filterAndOr }));
+    } catch { /* ignore */ }
+  }, [filterRows, filterAndOr, projectId]);
+
   if (!open) return null;
 
   const addRow = () => {

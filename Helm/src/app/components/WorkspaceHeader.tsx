@@ -1,6 +1,7 @@
-import { Plus, User, Search, LogOut, Sparkles } from 'lucide-react';
+import { Plus, User, Search, LogOut, Sparkles, Menu } from 'lucide-react';
 import { Button } from './ui/button';
 import type { Project } from '../data/useMeridianData';
+import { NotificationsBell } from './NotificationsBell';
 
 interface WorkspaceHeaderProps {
   projects: Project[];
@@ -19,6 +20,8 @@ interface WorkspaceHeaderProps {
   /** When set, show error message on the left instead of connected */
   connectionError?: string | null;
   onRetry?: () => void;
+  onOpenItem?: (itemId: string) => void;
+  onToggleMobileSidebar?: () => void;
 }
 
 export function WorkspaceHeader({
@@ -32,12 +35,23 @@ export function WorkspaceHeader({
   connected = false,
   connectionError = null,
   onRetry,
+  onOpenItem,
+  onToggleMobileSidebar,
 }: WorkspaceHeaderProps) {
   return (
     <div className="bg-white border-b border-gray-200">
-      <div className="flex items-center justify-between gap-4 px-6 py-3 min-h-[56px]">
-        {/* Left: app name + connection status */}
+      <div className="flex items-center justify-between gap-4 px-4 py-3 min-h-[56px]">
+        {/* Left: mobile hamburger + app name + connection status */}
         <div className="flex items-center gap-3 min-w-0">
+          {onToggleMobileSidebar && (
+            <button
+              type="button"
+              onClick={onToggleMobileSidebar}
+              className="lg:hidden p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 flex-shrink-0"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+          )}
           <span className="text-sm font-bold text-gray-900 shrink-0">To-DO</span>
           {connectionError ? (
             <span className="text-xs text-amber-700 truncate flex items-center gap-2">
@@ -90,6 +104,7 @@ export function WorkspaceHeader({
           <Button type="button" variant="ghost" size="sm" className="h-9 w-9 p-0 text-gray-500" title="AI">
             <Sparkles className="w-4 h-4" />
           </Button>
+          <NotificationsBell onOpenItem={onOpenItem} />
           <span className="text-xs text-gray-600 px-2 py-1 border border-gray-200 rounded-md">
             {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
           </span>

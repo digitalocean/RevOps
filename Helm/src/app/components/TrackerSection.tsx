@@ -1,5 +1,12 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronRight, Plus, MoreHorizontal, Clock, Star, Loader2, Check, X } from 'lucide-react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { ChevronDown, ChevronRight, Plus, MoreHorizontal, Clock, Star, Loader2, Check, X, GripVertical } from 'lucide-react';
+import {
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { post } from '../api/meridian';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
@@ -13,7 +20,7 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from './ui/dropdown-menu';
-import { InitiativeDetailsDialog } from './InitiativeDetailsDialog';
+import { TaskDetailDrawer } from './TaskDetailDrawer';
 import type { Initiative, Priority, Status, Category, TrackerSection as TrackerSectionType } from '../data/mockData';
 
 const STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete'];
@@ -49,15 +56,18 @@ interface TrackerSectionProps {
   onSelectionChange: (ids: string[]) => void;
   projectId: string | null;
   crew?: CrewMember[];
+  currentUser?: { id: string; name: string } | null;
   customFields?: CustomFieldDef[];
   visibleColumns?: Set<string>;
   onUpdateFieldValue?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
   onAddItem?: () => void;
   onCreateItem?: (projectId: string, payload: { title: string; description?: string }, trackerId?: string | null) => Promise<unknown>;
   onCreateSubItem?: (parentId: string) => void;
-  onUpdateItem?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: string | null }) => Promise<unknown>;
+  onUpdateItem?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: string | null; progress?: number }) => Promise<unknown>;
   onDeleteItem?: (id: string) => Promise<void>;
   onItemCompleted?: () => void;
+  focusedId?: string | null;
+  onFocusChange?: (id: string | null) => void;
 }
 
 function getPriorityColor(priority: Priority): string {
@@ -68,15 +78,21 @@ function getPriorityColor(priority: Priority): string {
   }
 }
 
-function getStatusColor(status: Status): string {
+function getStatusStyle(status: Status): { bg: string; text: string; border: string; dot: string } {
   switch (status) {
-    case 'On Track': return 'bg-green-500 text-white hover:bg-green-600';
-    case 'At Risk': return 'bg-yellow-500 text-white hover:bg-yellow-600';
-    case 'In Review': return 'bg-purple-500 text-white hover:bg-purple-600';
-    case 'Complete': return 'bg-emerald-500 text-white hover:bg-emerald-600';
-    case 'Blocked': return 'bg-red-500 text-white hover:bg-red-600';
-    case 'Not Started': return 'bg-gray-300 text-gray-700 hover:bg-gray-400';
+    case 'On Track':   return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' };
+    case 'At Risk':    return { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   dot: 'bg-amber-500' };
+    case 'In Review':  return { bg: 'bg-violet-50',  text: 'text-violet-700',  border: 'border-violet-200',  dot: 'bg-violet-500' };
+    case 'Complete':   return { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',    dot: 'bg-blue-500' };
+    case 'Blocked':    return { bg: 'bg-red-50',     text: 'text-red-700',     border: 'border-red-200',     dot: 'bg-red-500' };
+    case 'Not Started':return { bg: 'bg-gray-50',    text: 'text-gray-500',    border: 'border-gray-200',    dot: 'bg-gray-300' };
+    default:           return { bg: 'bg-gray-50',    text: 'text-gray-500',    border: 'border-gray-200',    dot: 'bg-gray-300' };
   }
+}
+// Keep for backwards compat
+function getStatusColor(status: Status): string {
+  const s = getStatusStyle(status);
+  return `${s.bg} ${s.text} ${s.border}`;
 }
 
 function getCategoryColor(category: Category): string {
@@ -95,15 +111,19 @@ interface InitiativeRowEditableProps {
   initiative: Initiative;
   onOpenDetails: (initiative: Initiative) => void;
   isSelected: boolean;
+  isFocused?: boolean;
   onToggleSelect: (id: string) => void;
+  onFocus?: (id: string) => void;
   crew?: { id: string; name: string; initials?: string }[];
   customFields?: CustomFieldDef[];
   visibleColumns?: Set<string>;
   onUpdateFieldValue?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
   onAddSubItem?: (parentId: string) => void;
-  onUpdate: (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: Category }) => Promise<unknown>;
+  onUpdate: (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: Category; progress?: number }) => Promise<unknown>;
   onDelete?: (id: string) => Promise<void>;
   onItemCompleted?: () => void;
+  dragHandleProps?: Record<string, unknown>;
+  isDragging?: boolean;
 }
 
 function colVisible(visibleColumns: Set<string> | undefined, colId: string): boolean {
@@ -138,7 +158,7 @@ function CustomFieldCell({
     const v = local.trim();
     if (fieldType === 'number') {
       const n = Number(v);
-      onSave(taskId, fieldId, v === '' ? null : Number.isNaN(n) ? value : n);
+      onSave(taskId, fieldId, v === '' ? null : Number.isNaN(n) ? (value ?? null) : n);
     } else if (fieldType === 'boolean') {
       onSave(taskId, fieldId, v === 'true' || v === '1' || v.toLowerCase() === 'yes');
     } else {
@@ -169,7 +189,9 @@ function InitiativeRowEditable({
   initiative,
   onOpenDetails,
   isSelected,
+  isFocused = false,
   onToggleSelect,
+  onFocus,
   crew = [],
   customFields = [],
   visibleColumns,
@@ -178,6 +200,8 @@ function InitiativeRowEditable({
   onUpdate,
   onDelete,
   onItemCompleted,
+  dragHandleProps = {},
+  isDragging = false,
 }: InitiativeRowEditableProps) {
   const [title, setTitle] = useState(initiative.name);
   const [saving, setSaving] = useState(false);
@@ -220,10 +244,14 @@ function InitiativeRowEditable({
     onUpdate(initiative.id, { assignee_id: assigneeId || null }).finally(() => setSaving(false));
   };
 
+  // Note: this renders td cells only - the SortableInitiativeRow renders the <tr>
   return (
-    <tr className={`border-b border-gray-100 hover:bg-gray-50/50 ${isSelected ? 'bg-blue-50' : ''}`}>
-      <td className="py-2 px-4 w-12 align-middle">
-        <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(initiative.id)} />
+    <>
+      <td className="py-2 px-2 w-8 align-middle">
+        {/* drag handle rendered by parent */}
+      </td>
+      <td className="py-2 px-3 w-10 align-middle">
+        <Checkbox checked={isSelected} onCheckedChange={() => onToggleSelect(initiative.id)} onClick={e => e.stopPropagation()} />
       </td>
       <td className="py-2 px-4 w-12 align-middle">
         {initiative.isBigRock ? <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> : <div className="w-4 h-4" />}
@@ -286,24 +314,47 @@ function InitiativeRowEditable({
       </td>
       )}
       {colVisible(visibleColumns, 'status') && (
-      <td className="py-2 px-4 align-middle w-36">
+      <td className="py-2 px-4 align-middle w-40">
         <Select value={initiative.status} onValueChange={(v) => handleStatusChange(v as Status)}>
-          <SelectTrigger className={`h-8 text-xs border-0 ${getStatusColor(initiative.status)} text-white`}>
-            <SelectValue />
+          <SelectTrigger className={`h-8 text-xs border rounded-full px-3 ${getStatusColor(initiative.status)}`}>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusStyle(initiative.status).dot}`} />
+              <SelectValue />
+            </div>
           </SelectTrigger>
           <SelectContent className="z-[110]">
-            {STATUS_OPTIONS.map((s) => (
-              <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
-            ))}
+            {STATUS_OPTIONS.map((s) => {
+              const style = getStatusStyle(s);
+              return (
+                <SelectItem key={s} value={s} className="text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+                    {s}
+                  </div>
+                </SelectItem>
+              );
+            })}
           </SelectContent>
         </Select>
       </td>
       )}
       {colVisible(visibleColumns, 'progress') && (
       <td className="py-2 px-4 align-middle">
-        <div className="flex items-center gap-2">
-          <Progress value={initiative.progress} className="w-20 h-1.5" />
-          <span className="text-xs text-gray-600 w-8">{initiative.progress}%</span>
+        <div className="flex items-center gap-2 group">
+          <Progress value={initiative.progress} className="w-16 h-1.5 cursor-pointer" />
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={initiative.progress}
+            onChange={(e) => {
+              const v = Math.max(0, Math.min(100, Number(e.target.value)));
+              setSaving(true);
+              onUpdate(initiative.id, { progress: v } as Parameters<typeof onUpdate>[1]).finally(() => setSaving(false));
+            }}
+            className="w-12 text-xs border border-gray-200 rounded px-1 py-0.5 text-gray-700 focus:border-blue-400 focus:outline-none"
+          />
+          <span className="text-xs text-gray-400">%</span>
         </div>
       </td>
       )}
@@ -330,30 +381,43 @@ function InitiativeRowEditable({
       <td className="py-2 px-4 align-middle w-12">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-              <MoreHorizontal className="w-4 h-4" />
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100" onClick={e => e.stopPropagation()}>
+              <MoreHorizontal className="w-4 h-4 text-gray-400" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="z-[100]" onCloseAutoFocus={(e) => e.preventDefault()}>
-            <DropdownMenuItem onSelect={() => onOpenDetails(initiative)}>View details</DropdownMenuItem>
-            {onAddSubItem && (
-              <DropdownMenuItem onSelect={() => onAddSubItem(initiative.id)}>Add sub-item</DropdownMenuItem>
-            )}
+          <DropdownMenuContent align="end" className="z-[100] w-48" onCloseAutoFocus={(e) => e.preventDefault()}>
+            <DropdownMenuItem onSelect={() => onOpenDetails(initiative)} className="gap-2 cursor-pointer">
+              <span className="text-gray-500">↗</span> Open details
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="gap-2 cursor-pointer"
+              onSelect={async () => {
+                if (!onUpdate) return;
+                try {
+                  window.dispatchEvent(new CustomEvent('todo:duplicate-item', { detail: { id: initiative.id } }));
+                } catch { /* ignore */ }
+              }}
+            >
+              <span className="text-gray-500">⧉</span> Duplicate
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             {onDelete && (
               <DropdownMenuItem
-                className="text-red-600 focus:text-red-700"
+                className="text-red-600 focus:text-red-700 gap-2 cursor-pointer"
                 onSelect={() => {
-                  if (confirm('Delete this item?')) onDelete(initiative.id);
+                  if (window.confirm(`Delete "${initiative.name}"? This cannot be undone.`)) {
+                    onDelete(initiative.id);
+                  }
                 }}
               >
-                Delete
+                <span>🗑</span> Delete
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
       </td>
-    </tr>
+    </>
   );
 }
 
@@ -367,51 +431,153 @@ interface NewRowFormProps {
   visibleColumnCount?: number;
 }
 
-function NewRowForm({ projectId, sectionId, trackerId, onSave, onCancel, customFieldCount = 0, visibleColumnCount }: NewRowFormProps) {
-  const colspan = visibleColumnCount != null ? Math.max(1, visibleColumnCount) : 6 + customFieldCount;
+function NewRowForm({ projectId, sectionId, trackerId, onSave, onCancel, crew = [], customFieldCount = 0, visibleColumnCount }: NewRowFormProps & { crew?: { id: string; name: string; initials?: string }[] }) {
   const [title, setTitle] = useState('');
+  const [status, setStatus] = useState<Status>('Not Started');
+  const [priority, setPriority] = useState<Priority>('P1');
+  const [assigneeId, setAssigneeId] = useState<string>('');
+  const [dueDate, setDueDate] = useState('');
   const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
 
   const handleSave = async () => {
     const t = title.trim();
     if (!t || !projectId) return;
     setSaving(true);
     try {
-      await onSave(projectId, { title: t }, sectionId === 'uncategorized' ? null : sectionId);
+      const payload: { title: string; status?: string; priority?: string; assignee_id?: string; due_date?: string } = { title: t };
+      const statusSlug: Record<string, string> = {
+        'Not Started': 'not_started', 'On Track': 'in_progress', 'At Risk': 'at_risk',
+        'In Review': 'in_review', 'Blocked': 'blocked', 'Complete': 'done',
+      };
+      const prioritySlug: Record<string, string> = { P0: 'critical', P1: 'high', P2: 'medium' };
+      payload.status = statusSlug[status] || 'not_started';
+      payload.priority = prioritySlug[priority] || 'medium';
+      if (assigneeId) payload.assignee_id = assigneeId;
+      if (dueDate) payload.due_date = `${dueDate}T00:00:00.000Z`;
+      await onSave(projectId, payload, sectionId === 'uncategorized' ? null : sectionId);
       setTitle('');
-      onCancel();
+      setStatus('Not Started');
+      setPriority('P1');
+      setAssigneeId('');
+      setDueDate('');
+      // Keep row open for rapid entry — user presses Escape or Cancel to close
+      inputRef.current?.focus();
     } finally {
       setSaving(false);
     }
   };
 
+  const STATUS_STYLES: Record<Status, string> = {
+    'Not Started': 'bg-gray-100 text-gray-600',
+    'On Track': 'bg-emerald-100 text-emerald-700',
+    'At Risk': 'bg-amber-100 text-amber-700',
+    'In Review': 'bg-violet-100 text-violet-700',
+    'Blocked': 'bg-red-100 text-red-700',
+    'Complete': 'bg-blue-100 text-blue-700',
+  };
+
   return (
-    <tr className="bg-blue-50/50 border-b border-blue-100">
-      <td className="py-2 px-4 w-12" />
-      <td className="py-2 px-4 w-12" />
-      <td className="py-2 px-4 align-middle min-w-[180px]">
-        <Input
+    <tr className="bg-indigo-50/40 border-b border-indigo-100">
+      <td className="py-2 px-2 w-8" />
+      <td className="py-2 px-3 w-10" />
+      {/* Title */}
+      <td className="py-2 px-4 align-middle min-w-[220px]">
+        <input
+          ref={inputRef}
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-          className="h-8 text-sm border-blue-200 bg-white"
-          placeholder="Enter title..."
-          autoFocus
+          onChange={e => setTitle(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') handleSave();
+            if (e.key === 'Escape') onCancel();
+          }}
+          className="w-full h-8 px-3 text-sm border border-indigo-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-indigo-200 placeholder-gray-400"
+          placeholder="Task title… (Enter to save, Esc to cancel)"
         />
       </td>
-      <td colSpan={colspan} className="py-2 px-4 align-middle">
+      {/* Status */}
+      <td className="py-2 px-3 align-middle">
+        <select
+          value={status}
+          onChange={e => setStatus(e.target.value as Status)}
+          className={`h-8 text-xs rounded-lg px-2 border-0 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-200 ${STATUS_STYLES[status]}`}
+        >
+          {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </td>
+      {/* Priority */}
+      <td className="py-2 px-3 align-middle">
+        <select
+          value={priority}
+          onChange={e => setPriority(e.target.value as Priority)}
+          className={`h-8 text-xs rounded-lg px-2 border-0 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-200 ${
+            priority === 'P0' ? 'bg-red-100 text-red-700' :
+            priority === 'P1' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'
+          }`}
+        >
+          {PRIORITY_OPTIONS.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+      </td>
+      {/* Assignee */}
+      <td className="py-2 px-3 align-middle">
+        <select
+          value={assigneeId}
+          onChange={e => setAssigneeId(e.target.value)}
+          className="h-8 text-xs rounded-lg px-2 border border-gray-200 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+        >
+          <option value="">Unassigned</option>
+          {crew.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        </select>
+      </td>
+      {/* Due date */}
+      <td className="py-2 px-3 align-middle">
+        <input
+          type="date"
+          value={dueDate}
+          onChange={e => setDueDate(e.target.value)}
+          className="h-8 text-xs px-2 border border-gray-200 rounded-lg bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+        />
+      </td>
+      {/* Actions */}
+      <td className="py-2 px-4 align-middle">
         <div className="flex items-center gap-2">
-          <Button type="button" size="sm" className="h-8 gap-1" onClick={handleSave} disabled={!title.trim() || !projectId || saving}>
+          <Button type="button" size="sm" className="h-7 px-3 text-xs gap-1 bg-indigo-600 hover:bg-indigo-700 text-white" onClick={handleSave} disabled={!title.trim() || !projectId || saving}>
             {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
             Save
           </Button>
-          <Button type="button" size="sm" variant="ghost" className="h-8 gap-1" onClick={onCancel} disabled={saving}>
+          <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1 text-gray-500" onClick={onCancel} disabled={saving}>
             <X className="w-3 h-3" />
-            Cancel
           </Button>
         </div>
       </td>
-      <td className="py-2 px-4" />
+    </tr>
+  );
+}
+
+function SortableInitiativeRow(props: Omit<InitiativeRowEditableProps, 'dragHandleProps' | 'isDragging'>) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.initiative.id });
+  const style = { transform: CSS.Transform.toString(transform), transition } as React.CSSProperties;
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      data-item-id={props.initiative.id}
+      className={`border-b border-gray-100 hover:bg-gray-50/50 cursor-pointer transition-colors ${props.isSelected ? 'bg-blue-50' : ''} ${props.isFocused ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/30' : ''} ${isDragging ? 'opacity-40 bg-indigo-50' : ''}`}
+      onClick={() => props.onFocus?.(props.initiative.id)}
+      onDoubleClick={() => props.onOpenDetails(props.initiative)}
+    >
+      <td className="py-2 px-2 w-8 align-middle">
+        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-gray-100 touch-none" onClick={e => e.stopPropagation()}>
+          <GripVertical className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500" />
+        </button>
+      </td>
+      <td className="py-2 px-3 w-10 align-middle">
+        <Checkbox checked={props.isSelected} onCheckedChange={() => props.onToggleSelect(props.initiative.id)} onClick={e => e.stopPropagation()} />
+      </td>
+      <InitiativeRowEditable {...props} />
     </tr>
   );
 }
@@ -424,6 +590,7 @@ export function TrackerSection({
   onSelectionChange,
   projectId,
   crew = [],
+  currentUser,
   customFields = [],
   visibleColumns,
   onUpdateFieldValue,
@@ -433,6 +600,8 @@ export function TrackerSection({
   onUpdateItem,
   onDeleteItem,
   onItemCompleted,
+  focusedId,
+  onFocusChange,
 }: TrackerSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedInitiative, setSelectedInitiative] = useState<Initiative | null>(null);
@@ -468,6 +637,35 @@ export function TrackerSection({
     if (onUpdateItem) await onUpdateItem(id, payload);
   };
 
+  const [orderedItems, setOrderedItems] = useState(() => filteredInitiatives.map(i => i.id));
+  // Keep order in sync when section items change
+  const currentIds = filteredInitiatives.map(i => i.id).join(',');
+  const [lastIds, setLastIds] = useState(currentIds);
+  if (currentIds !== lastIds) { setLastIds(currentIds); setOrderedItems(filteredInitiatives.map(i => i.id)); }
+
+  const sortedInitiatives = orderedItems
+    .map(id => filteredInitiatives.find(i => i.id === id))
+    .filter(Boolean) as Initiative[];
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor),
+  );
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = orderedItems.indexOf(String(active.id));
+    const newIndex = orderedItems.indexOf(String(over.id));
+    const newOrder = arrayMove(orderedItems, oldIndex, newIndex);
+    setOrderedItems(newOrder);
+    try {
+      await post('/api/items/reorder', {
+        order: newOrder.map((id, idx) => ({ id, sort_order: idx }))
+      });
+    } catch { /* non-critical */ }
+  }, [orderedItems]);
+
   return (
     <>
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -490,7 +688,8 @@ export function TrackerSection({
             <table className="w-full">
               <thead className="bg-white border-b border-gray-200">
                 <tr>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-12">
+                  <th className="py-2 px-2 w-8" />
+                  <th className="py-2 px-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-10">
                     <Checkbox
                       checked={allSelected}
                       ref={(el) => {
@@ -499,7 +698,6 @@ export function TrackerSection({
                       onCheckedChange={handleSelectAll}
                     />
                   </th>
-                  <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase w-12" />
                   {colVisible(visibleColumns, 'name') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Initiative</th>}
                   {colVisible(visibleColumns, 'category') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Category</th>}
                   {colVisible(visibleColumns, 'priority') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Priority</th>}
@@ -513,14 +711,18 @@ export function TrackerSection({
                   <th className="py-2 px-4 w-12" />
                 </tr>
               </thead>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={orderedItems} strategy={verticalListSortingStrategy}>
               <tbody>
-                {filteredInitiatives.map((initiative) => (
-                  <InitiativeRowEditable
+                {sortedInitiatives.map((initiative) => (
+                  <SortableInitiativeRow
                     key={initiative.id}
                     initiative={initiative}
                     onOpenDetails={setSelectedInitiative}
                     isSelected={selectedIds.includes(initiative.id)}
+                    isFocused={focusedId === initiative.id}
                     onToggleSelect={handleToggleSelect}
+                    onFocus={(id) => { onFocusChange?.(id); }}
                     crew={crew}
                     customFields={customFields}
                     visibleColumns={visibleColumns}
@@ -538,42 +740,52 @@ export function TrackerSection({
                     trackerId={section.id === 'uncategorized' ? null : section.id}
                     onSave={onCreateItem!}
                     onCancel={() => setShowNewRow(false)}
+                    crew={crew}
                     customFieldCount={customFields.filter(isTaskField).length}
                     visibleColumnCount={COL_KEYS.filter((id) => colVisible(visibleColumns, id)).length + customFields.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).length}
                   />
                 )}
-                {filteredInitiatives.length === 0 && !showNewRow && (
+                {sortedInitiatives.length === 0 && !showNewRow && (
                   <tr>
-                    <td colSpan={10 + customFields.filter(isTaskField).length} className="py-8 px-4 text-center text-sm text-gray-500">
-                      No items yet. Add one below.
+                    <td colSpan={10 + customFields.filter(isTaskField).length} className="py-8 px-4 text-center text-sm text-gray-500 italic">
+                      No items yet — click <strong>Add task</strong> below to start.
                     </td>
                   </tr>
                 )}
               </tbody>
+              </SortableContext>
+              </DndContext>
             </table>
           </div>
         )}
 
         {isExpanded && (
-          <div className="border-t border-gray-200 px-4 py-3 bg-gray-50">
+          <div className="border-t border-gray-100">
             <button
               type="button"
-              onClick={() => (projectId ? setShowNewRow(true) : onAddItem?.())}
-              className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+              onClick={() => {
+                if (onCreateItem && projectId) {
+                  setShowNewRow(true);
+                } else {
+                  onAddItem?.();
+                }
+              }}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-400 hover:text-indigo-600 hover:bg-indigo-50/40 transition-colors group"
             >
-              <Plus className="w-4 h-4" />
-              Add task
+              <Plus className="w-4 h-4 group-hover:text-indigo-500 transition-colors" />
+              <span className="group-hover:text-indigo-600 transition-colors">Add task</span>
             </button>
           </div>
         )}
       </div>
 
       {selectedInitiative && (
-        <InitiativeDetailsDialog
+        <TaskDetailDrawer
           initiative={selectedInitiative}
           crew={crew}
+          currentUser={currentUser}
           onClose={() => setSelectedInitiative(null)}
-          onSave={onUpdateItem ? async (id, payload) => { await onUpdateItem(id, payload); setSelectedInitiative(null); } : undefined}
+          onSave={onUpdateItem ? async (id, payload) => { await onUpdateItem(id, payload); } : undefined}
           onDelete={onDeleteItem ? async (id) => { await onDeleteItem(id); setSelectedInitiative(null); } : undefined}
         />
       )}

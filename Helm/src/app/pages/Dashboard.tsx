@@ -12,7 +12,6 @@ import { DueDateMetrics } from '../components/DueDateMetrics';
 import { GlobalSearch } from '../components/GlobalSearch';
 import { BulkActionsBar } from '../components/BulkActionsBar';
 import { AnalyticsDashboard } from '../components/AnalyticsDashboard';
-import { SavedViewsMenu } from '../components/SavedViewsMenu';
 import { KeyboardShortcutsDialog } from '../components/KeyboardShortcutsDialog';
 import { TaskDetailDrawer } from '../components/TaskDetailDrawer';
 import { AddInitiativeDialog } from '../components/AddInitiativeDialog';
@@ -570,7 +569,6 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               <div className="flex items-center gap-2">
                 {(currentView === 'summit_board' || currentView === 'manifest') && (
                   <>
-                    <SavedViewsMenu projectId={selectedProjectId} currentFilters={filters} onApplyView={(newFilters) => setFilters(newFilters)} />
                     <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowFilterSlide(true)}>
                       <Filter className="w-4 h-4" />
                       Filter

@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Upload, FileSpreadsheet, X, Check, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -54,15 +54,22 @@ function parseCSV(raw: string): string[][] {
 
 function detectColumns(headers: string[]): Record<string, number> {
   const map: Record<string, number> = {};
-  headers.forEach((h, i) => {
-    const l = h.toLowerCase().trim();
-    if (['title', 'name', 'task', 'initiative', 'item'].some(k => l.includes(k))) map.title = map.title ?? i;
-    else if (['desc', 'description', 'notes', 'details', 'summary'].some(k => l.includes(k))) map.description = i;
-    else if (['status', 'state'].some(k => l.includes(k))) map.status = i;
-    else if (['priority', 'prio', 'urgency'].some(k => l.includes(k))) map.priority = i;
-    else if (['category', 'type', 'area', 'team', 'dept'].some(k => l.includes(k))) map.category = i;
-    else if (['due', 'deadline', 'date', 'target'].some(k => l.includes(k))) map.due_date = i;
-    else if (['owner', 'assignee', 'assigned', 'responsible'].some(k => l.includes(k))) map.owner = i;
+  const lower = headers.map((h) => h.toLowerCase().trim());
+  // Prefer "title"/"task" for task title; use "name" only if no better match (avoids mapping "Name" when "Title" exists)
+  const titleIdx = lower.findIndex((l) => ['title', 'task', 'initiative', 'item'].some((k) => l.includes(k)));
+  if (titleIdx >= 0) map.title = titleIdx;
+  else {
+    const nameIdx = lower.findIndex((l) => l.includes('name'));
+    if (nameIdx >= 0) map.title = nameIdx;
+  }
+  lower.forEach((l, i) => {
+    if (map.title === i) return;
+    if (['desc', 'description', 'notes', 'details', 'summary'].some((k) => l.includes(k))) map.description = i;
+    else if (['status', 'state'].some((k) => l.includes(k))) map.status = i;
+    else if (['priority', 'prio', 'urgency'].some((k) => l.includes(k))) map.priority = i;
+    else if (['category', 'type', 'area', 'team', 'dept'].some((k) => l.includes(k))) map.category = i;
+    else if (['due', 'deadline', 'date', 'target'].some((k) => l.includes(k))) map.due_date = i;
+    else if (['owner', 'assignee', 'assigned', 'responsible'].some((k) => l.includes(k))) map.owner = i;
   });
   return map;
 }
@@ -111,11 +118,20 @@ export function SpreadsheetImport({ projectId, onImport, onClose }: SpreadsheetI
     const detected = detectColumns(hdrs);
     setHeaders(hdrs);
     setColMap(detected);
-    const mapped = rows.slice(1).map(r => mapRow(r, detected)).filter(Boolean) as ImportRow[];
+    const mapped = rows.slice(1).map((r) => mapRow(r, detected)).filter(Boolean) as ImportRow[];
     if (!mapped.length) { toast.error('No rows with titles found'); return; }
     setPreview(mapped);
     setStep('preview');
   }, []);
+
+  // When user changes column mapping in preview, re-apply mapping so preview rows match
+  useEffect(() => {
+    if (step !== 'preview' || !pasteText.trim() || Object.keys(colMap).length === 0) return;
+    const rows = parseCSV(pasteText);
+    if (rows.length < 2) return;
+    const mapped = rows.slice(1).map((r) => mapRow(r, colMap)).filter(Boolean) as ImportRow[];
+    setPreview(mapped);
+  }, [step, colMap, pasteText]);
 
   const handlePaste = () => processRaw(pasteText);
 
@@ -241,10 +257,6 @@ export function SpreadsheetImport({ projectId, onImport, onClose }: SpreadsheetI
                                 else n[field] = Number(v);
                                 return n;
                               });
-                              // Re-map preview
-                              const newMap = { ...colMap };
-                              if (v === '') delete newMap[field];
-                              else newMap[field] = Number(v);
                             }}
                             className="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:border-indigo-400"
                           >

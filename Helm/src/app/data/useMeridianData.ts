@@ -202,14 +202,27 @@ export function useMeridianData(): MeridianDataResult {
       setInitiatives(mapped);
       const trackers = Array.isArray(trackersRes) ? trackersRes : [];
       const uncategorized = mapped.filter((init) => !init.tracker_id);
+      const parseTrackerColumns = (c: unknown): string[] | undefined => {
+        if (Array.isArray(c) && c.length > 0) return c as string[];
+        if (typeof c === 'string') {
+          try {
+            const parsed = JSON.parse(c) as unknown;
+            return Array.isArray(parsed) && parsed.length > 0 ? (parsed as string[]) : undefined;
+          } catch { return undefined; }
+        }
+        return undefined;
+      };
       const sectionList: TrackerSection[] = [
         ...(uncategorized.length > 0 ? [{ id: 'uncategorized' as const, title: 'Tasks', initiatives: uncategorized }] : []),
-        ...trackers.map((t) => ({
-          id: t.id,
-          title: t.name,
-          initiatives: mapped.filter((init) => init.tracker_id === t.id),
-          columns: Array.isArray(t.columns) && t.columns.length > 0 ? t.columns : undefined,
-        })),
+        ...trackers.map((t: Record<string, unknown>) => {
+          const cols = parseTrackerColumns(t.columns);
+          return {
+            id: t.id,
+            title: t.name,
+            initiatives: mapped.filter((init) => init.tracker_id === t.id),
+            columns: cols,
+          };
+        }),
       ];
       setSections(sectionList);
       setFromApi(true);

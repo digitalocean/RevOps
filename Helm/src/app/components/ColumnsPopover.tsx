@@ -30,7 +30,7 @@ function storageKey(projectId: string | null, userId?: string | null): string {
 /** Default built-in columns to show when user has not saved a preference (keeps table usable). */
 const DEFAULT_VISIBLE_COLUMN_IDS = COLUMN_IDS.map((c) => c.id);
 
-function loadVisibleColumns(projectId: string | null, userId?: string | null): Set<string> {
+export function loadVisibleColumns(projectId: string | null, userId?: string | null): Set<string> {
   if (typeof window === 'undefined' || !projectId) return new Set(DEFAULT_VISIBLE_COLUMN_IDS);
   try {
     const key = storageKey(projectId, userId);
@@ -90,11 +90,9 @@ export function ColumnsPopover({
   useEffect(() => {
     if (projectId) {
       const saved = loadVisibleColumns(projectId, userId);
-      const merged = new Set(saved);
-      taskFields.forEach((f) => merged.add(f.id));
-      onVisibleColumnsChange(merged);
+      onVisibleColumnsChange(new Set(saved));
     }
-  }, [projectId, userId, customFields.length]);
+  }, [projectId, userId]);
 
   useEffect(() => {
     if (!open) return;

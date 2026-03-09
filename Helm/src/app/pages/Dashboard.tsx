@@ -26,7 +26,7 @@ import { SummitBoardKanban } from '../components/SummitBoardKanban';
 import { FilterSlidePanel, type FilterRow } from '../components/FilterSlidePanel';
 import { FieldNotesView } from '../components/FieldNotesView';
 import { PersonalTasksView } from '../components/PersonalTasksView';
-import { ColumnsPopover, saveVisibleColumns } from '../components/ColumnsPopover';
+import { ColumnsPopover, saveVisibleColumns, loadVisibleColumns } from '../components/ColumnsPopover';
 import { BaseCampView } from '../components/BaseCampView';
 import { NewSectionDialog } from '../components/NewSectionDialog';
 import { ShareProjectDialog } from '../components/ShareProjectDialog';
@@ -210,6 +210,15 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
       }
     } catch { /* ignore */ }
   }, [selectedProjectId]);
+
+  // Load saved column selection (Base Camp "enable on tracker") when project or user changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      setVisibleColumns(loadVisibleColumns(selectedProjectId, currentUser?.id));
+    } else {
+      setVisibleColumns(new Set(['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate', 'topic']));
+    }
+  }, [selectedProjectId, currentUser?.id]);
 
   // Handle duplicate item event from TrackerSection three-dot menu
   useEffect(() => {

@@ -64,6 +64,7 @@ export function AnalyticsView({ projectId }: AnalyticsViewProps) {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTrackerKey, setSelectedTrackerKey] = useState<string>('all');
 
   useEffect(() => {
     if (!projectId) {
@@ -77,6 +78,12 @@ export function AnalyticsView({ projectId }: AnalyticsViewProps) {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [projectId]);
+
+  const byTracker = data?.byTracker ?? [];
+  const validKeys = useMemo(() => new Set(['all', ...byTracker.map((t) => (t.trackerId ? String(t.trackerId) : 'uncategorized'))]), [byTracker]);
+  useEffect(() => {
+    if (!validKeys.has(selectedTrackerKey)) setSelectedTrackerKey('all');
+  }, [validKeys, selectedTrackerKey]);
 
   if (!projectId) {
     return (
@@ -100,12 +107,6 @@ export function AnalyticsView({ projectId }: AnalyticsViewProps) {
     );
   }
 
-  const byTracker = data.byTracker ?? [];
-  const [selectedTrackerKey, setSelectedTrackerKey] = useState<string>('all');
-  const validKeys = useMemo(() => new Set(['all', ...byTracker.map((t) => (t.trackerId ? String(t.trackerId) : 'uncategorized'))]), [byTracker]);
-  useEffect(() => {
-    if (!validKeys.has(selectedTrackerKey)) setSelectedTrackerKey('all');
-  }, [validKeys, selectedTrackerKey]);
   const isAll = selectedTrackerKey === 'all';
   const selectedTracker = byTracker.find((t) => (t.trackerId && String(t.trackerId) === selectedTrackerKey) || (t.trackerId === null && selectedTrackerKey === 'uncategorized'));
   const kpi = isAll ? data.kpi : (selectedTracker?.kpi ?? data.kpi);

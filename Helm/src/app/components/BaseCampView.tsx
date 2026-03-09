@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
-import { Settings2, Users, UserPlus, Trash2 } from 'lucide-react';
+import { Settings2, Users, UserPlus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { get } from '../api/meridian';
 
 const STANDARD_FIELDS = [
@@ -44,11 +44,14 @@ interface BaseCampViewProps {
   projectId: string | null;
   customFields: CustomFieldDef[];
   visibleColumns: Set<string>;
+  /** Ordered list of column ids (for display and table). Empty = use default order. */
+  columnOrder?: string[];
   /** Toggle a column on or off (enable on tracker). */
   onToggleColumn: (columnId: string) => void;
+  /** Reorder columns (new ordered list of all column ids). */
+  onReorderColumns?: (orderedIds: string[]) => void;
   onOpenCustomFields: () => void;
   onOpenShare?: () => void;
-  /** Called when project is deleted (e.g. redirect). */
   onDeleteProject?: (projectId: string) => void | Promise<void>;
 }
 
@@ -56,13 +59,27 @@ export function BaseCampView({
   projectId,
   customFields,
   visibleColumns,
+  columnOrder = [],
   onToggleColumn,
+  onReorderColumns,
   onOpenCustomFields,
   onOpenShare,
   onDeleteProject,
 }: BaseCampViewProps) {
   const taskFields = customFields.filter(isTaskField);
   const [members, setMembers] = useState<ProjectMember[]>([]);
+  const defaultOrder = [...STANDARD_FIELDS.map((c) => c.id), ...taskFields.map((f) => f.id)];
+  const orderedIds = columnOrder.length > 0
+    ? [...columnOrder.filter((id) => defaultOrder.includes(id)), ...defaultOrder.filter((id) => !columnOrder.includes(id))]
+    : defaultOrder;
+  const moveField = (index: number, delta: number) => {
+    if (!onReorderColumns) return;
+    const next = index + delta;
+    if (next < 0 || next >= orderedIds.length) return;
+    const newOrder = [...orderedIds];
+    [newOrder[index], newOrder[next]] = [newOrder[next], newOrder[index]];
+    onReorderColumns(newOrder);
+  };
 
   useEffect(() => {
     if (!projectId) {
@@ -132,43 +149,41 @@ export function BaseCampView({
 
       <div className="space-y-6">
         <section>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">Standard fields</h3>
-          <p className="text-xs text-gray-500 mb-2">Built-in columns. By default all are enabled on new sections.</p>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">Standard &amp; custom fields</h3>
+          <p className="text-xs text-gray-500 mb-2">Enable columns for trackers and use up/down to rearrange order.</p>
           <ul className="space-y-1.5">
-            {STANDARD_FIELDS.map((col) => (
-              <li key={col.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 border border-gray-100">
-                <label className="flex items-center gap-2 cursor-pointer flex-1">
-                  <Checkbox
-                    checked={visibleColumns.has(col.id)}
-                    onCheckedChange={() => onToggleColumn(col.id)}
-                  />
-                  <span className="text-sm font-medium text-gray-800">{col.label}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section>
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">Custom fields</h3>
-          <p className="text-xs text-gray-500 mb-2">Project-specific fields. Check to show on new sections.</p>
-          {taskFields.length > 0 ? (
-            <ul className="space-y-1.5">
-              {taskFields.map((f) => (
-                <li key={f.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 border border-gray-100">
-                  <label className="flex items-center gap-2 cursor-pointer flex-1">
+            {orderedIds.map((colId, index) => {
+              const col = STANDARD_FIELDS.find((c) => c.id === colId) ?? taskFields.find((f) => f.id === colId);
+              if (!col) return null;
+              const label = 'label' in col ? col.label : col.name;
+              return (
+                <li key={colId} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-gray-50 border border-gray-100">
+                  <div className="flex items-center gap-1 shrink-0">
+                    {onReorderColumns && (
+                      <>
+                        <button type="button" onClick={() => moveField(index, -1)} disabled={index === 0} className="p-1 rounded hover:bg-gray-200 text-gray-500 disabled:opacity-30" title="Move up" aria-label="Move up">
+                          <ChevronUp className="w-4 h-4" />
+                        </button>
+                        <button type="button" onClick={() => moveField(index, 1)} disabled={index === orderedIds.length - 1} className="p-1 rounded hover:bg-gray-200 text-gray-500 disabled:opacity-30" title="Move down" aria-label="Move down">
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
                     <Checkbox
-                      checked={visibleColumns.has(f.id)}
-                      onCheckedChange={() => onToggleColumn(f.id)}
+                      checked={visibleColumns.has(colId)}
+                      onCheckedChange={() => onToggleColumn(colId)}
                     />
-                    <span className="text-sm font-medium text-gray-800">{f.name}</span>
+                    <span className="text-sm font-medium text-gray-800 truncate">{label}</span>
                   </label>
                 </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-gray-500 py-4">
-              No custom fields yet. Click <strong>Manage custom fields</strong> to create them; they will appear here for you to enable on trackers.
+              );
+            })}
+          </ul>
+          {taskFields.length === 0 && (
+            <p className="text-sm text-gray-500 py-2">
+              Add custom fields via <strong>Manage custom fields</strong>; they appear above for enable and reorder.
             </p>
           )}
         </section>

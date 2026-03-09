@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Plus, Clock, X, GripVertical, Trash2, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronUp, Plus, Clock, X, GripVertical, Trash2, Pencil } from 'lucide-react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -60,6 +60,10 @@ interface TrackerSectionProps {
   onDeleteItem?: (id: string) => Promise<void>;
   onDeleteSection?: (trackerId: string) => Promise<void>;
   onRenameSection?: (trackerId: string, newName: string) => Promise<void>;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
   /** When false, Edit/Delete are hidden (e.g. for primary/uncategorized or only section). */
   showSectionActions?: boolean;
   onItemCompleted?: () => void;
@@ -573,6 +577,10 @@ export function TrackerSection({
   onDeleteItem,
   onDeleteSection,
   onRenameSection,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
   showSectionActions = true,
   onItemCompleted,
   focusedId,
@@ -656,8 +664,18 @@ export function TrackerSection({
               {filteredInitiatives.length}
             </span>
           </button>
-          {showSectionActions && section.id !== 'uncategorized' && (onDeleteSection || onRenameSection) && (
+          {showSectionActions && section.id !== 'uncategorized' && (onMoveUp != null || onMoveDown != null || onDeleteSection || onRenameSection) && (
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              {onMoveUp != null && (
+                <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-500 hover:text-gray-700 disabled:opacity-30" onClick={onMoveUp} disabled={!canMoveUp} title="Move section up">
+                  <ChevronUp className="w-4 h-4" />
+                </Button>
+              )}
+              {onMoveDown != null && (
+                <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-500 hover:text-gray-700 disabled:opacity-30" onClick={onMoveDown} disabled={!canMoveDown} title="Move section down">
+                  <ChevronDown className="w-4 h-4" />
+                </Button>
+              )}
               {onRenameSection && (
                 <Button
                   type="button"

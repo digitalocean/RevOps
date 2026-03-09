@@ -1,5 +1,4 @@
 import { CheckCircle2, Clock, AlertTriangle, Target } from 'lucide-react';
-import { Progress } from './ui/progress';
 import { kpiData as defaultKpiData } from '../data/mockData';
 
 export interface KpiData {
@@ -72,16 +71,6 @@ export function KPIStatsBar({ kpiData = defaultKpiData }: KPIStatsBarProps) {
             color="text-purple-600"
             bgColor="bg-purple-50"
           />
-        </div>
-        
-        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">OVERALL PROGRESS</span>
-            <span className="text-lg font-semibold text-gray-900 tabular-nums">
-              {kpiData.overallProgress}%
-            </span>
-          </div>
-          <Progress value={kpiData.overallProgress} className="h-2" />
         </div>
       </div>
     </div>

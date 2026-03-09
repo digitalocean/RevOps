@@ -6,7 +6,6 @@ import { KPIStatsBar } from '../components/KPIStatsBar';
 import { TrackerSection } from '../components/TrackerSection';
 import { GanttChart } from '../components/GanttChart';
 import { ActivityPanel } from '../components/ActivityPanel';
-import { ExportMenu } from '../components/ExportMenu';
 import { CategoryPriorityStatusMetrics } from '../components/CategoryPriorityStatusMetrics';
 import { DueDateMetrics } from '../components/DueDateMetrics';
 import { GlobalSearch } from '../components/GlobalSearch';
@@ -26,7 +25,7 @@ import { SummitBoardKanban } from '../components/SummitBoardKanban';
 import { FilterSlidePanel, type FilterRow } from '../components/FilterSlidePanel';
 import { FieldNotesView } from '../components/FieldNotesView';
 import { PersonalTasksView } from '../components/PersonalTasksView';
-import { ColumnsPopover, saveVisibleColumns, loadVisibleColumns } from '../components/ColumnsPopover';
+import { ColumnsPopover, saveVisibleColumns, loadVisibleColumns, loadColumnOrder, saveColumnOrder } from '../components/ColumnsPopover';
 import { BaseCampView } from '../components/BaseCampView';
 import { NewSectionDialog } from '../components/NewSectionDialog';
 import { ShareProjectDialog } from '../components/ShareProjectDialog';
@@ -87,6 +86,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     deleteSection,
     deleteProject,
     updateSection,
+    reorderSections,
     crew,
     customFields,
   } = useMeridianData();
@@ -104,6 +104,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const [addInitiativeParentId, setAddInitiativeParentId] = useState<string | null>(null);
   const [addInitiativeTrackerId, setAddInitiativeTrackerId] = useState<string | null>(null);
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => new Set(['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate', 'topic']));
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [celebrateCount, setCelebrateCount] = useState(0);
   const [filters, setFilters] = useState({
@@ -211,12 +212,14 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     } catch { /* ignore */ }
   }, [selectedProjectId]);
 
-  // Load saved column selection (Base Camp "enable on tracker") when project or user changes
+  // Load saved column selection and column order when project or user changes
   useEffect(() => {
     if (selectedProjectId) {
       setVisibleColumns(loadVisibleColumns(selectedProjectId, currentUser?.id));
+      setColumnOrder(loadColumnOrder(selectedProjectId, currentUser?.id));
     } else {
       setVisibleColumns(new Set(['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate', 'topic']));
+      setColumnOrder([]);
     }
   }, [selectedProjectId, currentUser?.id]);
 
@@ -398,7 +401,6 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
   const selectedSprint = sprints[0];
   const sprintLabel = selectedSprint ? selectedSprint.name : 'Sprint';
-  const progressPercent = kpiData.overallProgress ?? 0;
 
   useEffect(() => {
     if (celebrateCount > 0) {
@@ -499,7 +501,6 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           onToggleActivity={() => setShowActivityPanel(!showActivityPanel)}
           selectedProjectName={selectedProject?.name}
           sprintLabel={selectedSprint ? `${selectedSprint.start_date || ''} – ${selectedSprint.end_date || ''}` : undefined}
-          progressPercent={progressPercent}
           currentUser={currentUser}
           onLogin={handleLogin}
           onLogout={handleLogout}
@@ -539,14 +540,13 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               <div className="mb-4 flex items-start justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-semibold text-gray-900">{selectedProject.name}</h2>
-                  <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-                    {selectedSprint && (
+                  {selectedSprint && (
+                    <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
                       <span>
                         {selectedSprint.start_date || '—'} – {selectedSprint.end_date || '—'}
                       </span>
-                    )}
-                    <span>{progressPercent}% complete</span>
-                  </div>
+                    </div>
+                  )}
                 </div>
                 <Button
                   type="button"
@@ -590,13 +590,6 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                         </span>
                       )}
                     </Button>
-                    <ExportMenu
-                      initiatives={initiatives}
-                      projectName={selectedProject?.name}
-                      trackerSections={trackerSections}
-                      visibleColumns={visibleColumns}
-                      customFields={customFields}
-                    />
                     <Button
                       variant="outline"
                       size="sm"
@@ -683,12 +676,17 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 projectId={selectedProjectId}
                 customFields={customFields}
                 visibleColumns={visibleColumns}
+                columnOrder={columnOrder}
                 onToggleColumn={(columnId) => {
                   const next = new Set(visibleColumns);
                   if (next.has(columnId)) next.delete(columnId);
                   else next.add(columnId);
                   setVisibleColumns(next);
                   if (selectedProjectId) saveVisibleColumns(selectedProjectId, next, currentUser?.id);
+                }}
+                onReorderColumns={(orderedIds) => {
+                  setColumnOrder(orderedIds);
+                  if (selectedProjectId) saveColumnOrder(selectedProjectId, orderedIds, currentUser?.id);
                 }}
                 onOpenCustomFields={() => setShowCustomFields(true)}
                 onOpenShare={() => setShowShareProject(true)}
@@ -721,7 +719,10 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-lg font-semibold text-gray-900">Trackers</h3>
                     </div>
-                {trackerSections.map((section) => (
+                {trackerSections.map((section) => {
+                  const trackerIds = trackerSections.filter((s) => s.id !== 'uncategorized').map((s) => s.id);
+                  const trackerIndex = section.id === 'uncategorized' ? -1 : trackerIds.indexOf(section.id);
+                  return (
                   <TrackerSection
                     key={section.id}
                     section={section}
@@ -731,6 +732,20 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     visibleColumns={section.columns?.length ? new Set(section.columns) : visibleColumns}
                     onDeleteSection={deleteSection}
                     onRenameSection={(trackerId, newName) => updateSection(trackerId, { name: newName })}
+                    onMoveUp={trackerIndex >= 0 ? () => {
+                      if (!selectedProjectId || trackerIndex <= 0) return;
+                      const next = [...trackerIds];
+                      [next[trackerIndex], next[trackerIndex - 1]] = [next[trackerIndex - 1], next[trackerIndex]];
+                      reorderSections(selectedProjectId, next);
+                    } : undefined}
+                    onMoveDown={trackerIndex >= 0 ? () => {
+                      if (!selectedProjectId || trackerIndex >= trackerIds.length - 1) return;
+                      const next = [...trackerIds];
+                      [next[trackerIndex], next[trackerIndex + 1]] = [next[trackerIndex + 1], next[trackerIndex]];
+                      reorderSections(selectedProjectId, next);
+                    } : undefined}
+                    canMoveUp={trackerIndex > 0}
+                    canMoveDown={trackerIndex >= 0 && trackerIndex < trackerIds.length - 1}
                     showSectionActions={section.id !== 'uncategorized' && trackerSections.length > 1}
                     onUpdateFieldValue={async (taskId, fieldId, value) => {
                       const payload: { fieldId: string; valueText?: string; valueNumber?: number; valueDate?: string; valueBoolean?: boolean } = { fieldId };
@@ -760,7 +775,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     onCreateSubItem={(parentId) => { setAddInitiativeParentId(parentId); setAddInitiativeTrackerId(null); setShowAddInitiative(true); }}
                     onItemCompleted={() => setCelebrateCount((c) => c + 1)}
                   />
-                ))}
+                  );
+                })}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <CategoryPriorityStatusMetrics initiatives={initiatives} />
                   <DueDateMetrics initiatives={initiatives} />

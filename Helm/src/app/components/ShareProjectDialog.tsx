@@ -10,7 +10,7 @@ import {
 } from './ui/dialog';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { get, post } from '../api/meridian';
+import { get, post, del } from '../api/meridian';
 
 interface Member {
   id: string;
@@ -41,6 +41,7 @@ export function ShareProjectDialog({
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
   const [inviting, setInviting] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadMembers = async () => {
@@ -79,6 +80,24 @@ export function ShareProjectDialog({
       toast.error(msg);
     } finally {
       setInviting(false);
+    }
+  };
+
+  const handleRemoveAccess = async (memberId: string) => {
+    if (!projectId || !window.confirm('Remove this person\'s access to the project?')) return;
+    setError(null);
+    setRemovingId(memberId);
+    try {
+      await del(`/api/projects/${projectId}/members/${memberId}`);
+      await loadMembers();
+      onShared?.();
+      toast.success('Access removed');
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to remove access';
+      setError(msg);
+      toast.error(msg);
+    } finally {
+      setRemovingId(null);
     }
   };
 
@@ -126,7 +145,7 @@ export function ShareProjectDialog({
               <ul className="space-y-2 max-h-40 overflow-y-auto">
                 {members.map((m) => (
                   <li key={m.id} className="flex items-center justify-between gap-2 text-sm py-1.5 px-3 rounded-lg bg-gray-50">
-                    <span className="flex items-center gap-2 min-w-0">
+                    <span className="flex items-center gap-2 min-w-0 flex-1">
                       <span className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-medium flex-shrink-0">
                         {m.initials || (m.email || '').slice(0, 2).toUpperCase()}
                       </span>
@@ -135,7 +154,18 @@ export function ShareProjectDialog({
                         <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded flex-shrink-0">Creator</span>
                       )}
                     </span>
-                    <span className="text-gray-500 text-xs truncate max-w-[140px]" title={m.email}>{m.email}</span>
+                    <span className="text-gray-500 text-xs truncate max-w-[120px]" title={m.email}>{m.email}</span>
+                    {!m.is_creator && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAccess(m.id)}
+                        disabled={removingId === m.id}
+                        className="shrink-0 text-red-600 hover:text-red-700 hover:bg-red-50 rounded px-2 py-1 text-xs font-medium disabled:opacity-50"
+                        title="Remove access"
+                      >
+                        {removingId === m.id ? '…' : 'Remove'}
+                      </button>
+                    )}
                   </li>
                 ))}
               </ul>

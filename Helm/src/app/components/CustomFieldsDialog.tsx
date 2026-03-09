@@ -23,6 +23,8 @@ import {
   User,
   ListOrdered,
   X,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { get, post, patch, del } from '../api/meridian';
 
@@ -208,6 +210,15 @@ export function CustomFieldsDialog({
     setOptionRows((prev) => prev.map((o, i) => (i === idx ? { ...o, ...patch } : o)));
   };
   const removeOption = (idx: number) => setOptionRows((prev) => prev.filter((_, i) => i !== idx));
+  const moveOption = (idx: number, dir: 'up' | 'down') => {
+    const next = idx + (dir === 'up' ? -1 : 1);
+    if (next < 0 || next >= optionRows.length) return;
+    setOptionRows((prev) => {
+      const arr = [...prev];
+      [arr[idx], arr[next]] = [arr[next], arr[idx]];
+      return arr;
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -349,11 +360,31 @@ export function CustomFieldsDialog({
                 <div className="space-y-2 mb-4">
                   {optionRows.map((opt, idx) => (
                     <div key={idx} className="flex items-center gap-2">
+                      <div className="flex flex-col shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => moveOption(idx, 'up')}
+                          disabled={idx === 0}
+                          className="p-1 rounded hover:bg-gray-100 text-[#6B7280] disabled:opacity-30"
+                          aria-label="Move up"
+                        >
+                          <ChevronUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveOption(idx, 'down')}
+                          disabled={idx === optionRows.length - 1}
+                          className="p-1 rounded hover:bg-gray-100 text-[#6B7280] disabled:opacity-30"
+                          aria-label="Move down"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      </div>
                       <input
                         type="color"
                         value={opt.color || '#6366F1'}
                         onChange={(e) => updateOption(idx, { color: e.target.value })}
-                        className="w-6 h-6 rounded border border-[#E4E4EC] cursor-pointer"
+                        className="w-6 h-6 rounded border border-[#E4E4EC] cursor-pointer shrink-0"
                       />
                       <Input
                         value={opt.label}
@@ -364,7 +395,7 @@ export function CustomFieldsDialog({
                       <button
                         type="button"
                         onClick={() => removeOption(idx)}
-                        className="p-2 rounded-lg hover:bg-red-50 text-[#6B7280] hover:text-red-600"
+                        className="p-2 rounded-lg hover:bg-red-50 text-[#6B7280] hover:text-red-600 shrink-0"
                         aria-label="Remove option"
                       >
                         <X className="w-4 h-4" />

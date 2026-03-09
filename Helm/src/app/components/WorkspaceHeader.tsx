@@ -17,7 +17,6 @@ interface WorkspaceHeaderProps {
   onToggleActivity?: () => void;
   selectedProjectName?: string;
   sprintLabel?: string;
-  progressPercent?: number;
   currentUser?: { name?: string; email?: string; initials?: string } | null;
   onLogin?: () => void;
   onLogout?: () => void;

@@ -21,10 +21,15 @@ interface CustomFieldDef {
 }
 
 const STORAGE_KEY_PREFIX = 'todo_visible_columns_';
+const ORDER_KEY_PREFIX = 'todo_column_order_';
 
 function storageKey(projectId: string | null, userId?: string | null): string {
   if (!projectId) return '';
   return userId ? `${STORAGE_KEY_PREFIX}${userId}_${projectId}` : `${STORAGE_KEY_PREFIX}${projectId}`;
+}
+function orderStorageKey(projectId: string | null, userId?: string | null): string {
+  if (!projectId) return '';
+  return userId ? `${ORDER_KEY_PREFIX}${userId}_${projectId}` : `${ORDER_KEY_PREFIX}${projectId}`;
 }
 
 /** Default built-in columns to show when user has not saved a preference (keeps table usable). */
@@ -51,6 +56,26 @@ export function saveVisibleColumns(projectId: string | null, visible: Set<string
   try {
     const key = storageKey(projectId, userId);
     if (key) localStorage.setItem(key, JSON.stringify([...visible]));
+  } catch (_) {}
+}
+
+export function loadColumnOrder(projectId: string | null, userId?: string | null): string[] {
+  if (typeof window === 'undefined' || !projectId) return [];
+  try {
+    const key = orderStorageKey(projectId, userId);
+    const raw = key ? localStorage.getItem(key) : null;
+    if (raw) {
+      const arr = JSON.parse(raw) as string[];
+      return Array.isArray(arr) ? arr : [];
+    }
+  } catch (_) {}
+  return [];
+}
+export function saveColumnOrder(projectId: string | null, order: string[], userId?: string | null) {
+  if (typeof window === 'undefined' || !projectId) return;
+  try {
+    const key = orderStorageKey(projectId, userId);
+    if (key) localStorage.setItem(key, JSON.stringify(order));
   } catch (_) {}
 }
 

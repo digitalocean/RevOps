@@ -72,7 +72,7 @@ router.post('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// PATCH /:id — update tracker (e.g. name)
+// PATCH /:id — update tracker (e.g. name, sort_order)
 router.patch('/:id', async (req, res) => {
   try {
     const userId = requireUser(req, res);
@@ -86,12 +86,24 @@ router.patch('/:id', async (req, res) => {
     if (!tr.rows.length) return res.status(404).json({ error: 'Not found' });
     const ok = await canAccessProject(pool, userId, tr.rows[0].project_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
-    const { name } = req.body || {};
-    if (!name || !String(name).trim()) return res.status(400).json({ error: 'name required' });
+    const { name, sort_order } = req.body || {};
+    const updates = [];
+    const values = [];
+    let i = 1;
+    if (name !== undefined && String(name).trim()) {
+      updates.push(`name = $${i++}`);
+      values.push(String(name).trim());
+    }
+    if (typeof sort_order === 'number') {
+      updates.push(`sort_order = $${i++}`);
+      values.push(sort_order);
+    }
+    if (updates.length === 0) return res.status(400).json({ error: 'name or sort_order required' });
+    values.push(trackerId);
     const { rows } = await pool.query({
-      name: 'trackers_patch_name',
-      text: 'UPDATE trackers SET name = $2 WHERE id = $1 RETURNING *',
-      values: [trackerId, String(name).trim()],
+      name: 'trackers_patch',
+      text: `UPDATE trackers SET ${updates.join(', ')} WHERE id = $${i} RETURNING *`,
+      values,
     });
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }

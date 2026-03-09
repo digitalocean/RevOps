@@ -116,7 +116,8 @@ export interface MeridianDataResult {
   createSprint: (projectId: string, name: string, start_date?: string, end_date?: string) => Promise<Sprint | null>;
   createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; status?: string; category?: string; due_date?: string; type?: string }, parentId?: string | null, trackerId?: string | null) => Promise<unknown>;
   createSection: (projectId: string, name: string, columns?: string[]) => Promise<{ id: string; name: string } | null>;
-  updateSection: (trackerId: string, payload: { name: string }) => Promise<unknown>;
+  updateSection: (trackerId: string, payload: { name?: string; sort_order?: number }) => Promise<unknown>;
+  reorderSections: (projectId: string, orderedTrackerIds: string[]) => Promise<void>;
   updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number; progress?: number; category?: string | null }) => Promise<unknown>;
   deleteItem: (itemId: string) => Promise<void>;
   deleteSection: (trackerId: string) => Promise<void>;
@@ -316,10 +317,19 @@ export function useMeridianData(): MeridianDataResult {
     return t ?? null;
   }, [load]);
 
-  const updateSection = useCallback(async (trackerId: string, payload: { name: string }): Promise<unknown> => {
-    const res = await patch(apiPath(`api/trackers/${trackerId}`), { name: payload.name.trim() });
+  const updateSection = useCallback(async (trackerId: string, payload: { name?: string; sort_order?: number }): Promise<unknown> => {
+    const body: { name?: string; sort_order?: number } = {};
+    if (payload.name !== undefined) body.name = payload.name.trim();
+    if (typeof payload.sort_order === 'number') body.sort_order = payload.sort_order;
+    if (Object.keys(body).length === 0) return null;
+    const res = await patch(apiPath(`api/trackers/${trackerId}`), body);
     await load();
     return res;
+  }, [load]);
+
+  const reorderSections = useCallback(async (projectId: string, orderedTrackerIds: string[]) => {
+    await Promise.all(orderedTrackerIds.map((id, idx) => patch(apiPath(`api/trackers/${id}`), { sort_order: idx })));
+    await load();
   }, [load]);
 
   const statusToSlug: Record<string, string> = {
@@ -402,6 +412,7 @@ export function useMeridianData(): MeridianDataResult {
     deleteItem,
     deleteSection,
     deleteProject,
+    reorderSections,
     sprints,
     customFields,
   };

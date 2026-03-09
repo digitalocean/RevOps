@@ -558,10 +558,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                   <button
                     type="button"
                     key={tab.id}
-                    onClick={() => {
-                      if (tab.id === 'base_camp') setShowCustomFields(true);
-                      else setCurrentView(tab.id);
-                    }}
+                    onClick={() => setCurrentView(tab.id)}
                     className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                       currentView === tab.id
                         ? 'border-blue-600 text-blue-600'

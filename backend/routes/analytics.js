@@ -68,8 +68,8 @@ router.get('/projects/:id/analytics', async (req, res) => {
     if (workspaceId && items.length > 0) {
       const cfRes = await pool.query({
         name: 'analytics_custom_fields',
-        text: 'SELECT id, name FROM custom_fields WHERE workspace_id = $1 AND (target IN (\'item\',\'task\'))',
-        values: [workspaceId],
+        text: 'SELECT id, name FROM custom_fields WHERE project_id = $1 AND (target IN (\'item\',\'task\'))',
+        values: [projectId],
       });
       const itemIds = items.map((i) => i.id);
       const fvRes = await pool.query({

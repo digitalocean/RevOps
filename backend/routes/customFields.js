@@ -2,29 +2,25 @@ const router = require('express').Router();
 const { pool } = require('../server');
 const { getAccessibleWorkspaceIds, requireUser } = require('../lib/access');
 
+const { getAccessibleProjectIds } = require('../lib/access');
+
 router.get('/', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    let { workspace_id, project_id, target } = req.query;
-    // Allow lookup by project_id — auto-resolve workspace
-    if (!workspace_id && project_id) {
-      const prow = await pool.query({
-        name: 'custom_fields_proj_workspace',
-        text: 'SELECT workspace_id FROM projects WHERE id = $1',
-        values: [project_id],
-      });
-      if (prow.rows.length) workspace_id = prow.rows[0].workspace_id;
+    const { project_id, target } = req.query;
+    // Custom fields are per-project only. When project_id is provided, return only that project's fields.
+    if (project_id) {
+      const allowed = await getAccessibleProjectIds(pool, userId);
+      if (!allowed.some(id => String(id) === String(project_id))) return res.json([]);
+      let q = 'SELECT * FROM custom_fields WHERE project_id = $1';
+      const p = [project_id];
+      if (target) { p.push(target); q += ` AND (target = $${p.length} OR applies_to = $${p.length})`; }
+      q += ' ORDER BY sort_order, created_at';
+      const { rows } = await pool.query({ name: 'custom_fields_list_by_project', text: q, values: p });
+      return res.json(rows);
     }
-    if (!workspace_id) return res.json([]);
-    const allowed = await getAccessibleWorkspaceIds(pool, userId);
-    if (!allowed.some(id => String(id) === String(workspace_id))) return res.json([]);
-    let q = 'SELECT * FROM custom_fields WHERE workspace_id = $1';
-    const p = [workspace_id];
-    if (target) { p.push(target); q += ` AND target = $${p.length}`; }
-    q += ' ORDER BY sort_order, created_at';
-    const { rows } = await pool.query({ name: 'custom_fields_list', text: q, values: p });
-    res.json(rows);
+    return res.json([]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -44,25 +40,23 @@ router.post('/', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    let { workspace_id, project_id, target, name, field_type = 'text', options = [], applies_to, options_json } = req.body;
-    // Auto-resolve workspace from project_id
-    if (!workspace_id && project_id) {
-      const prow = await pool.query({
-        name: 'custom_fields_proj_workspace_post',
-        text: 'SELECT workspace_id FROM projects WHERE id = $1',
-        values: [project_id],
-      });
-      if (prow.rows.length) workspace_id = prow.rows[0].workspace_id;
-    }
-    if (!name || !target) return res.status(400).json({ error: 'name and target required' });
-    const allowed = await getAccessibleWorkspaceIds(pool, userId);
-    if (!allowed.some(id => String(id) === String(workspace_id))) return res.status(403).json({ error: 'Access denied' });
+    const { project_id, target, name, field_type = 'text', options = [], applies_to, options_json } = req.body;
+    if (!project_id) return res.status(400).json({ error: 'project_id required — custom fields are per project' });
+    if (!name || !String(name).trim()) return res.status(400).json({ error: 'name required' });
+    const allowed = await getAccessibleProjectIds(pool, userId);
+    if (!allowed.some(id => String(id) === String(project_id))) return res.status(403).json({ error: 'Access denied' });
+    const prow = await pool.query({
+      name: 'custom_fields_proj_workspace_post',
+      text: 'SELECT workspace_id FROM projects WHERE id = $1',
+      values: [project_id],
+    });
+    const workspace_id = prow.rows[0]?.workspace_id || null;
     const appliedTarget = target || (applies_to ? toTarget(applies_to) : 'item');
     const opts = Array.isArray(options) ? options : [];
     const { rows } = await pool.query({
       name: 'custom_fields_insert',
-      text: 'INSERT INTO custom_fields(workspace_id,target,name,field_type,options) VALUES($1,$2,$3,$4,$5) RETURNING *',
-      values: [workspace_id, appliedTarget, name.trim(), field_type, opts],
+      text: 'INSERT INTO custom_fields(project_id, workspace_id, target, name, field_type, options) VALUES($1, $2, $3, $4, $5, $6) RETURNING *',
+      values: [project_id, workspace_id, appliedTarget, name.trim(), field_type, opts],
     });
     const id = rows[0].id;
     try {
@@ -97,13 +91,20 @@ router.patch('/:id', async (req, res) => {
     const userId = requireUser(req, res);
     if (!userId) return;
     const cf = await pool.query({
-      name: 'custom_fields_get_workspace_patch',
-      text: 'SELECT workspace_id FROM custom_fields WHERE id = $1',
+      name: 'custom_fields_get_project_patch',
+      text: 'SELECT project_id, workspace_id FROM custom_fields WHERE id = $1',
       values: [req.params.id],
     });
     if (!cf.rows.length) return res.status(404).json({ error: 'Not found' });
-    const allowed = await getAccessibleWorkspaceIds(pool, userId);
-    if (!allowed.some(id => String(id) === String(cf.rows[0].workspace_id))) return res.status(404).json({ error: 'Not found' });
+    const projectId = cf.rows[0].project_id;
+    const workspaceId = cf.rows[0].workspace_id;
+    if (projectId) {
+      const allowed = await getAccessibleProjectIds(pool, userId);
+      if (!allowed.some(id => String(id) === String(projectId))) return res.status(404).json({ error: 'Not found' });
+    } else {
+      const allowed = await getAccessibleWorkspaceIds(pool, userId);
+      if (!allowed.some(id => String(id) === String(workspaceId))) return res.status(404).json({ error: 'Not found' });
+    }
     const { name, field_type, target, applies_to, options, options_json, is_required, default_value } = req.body;
     const updates = [];
     const values = [];
@@ -131,13 +132,20 @@ router.delete('/:id', async (req, res) => {
     const userId = requireUser(req, res);
     if (!userId) return;
     const cf = await pool.query({
-      name: 'custom_fields_get_workspace_delete',
-      text: 'SELECT workspace_id FROM custom_fields WHERE id = $1',
+      name: 'custom_fields_get_project_delete',
+      text: 'SELECT project_id, workspace_id FROM custom_fields WHERE id = $1',
       values: [req.params.id],
     });
     if (!cf.rows.length) return res.status(404).json({ error: 'Not found' });
-    const allowed = await getAccessibleWorkspaceIds(pool, userId);
-    if (!allowed.some(id => String(id) === String(cf.rows[0].workspace_id))) return res.status(404).json({ error: 'Not found' });
+    const projectId = cf.rows[0].project_id;
+    const workspaceId = cf.rows[0].workspace_id;
+    if (projectId) {
+      const allowed = await getAccessibleProjectIds(pool, userId);
+      if (!allowed.some(id => String(id) === String(projectId))) return res.status(404).json({ error: 'Not found' });
+    } else {
+      const allowed = await getAccessibleWorkspaceIds(pool, userId);
+      if (!allowed.some(id => String(id) === String(workspaceId))) return res.status(404).json({ error: 'Not found' });
+    }
     await pool.query({
       name: 'custom_fields_delete',
       text: 'DELETE FROM custom_fields WHERE id=$1',

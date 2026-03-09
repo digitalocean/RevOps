@@ -4,7 +4,7 @@ import { Checkbox } from './ui/checkbox';
 import { Settings2, Users, UserPlus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { get } from '../api/meridian';
 
-const STANDARD_FIELDS = [
+const DEFAULT_STANDARD_FIELDS = [
   { id: 'name', label: 'Initiative' },
   { id: 'category', label: 'Category' },
   { id: 'priority', label: 'Priority' },
@@ -14,6 +14,13 @@ const STANDARD_FIELDS = [
   { id: 'dueDate', label: 'Due Date' },
   { id: 'topic', label: 'Topic' },
 ] as const;
+
+export interface StandardFieldDef {
+  id: string;
+  field_key?: string;
+  name: string;
+  field_type?: string;
+}
 
 interface CustomFieldDef {
   id: string;
@@ -43,6 +50,8 @@ interface ProjectMember {
 interface BaseCampViewProps {
   projectId: string | null;
   customFields: CustomFieldDef[];
+  /** Standard fields from API (global). If empty, default list is used. */
+  standardFields?: StandardFieldDef[];
   visibleColumns: Set<string>;
   /** Ordered list of column ids (for display and table). Empty = use default order. */
   columnOrder?: string[];
@@ -58,6 +67,7 @@ interface BaseCampViewProps {
 export function BaseCampView({
   projectId,
   customFields,
+  standardFields: standardFieldsProp,
   visibleColumns,
   columnOrder = [],
   onToggleColumn,
@@ -67,8 +77,11 @@ export function BaseCampView({
   onDeleteProject,
 }: BaseCampViewProps) {
   const taskFields = customFields.filter(isTaskField);
+  const standardFieldsList = (standardFieldsProp && standardFieldsProp.length > 0)
+    ? standardFieldsProp.map((f) => ({ id: f.field_key || f.id, label: f.name }))
+    : DEFAULT_STANDARD_FIELDS;
   const [members, setMembers] = useState<ProjectMember[]>([]);
-  const defaultOrder = [...STANDARD_FIELDS.map((c) => c.id), ...taskFields.map((f) => f.id)];
+  const defaultOrder = [...standardFieldsList.map((c) => c.id), ...taskFields.map((f) => f.id)];
   const orderedIds = columnOrder.length > 0
     ? [...columnOrder.filter((id) => defaultOrder.includes(id)), ...defaultOrder.filter((id) => !columnOrder.includes(id))]
     : defaultOrder;
@@ -153,7 +166,7 @@ export function BaseCampView({
           <p className="text-xs text-gray-500 mb-2">Enable columns for trackers and use up/down to rearrange order.</p>
           <ul className="space-y-1.5">
             {orderedIds.map((colId, index) => {
-              const col = STANDARD_FIELDS.find((c) => c.id === colId) ?? taskFields.find((f) => f.id === colId);
+              const col = standardFieldsList.find((c) => c.id === colId) ?? taskFields.find((f) => f.id === colId);
               if (!col) return null;
               const label = 'label' in col ? col.label : col.name;
               return (

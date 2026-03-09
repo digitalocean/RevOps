@@ -139,6 +139,7 @@ export function useMeridianData(): MeridianDataResult {
   const [sections, setSections] = useState<TrackerSection[]>(mockTrackerSections);
   const [crew, setCrew] = useState<{ id: string; name: string; initials: string; role: string }[]>([]);
   const [customFields, setCustomFields] = useState<{ id: string; name: string; field_type: string; target: string }[]>([]);
+  const [standardFields, setStandardFields] = useState<{ id: string; field_key: string; name: string; field_type: string; options_json?: unknown[] }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fromApi, setFromApi] = useState(false);
@@ -155,10 +156,12 @@ export function useMeridianData(): MeridianDataResult {
     setLoading(true);
     setError(null);
     try {
-      const [projRes, crewRes] = await Promise.all([
+      const [projRes, crewRes, stdRes] = await Promise.all([
         get<Project[]>(apiPath('api/projects')).catch(() => []),
         get<{ id: string; name: string; initials: string; role: string }[]>(apiPath('api/crew')).catch(() => []),
+        get<{ id: string; field_key: string; name: string; field_type: string; options_json?: unknown[] }[]>(apiPath('api/standard-fields')).catch(() => []),
       ]);
+      setStandardFields(Array.isArray(stdRes) ? stdRes : []);
       const projList = Array.isArray(projRes) ? projRes : [];
       setProjects(projList);
       setCrew(Array.isArray(crewRes) ? crewRes : []);
@@ -415,5 +418,6 @@ export function useMeridianData(): MeridianDataResult {
     reorderSections,
     sprints,
     customFields,
+    standardFields,
   };
 }

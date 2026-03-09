@@ -89,6 +89,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     reorderSections,
     crew,
     customFields,
+    standardFields,
   } = useMeridianData();
   const [currentView, setCurrentView] = useState<NavView>('summit_board');
   const [showActivityPanel, setShowActivityPanel] = useState(false);
@@ -675,6 +676,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               <BaseCampView
                 projectId={selectedProjectId}
                 customFields={customFields}
+                standardFields={standardFields}
                 visibleColumns={visibleColumns}
                 columnOrder={columnOrder}
                 onToggleColumn={(columnId) => {

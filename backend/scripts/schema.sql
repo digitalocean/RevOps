@@ -297,6 +297,30 @@ BEGIN
   END IF;
 END $$;
 
+-- Standard fields: global list (applies to all projects). Options editable for dropdowns (e.g. Priority P0,P1,P2). No delete.
+CREATE TABLE IF NOT EXISTS standard_fields (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  field_key   VARCHAR(80)  UNIQUE NOT NULL,
+  name        VARCHAR(120) NOT NULL,
+  field_type  VARCHAR(30)  DEFAULT 'text',
+  options_json JSONB       DEFAULT '[]',
+  sort_order  INT          DEFAULT 0,
+  created_at TIMESTAMPTZ  DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS standard_fields_sort ON standard_fields(sort_order);
+
+-- Seed default standard fields (with dropdown options for Priority, Status, Category)
+INSERT INTO standard_fields (field_key, name, field_type, options_json, sort_order) VALUES
+  ('name', 'Initiative', 'text', '[]', 0),
+  ('category', 'Category', 'select', '[{"label":"Engineering","color":"#3b82f6"},{"label":"Design","color":"#8b5cf6"},{"label":"Sales","color":"#22c55e"},{"label":"Product","color":"#f59e0b"},{"label":"Operations","color":"#6b7280"}]', 1),
+  ('priority', 'Priority', 'select', '[{"label":"P0","color":"#dc2626"},{"label":"P1","color":"#f97316"},{"label":"P2","color":"#3b82f6"}]', 2),
+  ('owner', 'Owner', 'user', '[]', 3),
+  ('status', 'Status', 'select', '[{"label":"Not Started","color":"#9ca3af"},{"label":"On Track","color":"#16a34a"},{"label":"At Risk","color":"#d97706"},{"label":"In Review","color":"#7c3aed"},{"label":"Blocked","color":"#dc2626"},{"label":"Complete","color":"#0ea5e9"}]', 4),
+  ('progress', 'Progress', 'number', '[]', 5),
+  ('dueDate', 'Due Date', 'date', '[]', 6),
+  ('topic', 'Topic', 'text', '[]', 7)
+ON CONFLICT (field_key) DO NOTHING;
+
 -- SavedView (spec)
 CREATE TABLE IF NOT EXISTS saved_views (
   id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),

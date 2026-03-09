@@ -161,19 +161,38 @@ router.post('/:id/members', async (req, res) => {
     const invitedUserId = userRow.rows[0]?.id || null;
     const invitedFullName = userRow.rows[0]?.full_name || emailNorm;
 
+    // Look up crew by email globally first (crew.email is UNIQUE) to avoid duplicate key
     let crewRow = await pool.query({
-      name: 'projects_crew_by_workspace_email',
-      text: 'SELECT id, user_id FROM crew WHERE workspace_id = $1 AND LOWER(email) = $2 AND (active = true OR active IS NULL)',
-      values: [workspaceId, emailNorm],
+      name: 'projects_crew_by_email_global',
+      text: 'SELECT id, user_id, workspace_id FROM crew WHERE LOWER(email) = $1 AND (active = true OR active IS NULL) LIMIT 1',
+      values: [emailNorm],
     });
     if (!crewRow.rows.length) {
-      const initials = (invitedFullName || emailNorm).slice(0, 2).toUpperCase();
-      const { rows: inserted } = await pool.query({
-        name: 'projects_crew_insert',
-        text: 'INSERT INTO crew(workspace_id, user_id, name, email, initials, role) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
-        values: [workspaceId, invitedUserId, invitedFullName, emailNorm, initials, 'Member'],
+      crewRow = await pool.query({
+        name: 'projects_crew_by_workspace_email',
+        text: 'SELECT id, user_id FROM crew WHERE workspace_id = $1 AND LOWER(email) = $2 AND (active = true OR active IS NULL)',
+        values: [workspaceId, emailNorm],
       });
-      crewRow = { rows: inserted };
+    }
+    if (!crewRow.rows.length) {
+      const initials = (invitedFullName || emailNorm).slice(0, 2).toUpperCase();
+      try {
+        const { rows: inserted } = await pool.query({
+          name: 'projects_crew_insert',
+          text: 'INSERT INTO crew(workspace_id, user_id, name, email, initials, role) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',
+          values: [workspaceId, invitedUserId, invitedFullName, emailNorm, initials, 'Member'],
+        });
+        crewRow = { rows: inserted };
+      } catch (insertErr) {
+        if (insertErr.code === '23505' && insertErr.constraint === 'crew_email_key') {
+          crewRow = await pool.query({
+            name: 'projects_crew_by_email_global_retry',
+            text: 'SELECT id, user_id FROM crew WHERE LOWER(email) = $1 LIMIT 1',
+            values: [emailNorm],
+          });
+          if (!crewRow.rows.length) throw insertErr;
+        } else throw insertErr;
+      }
     } else if (invitedUserId && !crewRow.rows[0].user_id) {
       await pool.query({
         name: 'projects_crew_link_user',

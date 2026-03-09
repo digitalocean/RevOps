@@ -10,6 +10,7 @@ const COLUMN_IDS = [
   { id: 'status', label: 'Status' },
   { id: 'progress', label: 'Progress' },
   { id: 'dueDate', label: 'Due Date' },
+  { id: 'topic', label: 'Topic' },
 ] as const;
 
 interface CustomFieldDef {

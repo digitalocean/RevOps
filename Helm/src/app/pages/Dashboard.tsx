@@ -103,7 +103,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const [showShareProject, setShowShareProject] = useState(false);
   const [addInitiativeParentId, setAddInitiativeParentId] = useState<string | null>(null);
   const [addInitiativeTrackerId, setAddInitiativeTrackerId] = useState<string | null>(null);
-  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => new Set(['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate']));
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(() => new Set(['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate', 'topic']));
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [celebrateCount, setCelebrateCount] = useState(0);
   const [filters, setFilters] = useState({
@@ -584,7 +584,13 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                         </span>
                       )}
                     </Button>
-                    <ExportMenu initiatives={initiatives} projectName={selectedProject?.name} />
+                    <ExportMenu
+                      initiatives={initiatives}
+                      projectName={selectedProject?.name}
+                      trackerSections={trackerSections}
+                      visibleColumns={visibleColumns}
+                      customFields={customFields}
+                    />
                     <Button
                       variant="outline"
                       size="sm"
@@ -788,7 +794,10 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           open={showImportTemplate}
           onClose={() => setShowImportTemplate(false)}
           projectId={selectedProjectId}
-          trackerId={trackerSections.find((s) => s.id !== 'uncategorized')?.id ?? null}
+          onCreateSection={async (projectId, sectionName) => {
+            const t = await createSection(projectId, sectionName);
+            return t?.id ?? null;
+          }}
           onCreateTask={async (payload, trackerId) => {
             if (!selectedProjectId) return null;
             const res = await createItem(selectedProjectId, {
@@ -927,7 +936,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
             const pid = templatesProjectId || selectedProjectId;
             if (!pid) return;
             const statusFromLabel: Record<string, string> = {
-              'not started': 'not_started', 'not started': 'not_started', 'in progress': 'in_progress', 'in review': 'in_review',
+              'not started': 'not_started', 'in progress': 'in_progress', 'in review': 'in_review',
               'complete': 'complete', 'done': 'complete', 'blocked': 'blocked', 'on track': 'on_track',
             };
             const priFromLabel: Record<string, string> = { 'p0': 'critical', 'p1': 'high', 'p2': 'medium', 'p3': 'low' };

@@ -102,7 +102,22 @@ function getCategoryColor(category: Category): string {
   }
 }
 
-const COL_KEYS = ['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate'] as const;
+const COL_KEYS = ['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate', 'topic'] as const;
+
+function TopicCell({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const [local, setLocal] = useState(value);
+  useEffect(() => { setLocal(value); }, [value]);
+  return (
+    <input
+      type="text"
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => { const v = local.trim(); if (v !== value) onSave(v); }}
+      className="h-8 text-xs border border-gray-200 rounded-md px-2 bg-white text-gray-700 w-full max-w-[160px]"
+      placeholder="Topic"
+    />
+  );
+}
 
 interface InitiativeRowEditableProps {
   initiative: Initiative;
@@ -116,7 +131,7 @@ interface InitiativeRowEditableProps {
   visibleColumns?: Set<string>;
   onUpdateFieldValue?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
   onAddSubItem?: (parentId: string) => void;
-  onUpdate: (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: Category; progress?: number }) => Promise<unknown>;
+  onUpdate: (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: Category; progress?: number; topic?: string | null }) => Promise<unknown>;
   onDelete?: (id: string) => Promise<void>;
   onItemCompleted?: () => void;
   dragHandleProps?: Record<string, unknown>;
@@ -400,6 +415,14 @@ function InitiativeRowEditable({
           value={dueDateStr}
           onChange={handleDueDateChange}
           className="h-8 text-xs border border-gray-200 rounded-md px-2 bg-white text-gray-700 w-full max-w-[140px]"
+        />
+      </td>
+      )}
+      {colVisible(visibleColumns, 'topic') && (
+      <td className="py-2 px-4 align-middle">
+        <TopicCell
+          value={String(initiative.field_values?.topic ?? '')}
+          onSave={(v) => onUpdate(initiative.id, { topic: v || null })}
         />
       </td>
       )}
@@ -692,6 +715,7 @@ export function TrackerSection({
                   {colVisible(visibleColumns, 'status') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>}
                   {colVisible(visibleColumns, 'progress') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Progress</th>}
                   {colVisible(visibleColumns, 'dueDate') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Due Date</th>}
+                  {colVisible(visibleColumns, 'topic') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Topic</th>}
                   {customFields?.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).map((f) => (
                     <th key={f.id} className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">{f.name}</th>
                   ))}

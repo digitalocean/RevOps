@@ -13,6 +13,7 @@ function projectDotColor(project: Project, index: number): string {
 
 export type NavView = 'summit_board' | 'manifest' | 'expedition_map' | 'field_notes' | 'observatory' | 'base_camp' | 'my_tasks' | 'personal_tasks';
 
+// Board last; Tracker = Trackers view
 const VIEW_ORDER: NavView[] = ['my_tasks', 'manifest', 'expedition_map', 'field_notes', 'observatory', 'base_camp', 'summit_board'];
 const VIEW_LABELS: Record<NavView, string> = {
   summit_board: 'Board', manifest: 'Trackers', expedition_map: 'Gantt',
@@ -65,6 +66,7 @@ export function NavigationSidebar({
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
     () => new Set(selectedProjectId ? [selectedProjectId] : [])
   );
+  const [expandedTasksPerProject, setExpandedTasksPerProject] = useState<Set<string>>(new Set());
   const [expandedTrackers, setExpandedTrackers] = useState<Set<string>>(new Set());
   const [showMoreTrackers, setShowMoreTrackers] = useState<Set<string>>(new Set());
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -156,31 +158,42 @@ export function NavigationSidebar({
 
                 {isExpanded && (
                   <div className="ml-5 pl-2 border-l border-gray-100 mb-1">
-                    {/* View links */}
-                    {VIEW_ORDER.map((viewId) => {
-                      const isViewActive = isActive && currentView === viewId;
-                      return (
-                        <button key={viewId} type="button"
-                          onClick={() => { onSelectProject(p.id); onNavigateView(viewId); }}
-                          className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-xs transition-colors ${
-                            isViewActive ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
-                          }`}>
-                          <span className="flex-shrink-0 text-gray-400">{VIEW_ICONS[viewId]}</span>
-                          <span className="flex-1 truncate">{VIEW_LABELS[viewId]}</span>
-                          {viewId === 'field_notes' && fieldNotesCount > 0 && (
-                            <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{fieldNotesCount}</span>
-                          )}
-                        </button>
-                      );
-                    })}
+                    {/* Tracker (default open): view links */}
+                    <div className="mb-1">
+                      <div className="px-2 py-0.5 flex items-center gap-1">
+                        <GripVertical className="w-3 h-3 text-gray-400" />
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Tracker</span>
+                      </div>
+                      <div className="ml-1">
+                        {VIEW_ORDER.map((viewId) => {
+                          const isViewActive = isActive && currentView === viewId;
+                          return (
+                            <button key={viewId} type="button"
+                              onClick={() => { onSelectProject(p.id); onNavigateView(viewId); }}
+                              className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-xs transition-colors ${
+                                isViewActive ? 'bg-blue-50 text-blue-600 font-medium' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
+                              }`}>
+                              <span className="flex-shrink-0 text-gray-400">{VIEW_ICONS[viewId]}</span>
+                              <span className="flex-1 truncate">{VIEW_LABELS[viewId]}</span>
+                              {viewId === 'field_notes' && fieldNotesCount > 0 && (
+                                <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">{fieldNotesCount}</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-                    {/* Trackers tree */}
+                    {/* Tasks (default closed): top 5 + more */}
                     {projectTrackers.length > 0 && (
                       <div className="mt-1">
-                        <div className="px-2 py-0.5 flex items-center gap-1">
-                          <Layers className="w-3 h-3 text-gray-300" />
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-300">Trackers</span>
-                        </div>
+                        <button type="button" onClick={() => toggleSet(setExpandedTasksPerProject, p.id)}
+                          className="w-full flex items-center gap-1.5 px-2 py-1 rounded-md text-left text-xs text-gray-600 hover:bg-gray-50">
+                          {expandedTasksPerProject.has(p.id) ? <ChevronDown className="w-3 h-3 text-gray-400" /> : <ChevronRight className="w-3 h-3 text-gray-400" />}
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">Tasks</span>
+                        </button>
+                        {expandedTasksPerProject.has(p.id) && (
+                          <div className="ml-1 mt-0.5">
                         {projectTrackers.map((tracker) => {
                           const isTrackerOpen = expandedTrackers.has(tracker.id);
                           const allTasks = tracker.initiatives || [];
@@ -240,6 +253,8 @@ export function NavigationSidebar({
                             </div>
                           );
                         })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -249,10 +264,10 @@ export function NavigationSidebar({
           })}
         </div>
 
-        {/* CREW */}
+        {/* Crew members */}
         <div className="px-3 pt-3 pb-4 border-t border-gray-100 mt-1">
           <div className="flex items-center justify-between mb-2 px-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Crew</span>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Crew members</span>
             <button type="button" onClick={onOpenAddCrew}
               className="flex items-center justify-center w-5 h-5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Add crew">
               <Plus className="w-3 h-3" />

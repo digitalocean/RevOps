@@ -45,7 +45,11 @@ router.get('/', async (req, res) => {
         const val = r.value_text ?? r.value_number ?? (r.value_date ? new Date(r.value_date).toISOString().slice(0, 10) : null) ?? r.value_boolean;
         byTask[r.task_id][r.field_id] = val;
       });
-      rows.forEach((r) => { r.field_values = byTask[r.id] || {}; });
+      rows.forEach((r) => {
+        r.field_values = { ...(byTask[r.id] || {}) };
+        const cv = typeof r.custom_vals === 'object' && r.custom_vals ? r.custom_vals : {};
+        Object.assign(r.field_values, cv);
+      });
     }
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -117,18 +121,24 @@ router.patch('/:id', async (req, res) => {
     if (!userId) return;
     const itemCheck = await pool.query({
       name: 'items_get_for_patch',
-      text: 'SELECT project_id, title, status, priority, assignee_id FROM items WHERE id = $1',
+      text: 'SELECT project_id, title, status, priority, assignee_id, custom_vals FROM items WHERE id = $1',
       values: [req.params.id],
     });
     if (!itemCheck.rows.length) return res.status(404).json({ error: 'Not found' });
     const existing = itemCheck.rows[0];
     const ok = await canAccessProject(pool, userId, existing.project_id);
     if (!ok) return res.status(404).json({ error: 'Not found' });
-    const allowed = ['type','title','description','status','column_id','priority','points','progress','assignee_id','due_date','labels','custom_vals','sort_order','parent_id','tracker_id','category','repeat_interval','repeat_ends_on','is_milestone','start_date'];
-    const fields = Object.keys(req.body).filter(k => allowed.includes(k));
+    const allowed = ['type','title','description','status','column_id','priority','points','progress','assignee_id','due_date','labels','custom_vals','sort_order','parent_id','tracker_id','category','repeat_interval','repeat_ends_on','is_milestone','start_date','topic'];
+    let body = { ...req.body };
+    if (body.topic !== undefined) {
+      const curVals = (existing.custom_vals && typeof existing.custom_vals === 'object') ? existing.custom_vals : {};
+      body.custom_vals = { ...curVals, topic: body.topic };
+      delete body.topic;
+    }
+    const fields = Object.keys(body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
     const sets  = fields.map((f, i) => `${f} = $${i + 2}`).join(', ');
-    const vals  = fields.map(f => f === 'custom_vals' ? JSON.stringify(req.body[f]) : req.body[f]);
+    const vals  = fields.map(f => f === 'custom_vals' ? JSON.stringify(body[f]) : body[f]);
     const { rows } = await pool.query({
       name: 'items_patch',
       text: `UPDATE items SET ${sets}, updated_at=NOW() WHERE id=$1 RETURNING *`,

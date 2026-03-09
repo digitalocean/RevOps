@@ -4,14 +4,14 @@ import { Checkbox } from './ui/checkbox';
 import { Settings2, Users, UserPlus } from 'lucide-react';
 import { get } from '../api/meridian';
 
-const BUILTIN_COLUMNS = [
+const STANDARD_FIELDS = [
   { id: 'name', label: 'Initiative' },
   { id: 'category', label: 'Category' },
   { id: 'priority', label: 'Priority' },
   { id: 'owner', label: 'Owner' },
   { id: 'status', label: 'Status' },
-  { id: 'progress', label: 'Progress' },
   { id: 'dueDate', label: 'Due Date' },
+  { id: 'topic', label: 'Topic' },
 ] as const;
 
 interface CustomFieldDef {
@@ -129,9 +129,9 @@ export function BaseCampView({
 
       <div className="space-y-4">
         <section>
-          <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">Built-in columns</h3>
+          <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">Standard fields</h3>
           <ul className="space-y-1.5">
-            {BUILTIN_COLUMNS.map((col) => (
+            {STANDARD_FIELDS.map((col) => (
               <li key={col.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 border border-gray-100">
                 <label className="flex items-center gap-2 cursor-pointer flex-1">
                   <Checkbox
@@ -147,7 +147,7 @@ export function BaseCampView({
 
         {taskFields.length > 0 ? (
           <section>
-            <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">Custom fields (enable for this project)</h3>
+            <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">Custom fields</h3>
             <ul className="space-y-1.5">
               {taskFields.map((f) => (
                 <li key={f.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 border border-gray-100">

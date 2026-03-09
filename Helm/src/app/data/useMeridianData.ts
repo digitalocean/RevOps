@@ -317,7 +317,7 @@ export function useMeridianData(): MeridianDataResult {
 
   const updateItem = useCallback(async (
     itemId: string,
-    payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number; progress?: number; category?: string | null; repeat_interval?: string | null; is_milestone?: boolean; start_date?: string | null }
+    payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number; progress?: number; category?: string | null; repeat_interval?: string | null; is_milestone?: boolean; start_date?: string | null; topic?: string | null }
   ): Promise<unknown> => {
     const body: Record<string, unknown> = {};
     if (payload.title !== undefined) body.title = payload.title;
@@ -332,6 +332,7 @@ export function useMeridianData(): MeridianDataResult {
     if (payload.repeat_interval !== undefined) body.repeat_interval = payload.repeat_interval;
     if (payload.is_milestone !== undefined) body.is_milestone = payload.is_milestone;
     if (payload.start_date !== undefined) body.start_date = payload.start_date;
+    if (payload.topic !== undefined) body.topic = payload.topic;
     const res = await patch(apiPath(`api/items/${itemId}`), body as Record<string, string>);
     await load();
     return res;

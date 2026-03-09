@@ -7,7 +7,6 @@ import {
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
 import type { Project } from '../data/useMeridianData';
-import { NotificationsBell } from './NotificationsBell';
 
 interface WorkspaceHeaderProps {
   projects: Project[];
@@ -134,7 +133,6 @@ export function WorkspaceHeader({
           <Button type="button" variant="ghost" size="sm" className="h-9 w-9 p-0 text-gray-500" title="AI">
             <Sparkles className="w-4 h-4" />
           </Button>
-          <NotificationsBell onOpenItem={onOpenItem} />
           <span className="text-xs text-gray-600 px-2 py-1 border border-gray-200 rounded-md">
             {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
           </span>

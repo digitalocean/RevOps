@@ -114,23 +114,6 @@ async function logActivity(pool, projectId, userId, action, entityId, details = 
   } catch { /* non-fatal */ }
 }
 
-// Helper: log audit (field-level change for Base Camp audit history)
-async function logAudit(pool, projectId, userId, entityType, entityId, entityName, fieldName, oldVal, newVal) {
-  try {
-    const crew = await pool.query({
-      name: 'items_crew_by_user',
-      text: 'SELECT id FROM crew WHERE user_id = $1 LIMIT 1',
-      values: [userId],
-    });
-    const crewId = crew.rows[0]?.id || null;
-    await pool.query({
-      name: 'audit_insert',
-      text: 'INSERT INTO audit_log (project_id, crew_id, entity_type, entity_id, entity_name, field_name, old_value, new_value) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-      values: [projectId, crewId, entityType, entityId, entityName || null, fieldName, oldVal != null ? String(oldVal) : null, newVal != null ? String(newVal) : null],
-    });
-  } catch { /* non-fatal */ }
-}
-
 // PATCH update item (user must have access to item's project)
 router.patch('/:id', async (req, res) => {
   try {
@@ -188,26 +171,6 @@ router.patch('/:id', async (req, res) => {
         { title, from: fromName, to: toName, assignee: toName });
     } else {
       logActivity(pool, existing.project_id, userId, 'item_updated', req.params.id, { title });
-    }
-    // Audit log: field-level changes for Base Camp
-    const auditFields = ['title', 'status', 'priority', 'assignee_id', 'due_date', 'category', 'progress'];
-    for (const f of auditFields) {
-      if (!(f in req.body)) continue;
-      let oldV = existing[f];
-      let newV = req.body[f];
-      if (f === 'assignee_id') {
-        if (oldV) {
-          const fr = await pool.query({ name: 'items_crew_name', text: 'SELECT name FROM crew WHERE id = $1', values: [oldV] }).catch(() => ({ rows: [] }));
-          oldV = fr.rows[0]?.name ?? oldV;
-        }
-        if (newV) {
-          const tr = await pool.query({ name: 'items_crew_name', text: 'SELECT name FROM crew WHERE id = $1', values: [newV] }).catch(() => ({ rows: [] }));
-          newV = tr.rows[0]?.name ?? newV;
-        }
-      }
-      if (String(oldV ?? '') !== String(newV ?? '')) {
-        logAudit(pool, existing.project_id, userId, 'task', req.params.id, title, f, oldV, newV);
-      }
     }
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

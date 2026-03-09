@@ -179,7 +179,7 @@ export function BaseCampView({
             className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left text-sm font-medium transition-colors ${showAudit ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
           >
             <History className="w-4 h-4 shrink-0" />
-            Audit history
+            Field Audit history
           </button>
         </div>
       </aside>
@@ -188,12 +188,12 @@ export function BaseCampView({
       <div className="flex-1 overflow-y-auto py-8 px-6 max-w-4xl">
       {showAudit ? (
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">Audit history</h2>
-          <p className="text-sm text-gray-500 mb-4">Who changed which field and when (this project only).</p>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Field Audit history</h2>
+          <p className="text-sm text-gray-500 mb-4">Field metadata only: new custom/standard fields, picklist option changes, etc.</p>
           {auditLoading ? (
             <div className="py-8 text-center text-gray-500 text-sm">Loading…</div>
           ) : auditEntries.length === 0 ? (
-            <div className="py-8 text-center text-gray-500 text-sm">No audit entries yet. Changes to tasks will appear here.</div>
+            <div className="py-8 text-center text-gray-500 text-sm">No field changes yet. Creating or editing custom/standard fields (e.g. picklist values) will appear here.</div>
           ) : (
             <div className="rounded-lg border border-gray-200 overflow-hidden bg-white">
               <table className="w-full text-sm">

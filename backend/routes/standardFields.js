@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { pool } = require('../server');
 const { requireUser } = require('../lib/access');
+const { logFieldAudit } = require('../lib/fieldAudit');
 
 // GET / — list all standard fields (any authenticated user)
 router.get('/', async (req, res) => {
@@ -25,6 +26,8 @@ router.patch('/:id', async (req, res) => {
     if (!userId) return;
     const id = req.params.id;
     const { options_json, name, field_type } = req.body || {};
+    const existing = (await pool.query({ name: 'standard_fields_get_one', text: 'SELECT name, field_type, options_json FROM standard_fields WHERE id = $1', values: [id] })).rows[0];
+    if (!existing) return res.status(404).json({ error: 'Not found' });
     const updates = [];
     const values = [];
     let i = 1;
@@ -48,6 +51,20 @@ router.patch('/:id', async (req, res) => {
       values,
     });
     if (!rows || !rows[0]) return res.status(404).json({ error: 'Not found' });
+    const entityName = rows[0].name || existing.name;
+    if (name !== undefined && String(name).trim() !== (existing.name || '')) {
+      logFieldAudit(pool, userId, { projectId: null, entityType: 'standard_field', entityId: id, entityName, fieldName: 'name', oldValue: existing.name, newValue: rows[0].name });
+    }
+    if (field_type !== undefined && field_type !== existing.field_type) {
+      logFieldAudit(pool, userId, { projectId: null, entityType: 'standard_field', entityId: id, entityName, fieldName: 'field_type', oldValue: existing.field_type, newValue: rows[0].field_type });
+    }
+    if (options_json !== undefined) {
+      const oldOpts = existing.options_json != null ? JSON.stringify(existing.options_json) : '';
+      const newOpts = Array.isArray(rows[0].options_json) ? JSON.stringify(rows[0].options_json) : (rows[0].options_json != null ? String(rows[0].options_json) : '');
+      if (oldOpts !== newOpts) {
+        logFieldAudit(pool, userId, { projectId: null, entityType: 'standard_field', entityId: id, entityName, fieldName: 'options', oldValue: oldOpts.slice(0, 500), newValue: newOpts.slice(0, 500) });
+      }
+    }
     res.json(rows[0]);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -72,6 +89,7 @@ router.post('/', async (req, res) => {
       values: [key, String(name).trim(), field_type, JSON.stringify(opts)],
     });
     if (!rows || !rows[0]) return res.status(409).json({ error: 'A standard field with this key already exists' });
+    logFieldAudit(pool, userId, { projectId: null, entityType: 'standard_field', entityId: rows[0].id, entityName: String(name).trim(), fieldName: 'created', newValue: String(name).trim() });
     res.status(201).json(rows[0]);
   } catch (e) {
     if (e.code === '23505') return res.status(409).json({ error: 'A standard field with this key already exists' });

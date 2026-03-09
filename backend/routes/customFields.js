@@ -1,8 +1,8 @@
 const router = require('express').Router();
 const { pool } = require('../server');
 const { getAccessibleWorkspaceIds, requireUser } = require('../lib/access');
-
 const { getAccessibleProjectIds } = require('../lib/access');
+const { logFieldAudit } = require('../lib/fieldAudit');
 
 router.get('/', async (req, res) => {
   try {
@@ -82,6 +82,7 @@ router.post('/', async (req, res) => {
       text: 'SELECT * FROM custom_fields WHERE id = $1',
       values: [id],
     });
+    logFieldAudit(pool, userId, { projectId: project_id, entityType: 'custom_field', entityId: id, entityName: name.trim(), fieldName: 'created', newValue: name.trim() });
     res.status(201).json(updated[0] || rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -92,7 +93,7 @@ router.patch('/:id', async (req, res) => {
     if (!userId) return;
     const cf = await pool.query({
       name: 'custom_fields_get_project_patch',
-      text: 'SELECT project_id, workspace_id FROM custom_fields WHERE id = $1',
+      text: 'SELECT project_id, workspace_id, name, field_type, options_json FROM custom_fields WHERE id = $1',
       values: [req.params.id],
     });
     if (!cf.rows.length) return res.status(404).json({ error: 'Not found' });
@@ -117,12 +118,29 @@ router.patch('/:id', async (req, res) => {
     if (options_json !== undefined) { updates.push(`options_json = $${i++}::jsonb`); values.push(JSON.stringify(Array.isArray(options_json) ? options_json : [])); }
     if (!updates.length) return res.status(400).json({ error: 'No updates' });
     values.push(req.params.id);
+    const existing = cf.rows[0];
+    const projectId = existing.project_id;
     const { rows } = await pool.query({
       name: 'custom_fields_patch',
       text: `UPDATE custom_fields SET ${updates.join(', ')} WHERE id = $${i} RETURNING *`,
       values,
     }).catch(() => null);
     if (!rows || !rows[0]) return res.status(500).json({ error: 'Update failed' });
+    const updatedRow = rows[0];
+    const entityName = updatedRow.name || existing.name;
+    if (name !== undefined && String(name).trim() !== (existing.name || '')) {
+      logFieldAudit(pool, userId, { projectId, entityType: 'custom_field', entityId: req.params.id, entityName, fieldName: 'name', oldValue: existing.name, newValue: updatedRow.name });
+    }
+    if (field_type !== undefined && field_type !== existing.field_type) {
+      logFieldAudit(pool, userId, { projectId, entityType: 'custom_field', entityId: req.params.id, entityName, fieldName: 'field_type', oldValue: existing.field_type, newValue: updatedRow.field_type });
+    }
+    if (options_json !== undefined) {
+      const oldOpts = existing.options_json != null ? JSON.stringify(existing.options_json) : '';
+      const newOpts = Array.isArray(updatedRow.options_json) ? JSON.stringify(updatedRow.options_json) : (updatedRow.options_json != null ? String(updatedRow.options_json) : '');
+      if (oldOpts !== newOpts) {
+        logFieldAudit(pool, userId, { projectId, entityType: 'custom_field', entityId: req.params.id, entityName, fieldName: 'options', oldValue: oldOpts.slice(0, 500), newValue: newOpts.slice(0, 500) });
+      }
+    }
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

@@ -8,9 +8,11 @@ import { toast } from 'sonner';
 import { get, post, del, patch } from '../api/meridian';
 import type { Initiative, Status, Priority, Category } from '../data/mockData';
 
-const STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete'];
-const PRIORITY_OPTIONS: Priority[] = ['P0', 'P1', 'P2'];
+const DEFAULT_STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete'];
+const DEFAULT_PRIORITY_OPTIONS: Priority[] = ['P0', 'P1', 'P2'];
 const CATEGORIES: Category[] = ['Engineering', 'Design', 'Sales', 'Product', 'Operations'];
+
+export interface StandardFieldOption { label: string; color?: string; }
 
 function apiPath(p: string) { return p.startsWith('/') ? p : `/${p}`; }
 
@@ -35,8 +37,8 @@ function avatarColor(name: string) {
   return colors[Math.abs(h) % colors.length];
 }
 
-function statusStyles(status: Status) {
-  const map: Record<Status, { bg: string; text: string; dot: string; border: string }> = {
+function statusStyles(status: string): { bg: string; text: string; dot: string; border: string } {
+  const map: Record<string, { bg: string; text: string; dot: string; border: string }> = {
     'On Track':    { bg: 'bg-emerald-50', text: 'text-emerald-700', dot: 'bg-emerald-500', border: 'border-emerald-200' },
     'At Risk':     { bg: 'bg-amber-50',   text: 'text-amber-700',   dot: 'bg-amber-500',   border: 'border-amber-200' },
     'In Review':   { bg: 'bg-violet-50',  text: 'text-violet-700',  dot: 'bg-violet-500',  border: 'border-violet-200' },
@@ -44,7 +46,7 @@ function statusStyles(status: Status) {
     'Blocked':     { bg: 'bg-red-50',     text: 'text-red-700',     dot: 'bg-red-500',     border: 'border-red-200' },
     'Not Started': { bg: 'bg-gray-50',    text: 'text-gray-500',    dot: 'bg-gray-300',    border: 'border-gray-200' },
   };
-  return map[status] ?? map['Not Started'];
+  return map[status] ?? map['Not Started'] ?? { bg: 'bg-gray-50', text: 'text-gray-500', dot: 'bg-gray-300', border: 'border-gray-200' };
 }
 
 interface Comment {
@@ -74,18 +76,24 @@ interface TaskDetailDrawerProps {
   currentUser?: { id: string; name: string } | null;
   onClose: () => void;
   onSave?: (id: string, payload: {
-    title?: string; description?: string; status?: Status; priority?: Priority;
+    title?: string; description?: string; status?: string; priority?: string;
     assignee_id?: string | null; category?: Category; due_date?: string | null; progress?: number;
   }) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
+  priorityOptions?: StandardFieldOption[];
+  statusOptions?: StandardFieldOption[];
 }
 
-export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, onSave, onDelete }: TaskDetailDrawerProps) {
+export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, onSave, onDelete, priorityOptions, statusOptions }: TaskDetailDrawerProps) {
   // Editable fields
   const [title, setTitle] = useState(initiative.name);
   const [description, setDescription] = useState(initiative.description || '');
-  const [status, setStatus] = useState<Status>(initiative.status);
-  const [priority, setPriority] = useState<Priority>(initiative.priority);
+  const [status, setStatus] = useState<string>(initiative.status);
+  const [priority, setPriority] = useState<string>(initiative.priority);
+  const statusList = (statusOptions?.length ? statusOptions : DEFAULT_STATUS_OPTIONS.map((s) => ({ label: s }))).slice();
+  if (status && !statusList.some((o) => o.label === status)) statusList.push({ label: status });
+  const priorityList = (priorityOptions?.length ? priorityOptions : DEFAULT_PRIORITY_OPTIONS.map((p) => ({ label: p }))).slice();
+  if (priority && !priorityList.some((o) => o.label === priority)) priorityList.push({ label: priority });
   const [assigneeId, setAssigneeId] = useState<string | null>(initiative.assignee_id ?? null);
   const [category, setCategory] = useState<Category>(initiative.category);
   const [progress, setProgress] = useState(initiative.progress ?? 0);
@@ -285,19 +293,19 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
               )}
               <div className="flex items-center gap-2 mt-2 flex-wrap">
                 {/* Status pill */}
-                <Select value={status} onValueChange={v => { setStatus(v as Status); save({ status: v as Status }); }}>
+                <Select value={status} onValueChange={v => { setStatus(v); save({ status: v }); }}>
                   <SelectTrigger className={`h-7 text-xs border rounded-full px-2.5 gap-1.5 ${stStyles.bg} ${stStyles.text} ${stStyles.border} w-auto`}>
                     <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${stStyles.dot}`} />
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="z-[200]">
-                    {STATUS_OPTIONS.map(s => {
-                      const ss = statusStyles(s);
+                    {statusList.map(s => {
+                      const ss = statusStyles(s.label);
                       return (
-                        <SelectItem key={s} value={s} className="text-xs">
+                        <SelectItem key={s.label} value={s.label} className="text-xs">
                           <div className="flex items-center gap-2">
                             <span className={`w-2 h-2 rounded-full ${ss.dot}`} />
-                            {s}
+                            {s.label}
                           </div>
                         </SelectItem>
                       );
@@ -306,14 +314,14 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
                 </Select>
 
                 {/* Priority pill */}
-                <Select value={priority} onValueChange={v => { setPriority(v as Priority); save({ priority: v as Priority }); }}>
+                <Select value={priority} onValueChange={v => { setPriority(v); save({ priority: v }); }}>
                   <SelectTrigger className={`h-7 text-xs border rounded-full px-2.5 w-auto ${priority === 'P0' ? 'bg-red-50 text-red-700 border-red-200' : priority === 'P1' ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
                     <Flag className="w-3 h-3" />
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="z-[200]">
-                    {PRIORITY_OPTIONS.map(p => (
-                      <SelectItem key={p} value={p} className="text-xs">{p}</SelectItem>
+                    {priorityList.map(p => (
+                      <SelectItem key={p.label} value={p.label} className="text-xs">{p.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

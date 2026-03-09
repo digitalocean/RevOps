@@ -38,11 +38,20 @@ export function ShareProjectDialog({
   onShared,
 }: ShareProjectDialogProps) {
   const [email, setEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'admin' | 'moderator' | 'editor' | 'viewer'>('editor');
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const ROLES: { value: 'admin' | 'moderator' | 'editor' | 'viewer'; label: string }[] = [
+    { value: 'admin', label: 'Admin' },
+    { value: 'moderator', label: 'Project moderator' },
+    { value: 'editor', label: 'Member (edit)' },
+    { value: 'viewer', label: 'Member (view)' },
+  ];
+  const roleLabel = (r: string) => ROLES.find((x) => x.value === r)?.label ?? (r === 'owner' ? 'Admin' : r === 'member' ? 'Member (edit)' : r);
 
   const loadMembers = async () => {
     if (!projectId) return;
@@ -69,7 +78,7 @@ export function ShareProjectDialog({
     setError(null);
     setInviting(true);
     try {
-      await post(`/api/projects/${projectId}/members`, { email: e, role: 'member' });
+      await post(`/api/projects/${projectId}/members`, { email: e, role: inviteRole });
       setEmail('');
       await loadMembers();
       onShared?.();
@@ -116,7 +125,8 @@ export function ShareProjectDialog({
           </DialogHeader>
         </div>
         <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
-          <div className="flex gap-2">
+          <p className="text-xs text-gray-500">Select a role when inviting. Personal projects: you are Admin. Shared projects require a role for each member.</p>
+          <div className="flex flex-col sm:flex-row gap-2">
             <Input
               type="email"
               placeholder="Email to invite"
@@ -125,6 +135,16 @@ export function ShareProjectDialog({
               onKeyDown={(e) => e.key === 'Enter' && handleInvite()}
               className="flex-1 rounded-xl border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
             />
+            <select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as typeof inviteRole)}
+              className="rounded-xl border border-gray-200 px-3 py-2 text-sm bg-white min-w-[140px] focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+              title="Role (required)"
+            >
+              {ROLES.map((r) => (
+                <option key={r.value} value={r.value}>{r.label}</option>
+              ))}
+            </select>
             <Button
               type="button"
               onClick={handleInvite}
@@ -150,11 +170,13 @@ export function ShareProjectDialog({
                         {m.initials || (m.email || '').slice(0, 2).toUpperCase()}
                       </span>
                       <span className="font-medium text-gray-900 truncate">{m.name || m.email}</span>
-                      {m.is_creator && (
-                        <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded flex-shrink-0">Creator</span>
+                      {m.is_creator ? (
+                        <span className="text-xs text-gray-600 bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded flex-shrink-0">Admin (creator)</span>
+                      ) : (
+                        <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded flex-shrink-0">{roleLabel(m.role)}</span>
                       )}
                     </span>
-                    <span className="text-gray-500 text-xs truncate max-w-[120px]" title={m.email}>{m.email}</span>
+                    <span className="text-gray-500 text-xs truncate max-w-[100px]" title={m.email}>{m.email}</span>
                     {!m.is_creator && (
                       <button
                         type="button"

@@ -67,6 +67,21 @@ CREATE TABLE IF NOT EXISTS activity_log (
 
 CREATE INDEX IF NOT EXISTS activity_log_project_created ON activity_log(project_id, created_at DESC);
 
+-- Audit: who changed which field, when (for Base Camp audit history)
+CREATE TABLE IF NOT EXISTS audit_log (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id  UUID REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+  crew_id     UUID REFERENCES crew(id) ON DELETE SET NULL,
+  entity_type VARCHAR(40)  NOT NULL,
+  entity_id   UUID,
+  entity_name VARCHAR(500),
+  field_name  VARCHAR(80)  NOT NULL,
+  old_value   TEXT,
+  new_value   TEXT,
+  created_at  TIMESTAMPTZ  DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS audit_log_project_created ON audit_log(project_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS board_columns (
   id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id  UUID REFERENCES projects(id) ON DELETE CASCADE,

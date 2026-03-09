@@ -16,9 +16,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { TaskDetailDrawer } from './TaskDetailDrawer';
 import type { Initiative, Priority, Status, Category, TrackerSection as TrackerSectionType } from '../data/mockData';
 
-const STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete'];
-const PRIORITY_OPTIONS: Priority[] = ['P0', 'P1', 'P2'];
+const DEFAULT_STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete'];
+const DEFAULT_PRIORITY_OPTIONS: Priority[] = ['P0', 'P1', 'P2'];
 const CATEGORIES: Category[] = ['Engineering', 'Design', 'Sales', 'Product', 'Operations'];
+
+export interface StandardFieldOption {
+  label: string;
+  color?: string;
+}
 
 interface CrewMember {
   id: string;
@@ -69,17 +74,29 @@ interface TrackerSectionProps {
   onItemCompleted?: () => void;
   focusedId?: string | null;
   onFocusChange?: (id: string | null) => void;
+  /** From standard fields API — when set, dropdowns use these instead of defaults. */
+  priorityOptions?: StandardFieldOption[];
+  statusOptions?: StandardFieldOption[];
 }
 
-function getPriorityColor(priority: Priority): string {
+function getPriorityColor(priority: string, options?: StandardFieldOption[]): string {
+  if (options?.length) {
+    const opt = options.find((o) => o.label === priority);
+    if (opt?.color) return 'border-gray-200'; // use inline style for custom color
+  }
   switch (priority) {
     case 'P0': return 'bg-red-100 text-red-700 border-red-200';
     case 'P1': return 'bg-orange-100 text-orange-700 border-orange-200';
     case 'P2': return 'bg-blue-100 text-blue-700 border-blue-200';
+    default: return 'bg-gray-100 text-gray-700 border-gray-200';
   }
 }
 
-function getStatusStyle(status: Status): { bg: string; text: string; border: string; dot: string } {
+function getStatusStyle(status: string, options?: StandardFieldOption[]): { bg: string; text: string; border: string; dot: string; customColor?: string } {
+  if (options?.length) {
+    const opt = options.find((o) => o.label === status);
+    if (opt?.color) return { bg: 'bg-gray-50', text: 'text-gray-700', border: 'border-gray-200', dot: 'bg-gray-400', customColor: opt.color };
+  }
   switch (status) {
     case 'On Track':   return { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' };
     case 'At Risk':    return { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   dot: 'bg-amber-500' };
@@ -90,9 +107,8 @@ function getStatusStyle(status: Status): { bg: string; text: string; border: str
     default:           return { bg: 'bg-gray-50',    text: 'text-gray-500',    border: 'border-gray-200',    dot: 'bg-gray-300' };
   }
 }
-// Keep for backwards compat
-function getStatusColor(status: Status): string {
-  const s = getStatusStyle(status);
+function getStatusColor(status: string, options?: StandardFieldOption[]): string {
+  const s = getStatusStyle(status, options);
   return `${s.bg} ${s.text} ${s.border}`;
 }
 
@@ -135,11 +151,13 @@ interface InitiativeRowEditableProps {
   visibleColumns?: Set<string>;
   onUpdateFieldValue?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
   onAddSubItem?: (parentId: string) => void;
-  onUpdate: (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: Category; progress?: number; topic?: string | null }) => Promise<unknown>;
+  onUpdate: (id: string, payload: { title?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; category?: Category; progress?: number; topic?: string | null }) => Promise<unknown>;
   onDelete?: (id: string) => Promise<void>;
   onItemCompleted?: () => void;
   dragHandleProps?: Record<string, unknown>;
   isDragging?: boolean;
+  priorityOptions?: StandardFieldOption[];
+  statusOptions?: StandardFieldOption[];
 }
 
 function colVisible(visibleColumns: Set<string> | undefined, colId: string): boolean {
@@ -265,8 +283,18 @@ function InitiativeRowEditable({
   onItemCompleted,
   dragHandleProps = {},
   isDragging = false,
+  priorityOptions,
+  statusOptions,
 }: InitiativeRowEditableProps) {
   const [title, setTitle] = useState(initiative.name);
+  const priorityList: StandardFieldOption[] = (priorityOptions?.length ? priorityOptions : DEFAULT_PRIORITY_OPTIONS.map((p) => ({ label: p }))).slice();
+  if (initiative.priority && !priorityList.some((o) => o.label === initiative.priority)) {
+    priorityList.push({ label: initiative.priority, color: '#6b7280' });
+  }
+  const statusList: StandardFieldOption[] = (statusOptions?.length ? statusOptions : DEFAULT_STATUS_OPTIONS.map((s) => ({ label: s }))).slice();
+  if (initiative.status && !statusList.some((o) => o.label === initiative.status)) {
+    statusList.push({ label: initiative.status, color: '#6b7280' });
+  }
   const [saving, setSaving] = useState(false);
   const dueDateStr = initiative.endDate && !isNaN(initiative.endDate.getTime())
     ? initiative.endDate.toISOString().slice(0, 10)
@@ -280,7 +308,7 @@ function InitiativeRowEditable({
     }
   };
 
-  const handleStatusChange = async (status: Status) => {
+  const handleStatusChange = async (status: string) => {
     const wasComplete = initiative.status === 'Complete';
     setSaving(true);
     try {
@@ -291,7 +319,7 @@ function InitiativeRowEditable({
     }
   };
 
-  const handlePriorityChange = (priority: Priority) => {
+  const handlePriorityChange = (priority: string) => {
     setSaving(true);
     onUpdate(initiative.id, { priority }).finally(() => setSaving(false));
   };
@@ -337,13 +365,16 @@ function InitiativeRowEditable({
       )}
       {colVisible(visibleColumns, 'priority') && (
       <td className="py-2 px-4 align-middle w-24">
-        <Select value={initiative.priority} onValueChange={(v) => handlePriorityChange(v as Priority)}>
-          <SelectTrigger className="h-8 text-xs border-gray-200 bg-white">
+        <Select value={initiative.priority} onValueChange={(v) => handlePriorityChange(v)}>
+          <SelectTrigger
+            className={`h-8 text-xs border-gray-200 ${getPriorityColor(initiative.priority, priorityOptions)}`}
+            style={priorityOptions?.find((o) => o.label === initiative.priority)?.color ? { backgroundColor: `${priorityOptions.find((o) => o.label === initiative.priority)?.color}20`, color: priorityOptions.find((o) => o.label === initiative.priority)?.color } : undefined}
+          >
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="z-[110]">
-            {PRIORITY_OPTIONS.map((p) => (
-              <SelectItem key={p} value={p} className="text-xs">{p}</SelectItem>
+            {priorityList.map((p) => (
+              <SelectItem key={p.label} value={p.label} className="text-xs">{p.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -369,21 +400,28 @@ function InitiativeRowEditable({
       )}
       {colVisible(visibleColumns, 'status') && (
       <td className="py-2 px-4 align-middle w-40">
-        <Select value={initiative.status} onValueChange={(v) => handleStatusChange(v as Status)}>
-          <SelectTrigger className={`h-8 text-xs border rounded-full px-3 ${getStatusColor(initiative.status)}`}>
+        <Select value={initiative.status} onValueChange={(v) => handleStatusChange(v)}>
+          <SelectTrigger
+            className={`h-8 text-xs border rounded-full px-3 ${getStatusColor(initiative.status, statusOptions)}`}
+            style={statusOptions?.find((o) => o.label === initiative.status)?.color ? { backgroundColor: `${statusOptions.find((o) => o.label === initiative.status)?.color}20`, color: statusOptions.find((o) => o.label === initiative.status)?.color } : undefined}
+          >
             <div className="flex items-center gap-1.5">
-              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${getStatusStyle(initiative.status).dot}`} />
+              <span
+                className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${!statusOptions?.find((o) => o.label === initiative.status)?.color ? getStatusStyle(initiative.status).dot : ''}`}
+                style={statusOptions?.find((o) => o.label === initiative.status)?.color ? { backgroundColor: statusOptions.find((o) => o.label === initiative.status)?.color } : undefined}
+              />
               <SelectValue />
             </div>
           </SelectTrigger>
           <SelectContent className="z-[110]">
-            {STATUS_OPTIONS.map((s) => {
-              const style = getStatusStyle(s);
+            {statusList.map((s) => {
+              const style = getStatusStyle(s.label, statusOptions);
+              const dotStyle = statusOptions?.find((o) => o.label === s.label)?.color ? { backgroundColor: statusOptions.find((o) => o.label === s.label)?.color } : undefined;
               return (
-                <SelectItem key={s} value={s} className="text-xs">
+                <SelectItem key={s.label} value={s.label} className="text-xs">
                   <div className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${style.dot}`} />
-                    {s}
+                    <span className={`w-2 h-2 rounded-full ${!dotStyle ? style.dot : ''}`} style={dotStyle} />
+                    {s.label}
                   </div>
                 </SelectItem>
               );
@@ -585,6 +623,8 @@ export function TrackerSection({
   onItemCompleted,
   focusedId,
   onFocusChange,
+  priorityOptions,
+  statusOptions,
 }: TrackerSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedInitiative, setSelectedInitiative] = useState<Initiative | null>(null);
@@ -760,6 +800,8 @@ export function TrackerSection({
                     onUpdate={handleUpdate}
                     onDelete={onDeleteItem}
                     onItemCompleted={onItemCompleted}
+                    priorityOptions={priorityOptions}
+                    statusOptions={statusOptions}
                   />
                 ))}
                 {showNewRow && (
@@ -816,6 +858,8 @@ export function TrackerSection({
           onClose={() => setSelectedInitiative(null)}
           onSave={onUpdateItem ? async (id, payload) => { await onUpdateItem(id, payload); } : undefined}
           onDelete={onDeleteItem ? async (id) => { await onDeleteItem(id); setSelectedInitiative(null); } : undefined}
+          priorityOptions={priorityOptions}
+          statusOptions={statusOptions}
         />
       )}
     </>

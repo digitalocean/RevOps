@@ -54,15 +54,17 @@ function getMessage(row: ActivityItem): React.ReactNode {
 
   switch (row.action) {
     case 'item_created':
-      return <>{actor} created {title}</>;
+      return <>{actor} created task {title}</>;
     case 'item_deleted':
       return <>{actor} deleted {title}</>;
     case 'item_updated':
       return <>{actor} updated {title}</>;
+    case 'tracker_created':
+      return <>{actor} created tracker &quot;{row.details?.name ?? 'Tracker'}&quot;</>;
     case 'status_changed':
       return (
         <>
-          {actor} changed status of {title} {row.details?.from && (
+          {actor} changed status of {title} {row.details?.from != null && (
             <>from <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[row.details.from] || 'bg-gray-100 text-gray-600'}`}>{row.details.from}</span></>
           )} to <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[row.details?.to || ''] || 'bg-gray-100 text-gray-600'}`}>{row.details?.to}</span>
         </>
@@ -70,7 +72,17 @@ function getMessage(row: ActivityItem): React.ReactNode {
     case 'priority_changed':
       return <>{actor} changed priority of {title} to <span className="font-medium">{row.details?.to}</span></>;
     case 'assignee_changed':
-      return <>{actor} assigned {title} to <span className="font-medium">{row.details?.assignee || row.details?.to || 'someone'}</span></>;
+      return (
+        <>
+          {actor} updated owner for {title}
+          {(row.details?.from != null || row.details?.to != null) && (
+            <> to <span className="font-medium">{row.details?.to ?? 'Unassigned'}</span></>
+          )}
+          {row.details?.from != null && row.details?.to != null && (
+            <> (from {row.details.from} → {row.details.to})</>
+          )}
+        </>
+      );
     default:
       return <>{actor} — {title}</>;
   }

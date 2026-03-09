@@ -138,8 +138,11 @@ router.post('/:id/members', async (req, res) => {
     if (!allowedProjectIds.some(id => String(id) === String(projectId))) {
       return res.status(404).json({ error: 'Not found' });
     }
-    const { email, role = 'member' } = req.body || {};
+    const { email, role } = req.body || {};
     if (!email || !String(email).trim()) return res.status(400).json({ error: 'email required' });
+    const allowedRoles = ['admin', 'moderator', 'editor', 'viewer'];
+    const roleNorm = (role && String(role).toLowerCase()) || '';
+    const memberRole = allowedRoles.includes(roleNorm) ? roleNorm : 'viewer';
     const proj = await pool.query({
       name: 'projects_get_workspace',
       text: 'SELECT workspace_id, created_by FROM projects WHERE id = $1',
@@ -204,7 +207,7 @@ router.post('/:id/members', async (req, res) => {
     await pool.query({
       name: 'projects_member_upsert',
       text: 'INSERT INTO project_members(project_id, crew_id, role) VALUES($1,$2,$3) ON CONFLICT (project_id, crew_id) DO UPDATE SET role = $3',
-      values: [projectId, crewId, role],
+      values: [projectId, crewId, memberRole],
     });
     const { rows: members } = await pool.query({
       name: 'projects_members_list_post',

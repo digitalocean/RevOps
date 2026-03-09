@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { NavigationSidebar, type NavView } from '../components/NavigationSidebar';
 import { WorkspaceHeader } from '../components/WorkspaceHeader';
@@ -6,6 +6,7 @@ import { KPIStatsBar } from '../components/KPIStatsBar';
 import { TrackerSection } from '../components/TrackerSection';
 import { GanttChart } from '../components/GanttChart';
 import { ActivityPanel } from '../components/ActivityPanel';
+import { ProjectTimelinePanel } from '../components/ProjectTimelinePanel';
 import { CategoryPriorityStatusMetrics } from '../components/CategoryPriorityStatusMetrics';
 import { DueDateMetrics } from '../components/DueDateMetrics';
 import { GlobalSearch } from '../components/GlobalSearch';
@@ -93,6 +94,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   } = useMeridianData();
   const [currentView, setCurrentView] = useState<NavView>('summit_board');
   const [showActivityPanel, setShowActivityPanel] = useState(false);
+  const [timelineExpanded, setTimelineExpanded] = useState(true);
+  const [timelinePanelExpanded, setTimelinePanelExpanded] = useState(true);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showAddInitiative, setShowAddInitiative] = useState(false);
@@ -132,6 +135,18 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const [templatesProjectId, setTemplatesProjectId] = useState<string | null>(null);
 
   const currentUser = propsCurrentUser !== undefined ? propsCurrentUser : internalUser;
+
+  // Priority/Status options from standard fields (so add/remove in Base Camp is in sync with dropdowns)
+  const priorityOptions = useMemo(() => {
+    const f = standardFields?.find((s: { field_key?: string }) => s.field_key === 'priority');
+    const opts = f?.options_json;
+    return Array.isArray(opts) ? opts.map((o: { label?: string; color?: string }) => ({ label: String(o?.label ?? ''), color: o?.color })) : undefined;
+  }, [standardFields]);
+  const statusOptions = useMemo(() => {
+    const f = standardFields?.find((s: { field_key?: string }) => s.field_key === 'status');
+    const opts = f?.options_json;
+    return Array.isArray(opts) ? opts.map((o: { label?: string; color?: string }) => ({ label: String(o?.label ?? ''), color: o?.color })) : undefined;
+  }, [standardFields]);
 
   // Real-time WebSocket — refresh data on item/comment events
   useWebSocket({
@@ -516,7 +531,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           initiatives={initiatives}
           onOpenTask={(task) => setDrawerInitiative(task)}
         />
-        <div className="flex-1 overflow-auto bg-gray-50">
+        <div className="flex-1 flex overflow-hidden bg-gray-50 min-w-0">
+          <div className="flex-1 overflow-auto min-w-0">
           <div className="max-w-[1600px] mx-auto p-6">
             {projects.length === 0 && (
               <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -776,6 +792,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     onDeleteItem={deleteItem}
                     onCreateSubItem={(parentId) => { setAddInitiativeParentId(parentId); setAddInitiativeTrackerId(null); setShowAddInitiative(true); }}
                     onItemCompleted={() => setCelebrateCount((c) => c + 1)}
+                    priorityOptions={priorityOptions}
+                    statusOptions={statusOptions}
                   />
                   );
                 })}
@@ -788,6 +806,14 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               </div>
             )}
           </div>
+          </div>
+          {selectedProjectId && (
+            <ProjectTimelinePanel
+              projectId={selectedProjectId}
+              expanded={timelineExpanded}
+              onToggle={() => setTimelineExpanded((e) => !e)}
+            />
+          )}
         </div>
       </div>
 
@@ -807,6 +833,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
             setDrawerInitiative(null);
             setSelectedInitiativeFromSearch(null);
           }}
+          priorityOptions={priorityOptions}
+          statusOptions={statusOptions}
         />
       )}
 
@@ -931,8 +959,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         onFilterAndOrChange={setFilterAndOr}
         onApply={(derived) => { setFilters(derived); setShowFilterSlide(false); }}
         onSaveAsView={() => { toast.info('Apply filters then use Saved Views to save.'); setShowFilterSlide(false); }}
-        statusOptions={['On Track', 'At Risk', 'Complete', 'Blocked', 'Not Started', 'In Review'] as Status[]}
-        priorityOptions={['P0', 'P1', 'P2', 'P3'] as Priority[]}
+        statusOptions={(statusOptions?.map((o) => o.label) ?? ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete']) as Status[]}
+        priorityOptions={(priorityOptions?.map((o) => o.label) ?? ['P0', 'P1', 'P2']) as Priority[]}
         categoryOptions={['Engineering', 'Design', 'Sales', 'Product', 'Operations'] as Category[]}
         ownerOptions={crew.map((c) => c.name)}
         projectId={selectedProjectId}

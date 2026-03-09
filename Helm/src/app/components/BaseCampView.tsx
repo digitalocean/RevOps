@@ -1,8 +1,20 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
-import { Settings2, Users, UserPlus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Settings2, Users, UserPlus, Trash2, ChevronUp, ChevronDown, History } from 'lucide-react';
 import { get } from '../api/meridian';
+
+interface AuditEntry {
+  id: string;
+  crew_name: string | null;
+  crew_initials: string | null;
+  entity_type: string;
+  entity_name: string | null;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  created_at: string;
+}
 
 const DEFAULT_STANDARD_FIELDS = [
   { id: 'name', label: 'Initiative' },
@@ -81,6 +93,9 @@ export function BaseCampView({
     ? standardFieldsProp.map((f) => ({ id: f.field_key || f.id, label: f.name }))
     : DEFAULT_STANDARD_FIELDS;
   const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [showAudit, setShowAudit] = useState(false);
+  const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
   const defaultOrder = [...standardFieldsList.map((c) => c.id), ...taskFields.map((f) => f.id)];
   const orderedIds = columnOrder.length > 0
     ? [...columnOrder.filter((id) => defaultOrder.includes(id)), ...defaultOrder.filter((id) => !columnOrder.includes(id))]
@@ -103,6 +118,15 @@ export function BaseCampView({
       .then(setMembers)
       .catch(() => setMembers([]));
   }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId || !showAudit) return;
+    setAuditLoading(true);
+    get<AuditEntry[]>(`/api/projects/${projectId}/audit?limit=200`)
+      .then((data) => setAuditEntries(Array.isArray(data) ? data : []))
+      .catch(() => setAuditEntries([]))
+      .finally(() => setAuditLoading(false));
+  }, [projectId, showAudit]);
 
   return (
     <div className="flex flex-1 min-h-0">
@@ -138,17 +162,73 @@ export function BaseCampView({
                 <span className="truncate text-gray-800 font-medium" title={m.email ?? m.name}>
                   {m.name || m.email || 'Unknown'}
                 </span>
-                {m.is_creator && (
-                  <span className="text-[10px] text-gray-400 flex-shrink-0">owner</span>
+                {m.is_creator ? (
+                  <span className="text-[10px] text-indigo-600 flex-shrink-0">Admin</span>
+                ) : (
+                  <span className="text-[10px] text-gray-500 flex-shrink-0 capitalize">{(m.role === 'owner' || m.role === 'admin') ? 'Admin' : m.role === 'moderator' ? 'Moderator' : m.role === 'editor' ? 'Edit' : 'View'}</span>
                 )}
               </li>
             ))}
           </ul>
         )}
+
+        <div className="border-t border-gray-200 pt-3 mt-3">
+          <button
+            type="button"
+            onClick={() => setShowAudit(!showAudit)}
+            className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-left text-sm font-medium transition-colors ${showAudit ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-100'}`}
+          >
+            <History className="w-4 h-4 shrink-0" />
+            Audit history
+          </button>
+        </div>
       </aside>
 
-      {/* Main: Columns */}
-      <div className="flex-1 overflow-y-auto py-8 px-6 max-w-2xl">
+      {/* Main: Columns or Audit */}
+      <div className="flex-1 overflow-y-auto py-8 px-6 max-w-4xl">
+      {showAudit ? (
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Audit history</h2>
+          <p className="text-sm text-gray-500 mb-4">Who changed which field and when (this project only).</p>
+          {auditLoading ? (
+            <div className="py-8 text-center text-gray-500 text-sm">Loading…</div>
+          ) : auditEntries.length === 0 ? (
+            <div className="py-8 text-center text-gray-500 text-sm">No audit entries yet. Changes to tasks will appear here.</div>
+          ) : (
+            <div className="rounded-lg border border-gray-200 overflow-hidden bg-white">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-600 uppercase">User</th>
+                    <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-600 uppercase">Date</th>
+                    <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-600 uppercase">Entity</th>
+                    <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-600 uppercase">Field</th>
+                    <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-600 uppercase">Change</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {auditEntries.map((e) => (
+                    <tr key={e.id} className="hover:bg-gray-50/80">
+                      <td className="py-2 px-3 font-medium text-gray-900">{e.crew_name || '—'}</td>
+                      <td className="py-2 px-3 text-gray-500">{new Date(e.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</td>
+                      <td className="py-2 px-3 text-gray-700">{e.entity_name || e.entity_type || '—'}</td>
+                      <td className="py-2 px-3 text-gray-600">{e.field_name}</td>
+                      <td className="py-2 px-3">
+                        {e.old_value != null || e.new_value != null ? (
+                          <span className="text-gray-700">{e.old_value ?? '—'} → {e.new_value ?? '—'}</span>
+                        ) : (
+                          '—'
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : (
+        <>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-lg font-semibold text-gray-900">Base Camp — Columns for Trackers</h2>
         <Button type="button" variant="outline" size="sm" onClick={onOpenCustomFields} className="gap-2">
@@ -224,6 +304,8 @@ export function BaseCampView({
           </section>
         )}
       </div>
+      </>
+      )}
       </div>
     </div>
   );

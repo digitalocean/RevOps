@@ -128,6 +128,7 @@ app.use('/api',              require('./routes/timeLogs'));        // GET/POST /
 app.use('/api/templates',    require('./routes/templates'));       // GET /api/templates
 app.use('/api',              require('./routes/templates'));       // POST /api/projects/:id/apply-template
 app.use('/api',              require('./routes/analytics'));   // GET /api/projects/:id/analytics
+app.use('/api',              require('./routes/audit'));       // GET /api/projects/:id/audit
 app.use('/api',              require('./routes/fieldValues')); // GET/PATCH /api/tasks/:id/field-values
 app.use('/api',              require('./routes/savedViews'));  // GET/POST /api/projects/:id/views, PATCH/DELETE /api/views/:id
 
@@ -160,6 +161,7 @@ app.use('/', require('./routes/comments'));
 app.use('/notifications', require('./routes/notifications'));
 app.use('/', require('./routes/timeLogs'));
 app.use('/', require('./routes/analytics'));
+app.use('/', require('./routes/audit'));
 app.use('/', require('./routes/fieldValues'));
 app.use('/', require('./routes/savedViews'));
 

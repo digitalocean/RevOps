@@ -7,6 +7,22 @@ async function canAccessProject(pool, userId, projectId) {
   return ids.some(id => String(id) === String(projectId));
 }
 
+async function logActivity(pool, projectId, userId, action, entityId, details = {}) {
+  try {
+    const crew = await pool.query({
+      name: 'trackers_crew_by_user',
+      text: 'SELECT id FROM crew WHERE user_id = $1 LIMIT 1',
+      values: [userId],
+    });
+    const crewId = crew.rows[0]?.id || null;
+    await pool.query({
+      name: 'trackers_activity_insert',
+      text: 'INSERT INTO activity_log (project_id, crew_id, action, entity_type, entity_id, details) VALUES ($1, $2, $3, $4, $5, $6)',
+      values: [projectId, crewId, action, 'tracker', entityId, JSON.stringify(details)],
+    });
+  } catch (_) { /* non-fatal */ }
+}
+
 router.get('/', async (req, res) => {
   try {
     const userId = requireUser(req, res);
@@ -68,6 +84,7 @@ router.post('/', async (req, res) => {
         values: [newTracker.id, project_id],
       });
     }
+    logActivity(pool, project_id, userId, 'tracker_created', newTracker.id, { name: newTracker.name });
     res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

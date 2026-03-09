@@ -2,6 +2,29 @@ const router = require('express').Router();
 const { pool } = require('../server');
 const { getAccessibleProjectIds, requireUser } = require('../lib/access');
 
+function buildMetrics(items) {
+  const total = items.length;
+  const byStatus = {};
+  const byCategory = {};
+  items.forEach((i) => {
+    const s = (i.status || 'not_started').replace(/_/g, ' ');
+    byStatus[s] = (byStatus[s] || 0) + 1;
+    if (i.category) byCategory[i.category] = (byCategory[i.category] || 0) + 1;
+  });
+  const doneCount = items.filter((i) => ['done','complete','closed','resolved'].includes((i.status || '').toLowerCase())).length;
+  const completionRate = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+  const inProgressCount = Object.entries(byStatus).reduce((acc, [k, v]) => (k.toLowerCase().includes('progress') || k === 'in progress' ? acc + v : acc), 0);
+  const atRiskCount = items.filter((i) => (i.status || '').toLowerCase().includes('risk') || (i.status || '').toLowerCase() === 'blocked').length;
+  return {
+    kpi: { completionRate, totalItems: total, doneCount, inProgressCount, atRiskCount },
+    statusDistribution: Object.entries(byStatus).map(([name, value]) => ({ name, value })),
+    categoryPerformance: Object.entries(byCategory).map(([name, value]) => ({ name, value })),
+    riskItems: items.filter((i) => (i.status || '').toLowerCase() === 'blocked' || (i.priority || '').toLowerCase() === 'high').slice(0, 20).map((i) => ({
+      id: i.id, title: i.title, status: i.status, priority: i.priority,
+    })),
+  };
+}
+
 // GET /api/projects/:id/analytics — chart data for Analytics tab (user-scoped)
 router.get('/projects/:id/analytics', async (req, res) => {
   try {
@@ -13,10 +36,10 @@ router.get('/projects/:id/analytics', async (req, res) => {
       return res.status(404).json({ error: 'Not found' });
     }
 
-    const [itemsRes, velocityRes, projectRow] = await Promise.all([
+    const [itemsRes, velocityRes, projectRow, trackersRes] = await Promise.all([
       pool.query({
         name: 'analytics_items_by_project',
-        text: `SELECT id, title, status, priority, category, due_date, created_at, updated_at, custom_vals
+        text: `SELECT id, title, status, priority, category, due_date, created_at, updated_at, custom_vals, tracker_id
          FROM items WHERE project_id = $1`,
         values: [projectId],
       }),
@@ -28,23 +51,12 @@ router.get('/projects/:id/analytics', async (req, res) => {
         values: [projectId],
       }),
       pool.query({ name: 'analytics_project_workspace', text: 'SELECT workspace_id FROM projects WHERE id = $1', values: [projectId] }),
+      pool.query({ name: 'analytics_trackers', text: 'SELECT id, name FROM trackers WHERE project_id = $1 ORDER BY name', values: [projectId] }),
     ]);
 
     const items = itemsRes.rows;
-    const total = items.length;
-    const byStatus = {};
-    const byCategory = {};
-    const byPriority = {};
-    items.forEach((i) => {
-      const s = (i.status || 'not_started').replace(/_/g, ' ');
-      byStatus[s] = (byStatus[s] || 0) + 1;
-      if (i.category) byCategory[i.category] = (byCategory[i.category] || 0) + 1;
-      const p = i.priority || 'medium';
-      byPriority[p] = (byPriority[p] || 0) + 1;
-    });
-
-    const doneCount = items.filter((i) => ['done','complete','closed','resolved'].includes((i.status || '').toLowerCase())).length;
-    const completionRate = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+    const trackers = trackersRes.rows || [];
+    const projectMetrics = buildMetrics(items);
     const velocityWeeks = velocityRes.rows.map((r) => ({
       week: r.week,
       count: Number(r.count),
@@ -88,24 +100,34 @@ router.get('/projects/:id/analytics', async (req, res) => {
       }).filter((d) => d.data.length > 0);
     }
 
+    // Per-tracker analytics (sections applied to this project)
+    const byTracker = [];
+    for (const tr of trackers) {
+      const trackerItems = items.filter((i) => i.tracker_id && String(i.tracker_id) === String(tr.id));
+      byTracker.push({
+        trackerId: tr.id,
+        trackerName: tr.name,
+        ...buildMetrics(trackerItems),
+      });
+    }
+    const uncategorizedItems = items.filter((i) => !i.tracker_id);
+    if (uncategorizedItems.length > 0) {
+      byTracker.push({
+        trackerId: null,
+        trackerName: 'Uncategorized',
+        ...buildMetrics(uncategorizedItems),
+      });
+    }
+
     res.json({
-      kpi: {
-        completionRate,
-        totalItems: total,
-        doneCount,
-        inProgressCount: Object.entries(byStatus).reduce((acc, [k, v]) => (k.toLowerCase().includes('progress') || k === 'in progress' ? acc + v : acc), 0),
-        atRiskCount: items.filter((i) => (i.status || '').toLowerCase().includes('risk') || (i.status || '').toLowerCase() === 'blocked').length,
-      },
-      statusDistribution: Object.entries(byStatus).map(([name, value]) => ({ name, value })),
-      categoryPerformance: Object.entries(byCategory).map(([name, value]) => ({ name, value })),
+      ...projectMetrics,
+      kpi: projectMetrics.kpi,
+      statusDistribution: projectMetrics.statusDistribution,
+      categoryPerformance: projectMetrics.categoryPerformance,
+      riskItems: projectMetrics.riskItems,
       velocityTrend: velocityWeeks,
-      riskItems: items.filter((i) => (i.status || '').toLowerCase() === 'blocked' || (i.priority || '').toLowerCase() === 'high').slice(0, 20).map((i) => ({
-        id: i.id,
-        title: i.title,
-        status: i.status,
-        priority: i.priority,
-      })),
       customFieldDistributions,
+      byTracker,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

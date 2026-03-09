@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Activity, Target, Zap, Users, TrendingUp } from 'lucide-react';
 import {
   PieChart,
@@ -31,6 +31,15 @@ interface CustomFieldDistribution {
   data: { name: string; value: number }[];
 }
 
+interface TrackerAnalytics {
+  trackerId: string | null;
+  trackerName: string;
+  kpi: { completionRate: number; totalItems: number; doneCount: number; inProgressCount: number; atRiskCount: number };
+  statusDistribution: { name: string; value: number }[];
+  categoryPerformance: { name: string; value: number }[];
+  riskItems: { id: string; title: string; status: string; priority: string }[];
+}
+
 interface AnalyticsData {
   kpi: {
     completionRate: number;
@@ -44,6 +53,7 @@ interface AnalyticsData {
   velocityTrend: { week: string; count: number }[];
   riskItems: { id: string; title: string; status: string; priority: string }[];
   customFieldDistributions?: CustomFieldDistribution[];
+  byTracker?: TrackerAnalytics[];
 }
 
 interface AnalyticsViewProps {
@@ -90,7 +100,20 @@ export function AnalyticsView({ projectId }: AnalyticsViewProps) {
     );
   }
 
-  const { kpi, statusDistribution, categoryPerformance, velocityTrend, customFieldDistributions = [] } = data;
+  const byTracker = data.byTracker ?? [];
+  const [selectedTrackerKey, setSelectedTrackerKey] = useState<string>('all');
+  const validKeys = useMemo(() => new Set(['all', ...byTracker.map((t) => (t.trackerId ? String(t.trackerId) : 'uncategorized'))]), [byTracker]);
+  useEffect(() => {
+    if (!validKeys.has(selectedTrackerKey)) setSelectedTrackerKey('all');
+  }, [validKeys, selectedTrackerKey]);
+  const isAll = selectedTrackerKey === 'all';
+  const selectedTracker = byTracker.find((t) => (t.trackerId && String(t.trackerId) === selectedTrackerKey) || (t.trackerId === null && selectedTrackerKey === 'uncategorized'));
+  const kpi = isAll ? data.kpi : (selectedTracker?.kpi ?? data.kpi);
+  const statusDistribution = isAll ? data.statusDistribution : (selectedTracker?.statusDistribution ?? data.statusDistribution);
+  const categoryPerformance = isAll ? data.categoryPerformance : (selectedTracker?.categoryPerformance ?? data.categoryPerformance);
+  const riskItems = isAll ? data.riskItems : (selectedTracker?.riskItems ?? data.riskItems);
+  const velocityTrend = data.velocityTrend;
+  const customFieldDistributions = data.customFieldDistributions ?? [];
   const velocityData = velocityTrend.map((v, i) => ({
     name: `Week ${i + 1}`,
     count: v.count,
@@ -99,6 +122,35 @@ export function AnalyticsView({ projectId }: AnalyticsViewProps) {
 
   return (
     <div className="space-y-6">
+      {/* Tracker selector: All vs per-tracker */}
+      {byTracker.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-[#9CA3AF] mr-1">View by tracker:</span>
+          <button
+            type="button"
+            onClick={() => setSelectedTrackerKey('all')}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${isAll ? 'bg-[var(--accent)] text-white' : 'bg-[#F0F0F4] text-[#6B7280] hover:bg-[#E8E8EC]'}`}
+          >
+            All
+          </button>
+          {byTracker.map((t) => {
+            const key = t.trackerId ?? 'uncategorized';
+            const active = selectedTrackerKey === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSelectedTrackerKey(key)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors truncate max-w-[180px] ${active ? 'bg-[var(--accent)] text-white' : 'bg-[#F0F0F4] text-[#6B7280] hover:bg-[#E8E8EC]'}`}
+                title={t.trackerName}
+              >
+                {t.trackerName}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* KPI row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="rounded-xl border border-[#E8E8EC] bg-white p-4 shadow-sm">
@@ -206,10 +258,10 @@ export function AnalyticsView({ projectId }: AnalyticsViewProps) {
         <div className="rounded-xl border border-[#E8E8EC] bg-white p-4 shadow-sm">
           <h3 className="text-sm font-semibold text-[#0F0F13] mb-4">At Risk / Blocked</h3>
           <div className="space-y-2 max-h-[240px] overflow-y-auto">
-            {data.riskItems.length === 0 ? (
+            {riskItems.length === 0 ? (
               <p className="text-sm text-[#6B7280]">No blocked or high-priority items.</p>
             ) : (
-              data.riskItems.slice(0, 8).map((r) => (
+              riskItems.slice(0, 8).map((r) => (
                 <div key={r.id} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-[#F8F8FB] border border-[#E8E8EC]">
                   <span className="text-sm text-[#0F0F13] truncate flex-1">{r.title}</span>
                   <span className="text-xs font-medium text-[var(--status-blocked)] shrink-0">{r.status}</span>

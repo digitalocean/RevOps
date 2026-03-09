@@ -277,11 +277,12 @@ export function ImportTemplateDialog({
               <p className="text-sm text-gray-600 mb-2">
                 <strong>{selectedTemplate.name}</strong>
               </p>
+              <p className="text-xs text-gray-500 mb-2">
+                Applying this template will create only the sections (and table headers). No task rows will be added.
+              </p>
               <ul className="text-sm text-gray-600 mb-4 list-disc list-inside">
                 {(selectedTemplate.trackers ?? []).map((tr, i) => (
-                  <li key={i}>
-                    Section &quot;{tr.name}&quot;: {(tr.tasks ?? []).length} task(s)
-                  </li>
+                  <li key={i}>Section &quot;{tr.name}&quot;</li>
                 ))}
               </ul>
               <div className="flex gap-2">

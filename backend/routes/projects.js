@@ -256,7 +256,7 @@ router.delete('/:id/members/:memberId', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /:id/apply-template — apply a saved template to this project (trackers + tasks)
+// POST /:id/apply-template — apply a saved template: create sections (trackers) only, no task rows
 router.post('/:id/apply-template', async (req, res) => {
   try {
     const userId = requireUser(req, res);
@@ -281,28 +281,11 @@ router.post('/:id/apply-template', async (req, res) => {
     const created = [];
 
     for (const tracker of trackers) {
-      const tr = await pool.query({
+      await pool.query({
         name: 'templates_tracker_insert',
         text: 'INSERT INTO trackers(project_id, name) VALUES($1,$2) RETURNING *',
         values: [projectId, tracker.name],
       });
-      const trackerId = tr.rows[0].id;
-
-      const tasks = tracker.tasks || [];
-      for (let i = 0; i < tasks.length; i++) {
-        const task = tasks[i];
-        const statusMap = {
-          'Not Started': 'not_started', 'On Track': 'in_progress',
-          'At Risk': 'at_risk', 'Complete': 'done', 'Blocked': 'blocked',
-          'In Review': 'in_review',
-        };
-        const priorityMap = { 'P0': 'critical', 'P1': 'high', 'P2': 'medium' };
-        await pool.query({
-          name: 'templates_item_insert',
-          text: 'INSERT INTO items(project_id, tracker_id, title, status, priority, sort_order) VALUES($1,$2,$3,$4,$5,$6)',
-          values: [projectId, trackerId, task.title, statusMap[task.status] || 'not_started', priorityMap[task.priority] || 'medium', i],
-        });
-      }
       created.push(tracker.name);
     }
 

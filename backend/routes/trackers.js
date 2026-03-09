@@ -49,18 +49,19 @@ router.post('/', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const { project_id, name } = req.body || {};
+    const { project_id, name, columns } = req.body || {};
     if (!project_id) return res.status(400).json({ error: 'project_id required' });
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'name required' });
     const ok = await canAccessProject(pool, userId, project_id);
     if (!ok) return res.status(403).json({ error: 'Access denied to this project' });
+    const columnsJson = Array.isArray(columns) && columns.length > 0 ? JSON.stringify(columns) : null;
     const { rows } = await pool.query({
       name: 'trackers_insert',
-      text: 'INSERT INTO trackers(project_id, name) VALUES($1, $2) RETURNING *',
-      values: [project_id, String(name).trim()],
+      text: 'INSERT INTO trackers(project_id, name, columns) VALUES($1, $2, COALESCE($3::jsonb, \'[]\'::jsonb)) RETURNING *',
+      values: [project_id, String(name).trim(), columnsJson],
     });
     const newTracker = rows[0];
-    if (newTracker && newTracker.id) {
+    if (newTracker && newTracker.id && !columnsJson) {
       await pool.query({
         name: 'trackers_assign_uncategorized',
         text: 'UPDATE items SET tracker_id = $1 WHERE project_id = $2 AND tracker_id IS NULL',

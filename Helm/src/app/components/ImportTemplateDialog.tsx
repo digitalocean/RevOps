@@ -38,8 +38,8 @@ interface ImportTemplateDialogProps {
   open: boolean;
   onClose: () => void;
   projectId: string | null;
-  /** Create a new section and return its tracker id (used for import — creates a new section for imported data). */
-  onCreateSection: (projectId: string, sectionName: string) => Promise<string | null>;
+  /** Create a new section and return its tracker id. If columns is set, only those columns are shown in this section. */
+  onCreateSection: (projectId: string, sectionName: string, columns?: string[]) => Promise<string | null>;
   /** Create a task and return the created item (with id) */
   onCreateTask: (payload: Record<string, unknown>, trackerId?: string | null) => Promise<{ id?: string } | null>;
   onSuccess: () => void;
@@ -99,12 +99,6 @@ export function ImportTemplateDialog({
     if (!projectId || !headers.length) return;
     setImporting(true);
     try {
-      const newTrackerId = await onCreateSection(projectId, (sectionName || 'Imported').trim());
-      if (!newTrackerId) {
-        toast.error('Could not create section for import');
-        setImporting(false);
-        return;
-      }
       const firstCol = getTitleColumnIndex(headers);
       const descIdx = headers.findIndex((h) => /description|^desc$/i.test((h || '').trim()));
       const createdFieldIds: Record<string, string> = {};
@@ -121,6 +115,13 @@ export function ImportTemplateDialog({
           toast.error(`Could not create field "${name}": ${err instanceof Error ? err.message : 'Unknown error'}`);
           throw err;
         }
+      }
+      const sectionColumns = Object.keys(createdFieldIds).length > 0 ? ['name', ...Object.values(createdFieldIds)] : undefined;
+      const newTrackerId = await onCreateSection(projectId, (sectionName || 'Imported').trim(), sectionColumns);
+      if (!newTrackerId) {
+        toast.error('Could not create section for import');
+        setImporting(false);
+        return;
       }
       let taskCount = 0;
       for (const row of rows) {

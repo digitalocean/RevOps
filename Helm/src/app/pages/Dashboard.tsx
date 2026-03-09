@@ -717,7 +717,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     crew={crew}
                     currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
                     customFields={customFields}
-                    visibleColumns={visibleColumns}
+                    visibleColumns={section.columns?.length ? new Set(section.columns) : visibleColumns}
                     onDeleteSection={deleteSection}
                     onRenameSection={(trackerId, newName) => updateSection(trackerId, { name: newName })}
                     showSectionActions={section.id !== 'uncategorized' && trackerSections.length > 1}
@@ -794,8 +794,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           open={showImportTemplate}
           onClose={() => setShowImportTemplate(false)}
           projectId={selectedProjectId}
-          onCreateSection={async (projectId, sectionName) => {
-            const t = await createSection(projectId, sectionName);
+          onCreateSection={async (projectId, sectionName, columns) => {
+            const t = await createSection(projectId, sectionName, columns);
             return t?.id ?? null;
           }}
           onCreateTask={async (payload, trackerId) => {

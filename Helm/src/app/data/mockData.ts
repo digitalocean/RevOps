@@ -32,6 +32,8 @@ export interface TrackerSection {
   id: string;
   title: string;
   initiatives: Initiative[];
+  /** When set, only these columns are shown for this section (e.g. from import). Empty/undefined = use project default. */
+  columns?: string[];
 }
 
 export const mockInitiatives: Initiative[] = [

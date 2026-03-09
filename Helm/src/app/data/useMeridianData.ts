@@ -115,7 +115,7 @@ export interface MeridianDataResult {
   createProject: (payload: { name: string; description?: string; color?: string; is_personal?: boolean }) => Promise<Project | null>;
   createSprint: (projectId: string, name: string, start_date?: string, end_date?: string) => Promise<Sprint | null>;
   createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; status?: string; category?: string; due_date?: string; type?: string }, parentId?: string | null, trackerId?: string | null) => Promise<unknown>;
-  createSection: (projectId: string, name: string) => Promise<{ id: string; name: string } | null>;
+  createSection: (projectId: string, name: string, columns?: string[]) => Promise<{ id: string; name: string } | null>;
   updateSection: (trackerId: string, payload: { name: string }) => Promise<unknown>;
   updateItem: (itemId: string, payload: { title?: string; description?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; points?: number; progress?: number; category?: string | null }) => Promise<unknown>;
   deleteItem: (itemId: string) => Promise<void>;
@@ -208,6 +208,7 @@ export function useMeridianData(): MeridianDataResult {
           id: t.id,
           title: t.name,
           initiatives: mapped.filter((init) => init.tracker_id === t.id),
+          columns: Array.isArray(t.columns) && t.columns.length > 0 ? t.columns : undefined,
         })),
       ];
       setSections(sectionList);
@@ -289,12 +290,15 @@ export function useMeridianData(): MeridianDataResult {
 
   const createSection = useCallback(async (
     projectId: string,
-    name: string
+    name: string,
+    columns?: string[]
   ): Promise<{ id: string; name: string } | null> => {
-    const t = await post<{ id: string; name: string }>(apiPath('api/trackers'), {
+    const body: { project_id: string; name: string; columns?: string[] } = {
       project_id: projectId,
       name: name.trim(),
-    });
+    };
+    if (Array.isArray(columns) && columns.length > 0) body.columns = columns;
+    const t = await post<{ id: string; name: string }>(apiPath('api/trackers'), body);
     await load();
     return t ?? null;
   }, [load]);

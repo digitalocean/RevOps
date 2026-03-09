@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
-import { Settings2, Users, UserPlus } from 'lucide-react';
+import { Settings2, Users, UserPlus, Trash2 } from 'lucide-react';
 import { get } from '../api/meridian';
 
 const STANDARD_FIELDS = [
@@ -10,6 +10,7 @@ const STANDARD_FIELDS = [
   { id: 'priority', label: 'Priority' },
   { id: 'owner', label: 'Owner' },
   { id: 'status', label: 'Status' },
+  { id: 'progress', label: 'Progress' },
   { id: 'dueDate', label: 'Due Date' },
   { id: 'topic', label: 'Topic' },
 ] as const;
@@ -43,11 +44,12 @@ interface BaseCampViewProps {
   projectId: string | null;
   customFields: CustomFieldDef[];
   visibleColumns: Set<string>;
-  /** Toggle a column on or off for this project (show/hide in Trackers view). */
+  /** Toggle a column on or off (enable on tracker). */
   onToggleColumn: (columnId: string) => void;
   onOpenCustomFields: () => void;
-  /** Open the share project dialog to add more people */
   onOpenShare?: () => void;
+  /** Called when project is deleted (e.g. redirect). */
+  onDeleteProject?: (projectId: string) => void | Promise<void>;
 }
 
 export function BaseCampView({
@@ -57,6 +59,7 @@ export function BaseCampView({
   onToggleColumn,
   onOpenCustomFields,
   onOpenShare,
+  onDeleteProject,
 }: BaseCampViewProps) {
   const taskFields = customFields.filter(isTaskField);
   const [members, setMembers] = useState<ProjectMember[]>([]);
@@ -124,12 +127,13 @@ export function BaseCampView({
         </Button>
       </div>
       <p className="text-sm text-gray-500 mb-4">
-        Use the checkboxes below to choose which columns appear in the Trackers view for this project. Custom fields from this workspace are listed under &quot;Custom fields&quot;. You can also use the <strong>Columns</strong> button in the Trackers toolbar.
+        Enable fields for trackers: only checked fields will appear when you create a new section. Use the <strong>Columns</strong> button in Trackers to show/hide columns per view.
       </p>
 
-      <div className="space-y-4">
+      <div className="space-y-6">
         <section>
-          <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">Standard fields</h3>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">Standard fields</h3>
+          <p className="text-xs text-gray-500 mb-2">Built-in columns. By default all are enabled on new sections.</p>
           <ul className="space-y-1.5">
             {STANDARD_FIELDS.map((col) => (
               <li key={col.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 border border-gray-100">
@@ -145,9 +149,10 @@ export function BaseCampView({
           </ul>
         </section>
 
-        {taskFields.length > 0 ? (
-          <section>
-            <h3 className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">Custom fields</h3>
+        <section>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">Custom fields</h3>
+          <p className="text-xs text-gray-500 mb-2">Project-specific fields. Check to show on new sections.</p>
+          {taskFields.length > 0 ? (
             <ul className="space-y-1.5">
               {taskFields.map((f) => (
                 <li key={f.id} className="flex items-center justify-between py-2 px-3 rounded-lg bg-gray-50 border border-gray-100">
@@ -161,11 +166,34 @@ export function BaseCampView({
                 </li>
               ))}
             </ul>
+          ) : (
+            <p className="text-sm text-gray-500 py-4">
+              No custom fields yet. Click <strong>Manage custom fields</strong> to create them; they will appear here for you to enable on trackers.
+            </p>
+          )}
+        </section>
+
+        {projectId && onDeleteProject && (
+          <section className="pt-6 border-t border-gray-200">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-red-600 mb-2">Danger zone</h3>
+            <div className="rounded-lg border border-red-200 bg-red-50/50 p-4">
+              <p className="text-sm text-gray-700 mb-2">Permanently delete this project and all its sections and tasks. This cannot be undone.</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-red-600 border-red-300 hover:bg-red-100 hover:text-red-700"
+                onClick={() => {
+                  if (window.confirm('Delete this project permanently? This cannot be undone.')) {
+                    onDeleteProject(projectId);
+                  }
+                }}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete project
+              </Button>
+            </div>
           </section>
-        ) : (
-          <p className="text-sm text-gray-500 py-4">
-            No custom fields yet. Click <strong>Manage custom fields</strong> to create fields; they will appear here and you can enable them for the Trackers view.
-          </p>
         )}
       </div>
       </div>

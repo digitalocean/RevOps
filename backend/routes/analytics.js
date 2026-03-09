@@ -13,10 +13,10 @@ router.get('/projects/:id/analytics', async (req, res) => {
       return res.status(404).json({ error: 'Not found' });
     }
 
-    const [itemsRes, velocityRes] = await Promise.all([
+    const [itemsRes, velocityRes, projectRow] = await Promise.all([
       pool.query({
         name: 'analytics_items_by_project',
-        text: `SELECT id, title, status, priority, category, due_date, created_at, updated_at
+        text: `SELECT id, title, status, priority, category, due_date, created_at, updated_at, custom_vals
          FROM items WHERE project_id = $1`,
         values: [projectId],
       }),
@@ -27,6 +27,7 @@ router.get('/projects/:id/analytics', async (req, res) => {
          GROUP BY 1 ORDER BY 1`,
         values: [projectId],
       }),
+      pool.query({ name: 'analytics_project_workspace', text: 'SELECT workspace_id FROM projects WHERE id = $1', values: [projectId] }),
     ]);
 
     const items = itemsRes.rows;
@@ -44,11 +45,48 @@ router.get('/projects/:id/analytics', async (req, res) => {
 
     const doneCount = items.filter((i) => ['done','complete','closed','resolved'].includes((i.status || '').toLowerCase())).length;
     const completionRate = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-    const withProgress = items.filter((i) => i.updated_at);
     const velocityWeeks = velocityRes.rows.map((r) => ({
       week: r.week,
       count: Number(r.count),
     }));
+
+    // Dynamic custom field distributions: fetch custom fields for project's workspace (task/item scope)
+    let customFieldDistributions = [];
+    const workspaceId = projectRow.rows[0]?.workspace_id;
+    if (workspaceId && items.length > 0) {
+      const cfRes = await pool.query({
+        name: 'analytics_custom_fields',
+        text: 'SELECT id, name FROM custom_fields WHERE workspace_id = $1 AND (target IN (\'item\',\'task\'))',
+        values: [workspaceId],
+      });
+      const itemIds = items.map((i) => i.id);
+      const fvRes = await pool.query({
+        name: 'analytics_field_values',
+        text: 'SELECT task_id, field_id, value_text, value_number, value_date, value_boolean FROM custom_field_values WHERE task_id = ANY($1)',
+        values: [itemIds],
+      }).catch(() => ({ rows: [] }));
+      const byTaskField = {};
+      (fvRes.rows || []).forEach((r) => {
+        if (!byTaskField[r.task_id]) byTaskField[r.task_id] = {};
+        const val = r.value_text ?? (r.value_number != null ? String(r.value_number) : null) ?? (r.value_date ? new Date(r.value_date).toISOString().slice(0, 10) : null) ?? (r.value_boolean != null ? String(r.value_boolean) : null);
+        if (val != null) byTaskField[r.task_id][r.field_id] = val;
+      });
+      const customFields = cfRes.rows || [];
+      customFieldDistributions = customFields.map((cf) => {
+        const dist = {};
+        items.forEach((i) => {
+          const fromCv = i.custom_vals && typeof i.custom_vals === 'object' ? (i.custom_vals[cf.name] ?? i.custom_vals[cf.id]) : undefined;
+          const val = byTaskField[i.id]?.[cf.id] ?? fromCv;
+          const label = val == null || val === '' ? '(empty)' : String(val);
+          dist[label] = (dist[label] || 0) + 1;
+        });
+        return {
+          fieldId: cf.id,
+          fieldName: cf.name,
+          data: Object.entries(dist).map(([name, value]) => ({ name, value })),
+        };
+      }).filter((d) => d.data.length > 0);
+    }
 
     res.json({
       kpi: {
@@ -67,6 +105,7 @@ router.get('/projects/:id/analytics', async (req, res) => {
         status: i.status,
         priority: i.priority,
       })),
+      customFieldDistributions,
     });
   } catch (e) {
     res.status(500).json({ error: e.message });

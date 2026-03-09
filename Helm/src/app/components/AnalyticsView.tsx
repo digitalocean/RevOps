@@ -25,6 +25,12 @@ const STATUS_COLORS: Record<string, string> = {
   'in review': 'var(--status-in-review)',
 };
 
+interface CustomFieldDistribution {
+  fieldId: string;
+  fieldName: string;
+  data: { name: string; value: number }[];
+}
+
 interface AnalyticsData {
   kpi: {
     completionRate: number;
@@ -37,6 +43,7 @@ interface AnalyticsData {
   categoryPerformance: { name: string; value: number }[];
   velocityTrend: { week: string; count: number }[];
   riskItems: { id: string; title: string; status: string; priority: string }[];
+  customFieldDistributions?: CustomFieldDistribution[];
 }
 
 interface AnalyticsViewProps {
@@ -83,7 +90,7 @@ export function AnalyticsView({ projectId }: AnalyticsViewProps) {
     );
   }
 
-  const { kpi, statusDistribution, categoryPerformance, velocityTrend } = data;
+  const { kpi, statusDistribution, categoryPerformance, velocityTrend, customFieldDistributions = [] } = data;
   const velocityData = velocityTrend.map((v, i) => ({
     name: `Week ${i + 1}`,
     count: v.count,
@@ -212,6 +219,28 @@ export function AnalyticsView({ projectId }: AnalyticsViewProps) {
           </div>
         </div>
       </div>
+
+      {/* Dynamic dashboards for custom fields (from templates/imports) */}
+      {customFieldDistributions.length > 0 && (
+        <section>
+          <h2 className="text-base font-semibold text-[#0F0F13] mb-4">Custom field insights</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {customFieldDistributions.map((cf) => (
+              <div key={cf.fieldId} className="rounded-xl border border-[#E8E8EC] bg-white p-4 shadow-sm">
+                <h3 className="text-sm font-semibold text-[#0F0F13] mb-4">{cf.fieldName}</h3>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={cf.data} layout="vertical" margin={{ left: 0, right: 20 }}>
+                    <XAxis type="number" tick={{ fontSize: 10 }} stroke="#9CA3AF" />
+                    <YAxis type="category" dataKey="name" width={90} tick={{ fontSize: 10 }} stroke="#9CA3AF" />
+                    <Tooltip />
+                    <Bar dataKey="value" fill="var(--accent)" radius={[0, 4, 4, 0]} name="Count" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

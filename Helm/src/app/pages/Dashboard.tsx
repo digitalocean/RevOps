@@ -686,6 +686,11 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 }}
                 onOpenCustomFields={() => setShowCustomFields(true)}
                 onOpenShare={() => setShowShareProject(true)}
+                onDeleteProject={async (id) => {
+                  await deleteProject(id);
+                  setSelectedProjectId(null);
+                  refresh();
+                }}
               />
             ) : currentView === 'summit_board' ? (
               <SummitBoardKanban
@@ -851,7 +856,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         open={showNewSection}
         onOpenChange={setShowNewSection}
         projectId={selectedProjectId}
-        onCreate={createSection}
+        onCreate={async (pid, name) => createSection(pid, name, Array.from(visibleColumns))}
       />
 
       <CompletionCelebration trigger={celebrateCount > 0} label="Item completed!" />

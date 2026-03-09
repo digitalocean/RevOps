@@ -119,7 +119,6 @@ router.patch('/:id', async (req, res) => {
     if (!updates.length) return res.status(400).json({ error: 'No updates' });
     values.push(req.params.id);
     const existing = cf.rows[0];
-    const projectId = existing.project_id;
     const { rows } = await pool.query({
       name: 'custom_fields_patch',
       text: `UPDATE custom_fields SET ${updates.join(', ')} WHERE id = $${i} RETURNING *`,

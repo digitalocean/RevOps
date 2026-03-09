@@ -256,4 +256,58 @@ router.delete('/:id/members/:memberId', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /:id/apply-template — apply a saved template to this project (trackers + tasks)
+router.post('/:id/apply-template', async (req, res) => {
+  try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const { template_id } = req.body;
+    if (!template_id) return res.status(400).json({ error: 'template_id required' });
+
+    const projectId = req.params.id;
+    const allowedProjectIds = await getAccessibleProjectIds(pool, userId);
+    if (!allowedProjectIds.some(id => String(id) === String(projectId))) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    const tmpl = await pool.query({
+      name: 'templates_get_one',
+      text: 'SELECT * FROM project_templates WHERE id=$1',
+      values: [template_id],
+    });
+    if (!tmpl.rows.length) return res.status(404).json({ error: 'Template not found' });
+
+    const trackers = tmpl.rows[0].trackers || [];
+    const created = [];
+
+    for (const tracker of trackers) {
+      const tr = await pool.query({
+        name: 'templates_tracker_insert',
+        text: 'INSERT INTO trackers(project_id, name) VALUES($1,$2) RETURNING *',
+        values: [projectId, tracker.name],
+      });
+      const trackerId = tr.rows[0].id;
+
+      const tasks = tracker.tasks || [];
+      for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i];
+        const statusMap = {
+          'Not Started': 'not_started', 'On Track': 'in_progress',
+          'At Risk': 'at_risk', 'Complete': 'done', 'Blocked': 'blocked',
+          'In Review': 'in_review',
+        };
+        const priorityMap = { 'P0': 'critical', 'P1': 'high', 'P2': 'medium' };
+        await pool.query({
+          name: 'templates_item_insert',
+          text: 'INSERT INTO items(project_id, tracker_id, title, status, priority, sort_order) VALUES($1,$2,$3,$4,$5,$6)',
+          values: [projectId, trackerId, task.title, statusMap[task.status] || 'not_started', priorityMap[task.priority] || 'medium', i],
+        });
+      }
+      created.push(tracker.name);
+    }
+
+    res.json({ ok: true, created });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;

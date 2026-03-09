@@ -20,6 +20,20 @@ function isStandardColumn(header: string): boolean {
   return false;
 }
 
+/** Column index to use as task title (Initiative). Prefer standard title-like headers, then first column. */
+function getTitleColumnIndex(headers: string[]): number {
+  const standardTitle = headers.findIndex((h) =>
+    /^(title|task|name|item|initiative)$/i.test((h || '').trim())
+  );
+  if (standardTitle >= 0) return standardTitle;
+  const divisionTeam = headers.findIndex((h) => {
+    const lower = (h || '').toLowerCase();
+    return /division|functional\s*team|^team\b|organization|group\s*name/.test(lower);
+  });
+  if (divisionTeam >= 0) return divisionTeam;
+  return 0;
+}
+
 interface ImportTemplateDialogProps {
   open: boolean;
   onClose: () => void;
@@ -73,7 +87,8 @@ export function ImportTemplateDialog({
     }
     const hdrs = parsed[0].map((h) => (h || '').trim() || `Column ${parsed[0].indexOf(h) + 1}`);
     const dataRows = parsed.slice(1);
-    const customNames = hdrs.filter((h) => !isStandardColumn(h));
+    const titleColIdx = getTitleColumnIndex(hdrs);
+    const customNames = hdrs.filter((h, i) => !isStandardColumn(h) && i !== titleColIdx);
     setHeaders(hdrs);
     setRows(dataRows);
     setCustomFieldNames(customNames);
@@ -90,8 +105,7 @@ export function ImportTemplateDialog({
         setImporting(false);
         return;
       }
-      const titleIdx = headers.findIndex((h) => /^title$|^task$|^name$|^item$|^initiative$/i.test((h || '').trim()));
-      const firstCol = titleIdx >= 0 ? titleIdx : 0;
+      const firstCol = getTitleColumnIndex(headers);
       const descIdx = headers.findIndex((h) => /description|^desc$/i.test((h || '').trim()));
       const createdFieldIds: Record<string, string> = {};
       for (const name of customFieldNames) {
@@ -174,8 +188,7 @@ export function ImportTemplateDialog({
     if (!name) { toast.error('Enter a template name'); return; }
     setSavingTemplate(true);
     try {
-      const titleIdx = headers.findIndex((h) => /^title$|^task$|^name$|^item$|^initiative$/i.test((h || '').trim()));
-      const firstCol = titleIdx >= 0 ? titleIdx : 0;
+      const firstCol = getTitleColumnIndex(headers);
       const tasks = rows
         .map((row) => (row[firstCol] ?? row[0] ?? '').trim())
         .filter(Boolean)
@@ -324,11 +337,14 @@ export function ImportTemplateDialog({
 
           {step === 'preview' && (
             <>
-              <p className="text-sm text-gray-600 mb-2">
-                <strong>Custom fields to create (only these — no standard columns):</strong> {customFieldNames.length ? customFieldNames.join(', ') : 'None (all columns are standard).'}
+              <p className="text-sm text-gray-600 mb-1">
+                <strong>Task title (Initiative):</strong> &quot;{headers[getTitleColumnIndex(headers)]}&quot;
               </p>
               <p className="text-sm text-gray-600 mb-2">
-                <strong>Tasks to create:</strong> {rows.filter((r) => (r[headers[0]] ?? r[0])?.trim()).length} rows in a <strong>new section</strong>.
+                <strong>Custom fields to create:</strong> {customFieldNames.length ? customFieldNames.join(', ') : 'None (title column only).'}
+              </p>
+              <p className="text-sm text-gray-600 mb-2">
+                <strong>Tasks to create:</strong> {rows.filter((r) => (r[getTitleColumnIndex(headers)] ?? r[0])?.trim()).length} rows in a <strong>new section</strong>.
               </p>
               <label className="block text-xs font-medium text-gray-600 mt-3 mb-1">New section name</label>
               <input

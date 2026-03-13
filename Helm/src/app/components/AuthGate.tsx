@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { get } from '../api/meridian';
 import { AuthPage } from '../pages/AuthPage';
 import { Dashboard } from '../pages/Dashboard';
+import { toast } from 'sonner';
 
 type AuthUser = { id: string; email?: string; name?: string; initials?: string } | null;
 
@@ -14,6 +15,16 @@ export function AuthGate() {
       .then((data) => setUser(data.user ?? null))
       .catch(() => setUser(null))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('auth') === 'failed') {
+      toast.error('Sign-in was cancelled or failed. Try again.');
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (params.get('auth') === 'ok') {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
   }, []);
 
   if (loading) {

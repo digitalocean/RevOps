@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { post } from '../api/meridian';
+import { post, get, getApiBaseUrl } from '../api/meridian';
 
 interface AuthPageProps {
   onSuccess: (user: { id: string; email?: string; name?: string; initials?: string }) => void;
+}
+
+interface AuthProviders {
+  okta: boolean;
+  google: boolean;
 }
 
 export function AuthPage({ onSuccess }: AuthPageProps) {
@@ -15,6 +20,13 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [providers, setProviders] = useState<AuthProviders>({ okta: false, google: false });
+
+  useEffect(() => {
+    get<AuthProviders>('/api/auth/providers')
+      .then(setProviders)
+      .catch(() => setProviders({ okta: false, google: false }));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,6 +130,30 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
               >
                 {mode === 'login' ? 'Need an account? Register' : 'Already have an account? Sign in'}
               </button>
+
+              {providers.okta && (
+                <>
+                  <div className="relative my-2">
+                    <div className="absolute inset-0 flex items-center">
+                      <span className="w-full border-t border-gray-200" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-white px-2 text-gray-500">or</span>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-11 rounded-lg font-medium border-gray-300 hover:bg-gray-50"
+                    onClick={() => {
+                      const base = getApiBaseUrl();
+                      window.location.href = base ? `${base}/api/auth/okta` : '/api/auth/okta';
+                    }}
+                  >
+                    Sign in with Okta
+                  </Button>
+                </>
+              )}
             </div>
           </form>
         </div>

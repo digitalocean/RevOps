@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   name          VARCHAR(120),
   avatar_url    TEXT,
   google_id     VARCHAR(120) UNIQUE,
+  okta_id       VARCHAR(120) UNIQUE,
   password_hash VARCHAR(255),
   created_at    TIMESTAMPTZ DEFAULT NOW()
 );
@@ -277,6 +278,10 @@ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'last_login_at') THEN
     ALTER TABLE users ADD COLUMN last_login_at TIMESTAMPTZ;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'okta_id') THEN
+    ALTER TABLE users ADD COLUMN okta_id VARCHAR(120) UNIQUE;
   END IF;
   -- Items (spec: created_by, is_big_rock, position)
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'items')

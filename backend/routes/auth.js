@@ -4,6 +4,7 @@ const bcrypt = require('bcrypt');
 const { pool } = require('../server');
 
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+const OAuth2Strategy = require('passport-oauth2').Strategy;
 const SALT_ROUNDS = 10;
 
 const frontendUrl = () => {
@@ -53,6 +54,66 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
               name: 'auth_google_insert_user',
               text: 'INSERT INTO users (email, name, avatar_url, google_id) VALUES ($1, $2, $3, $4) RETURNING id, email, name, avatar_url',
               values: [email, name, avatar, googleId],
+            });
+            user = insert.rows[0];
+          }
+          return done(null, user);
+        } catch (err) {
+          return done(err, null);
+        }
+      }
+    )
+  );
+}
+
+// Okta OIDC (OAuth2 authorization code + userinfo)
+if (process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.OKTA_ISSUER) {
+  const oktaIssuer = process.env.OKTA_ISSUER.replace(/\/$/, '');
+  passport.use(
+    'okta',
+    new OAuth2Strategy(
+      {
+        authorizationURL: `${oktaIssuer}/v1/authorize`,
+        tokenURL: `${oktaIssuer}/v1/token`,
+        clientID: process.env.OKTA_CLIENT_ID,
+        clientSecret: process.env.OKTA_CLIENT_SECRET,
+        callbackURL: `${apiBase()}/api/auth/okta/callback`,
+        scope: ['openid', 'profile', 'email'],
+        state: true,
+        customHeaders: {},
+      },
+      async (accessToken, refreshToken, params, profile, done) => {
+        try {
+          const res = await fetch(`${oktaIssuer}/v1/userinfo`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (!res.ok) {
+            return done(new Error('Okta userinfo failed'), null);
+          }
+          const userinfo = await res.json();
+          const oktaSub = userinfo.sub;
+          const email = (userinfo.email || userinfo.preferred_username || `${oktaSub}@okta`).toLowerCase().trim();
+          const name = userinfo.name || [userinfo.given_name, userinfo.family_name].filter(Boolean).join(' ') || email.split('@')[0];
+
+          const existing = await pool.query({
+            name: 'auth_okta_find_user',
+            text: 'SELECT id, email, name, avatar_url FROM users WHERE okta_id = $1 OR email = $2 LIMIT 1',
+            values: [oktaSub, email],
+          });
+
+          let user;
+          if (existing.rows.length) {
+            await pool.query({
+              name: 'auth_okta_update_user',
+              text: 'UPDATE users SET name = $1, okta_id = $2 WHERE id = $3',
+              values: [name, oktaSub, existing.rows[0].id],
+            });
+            user = { id: existing.rows[0].id, email, name, avatar_url: existing.rows[0].avatar_url };
+          } else {
+            const insert = await pool.query({
+              name: 'auth_okta_insert_user',
+              text: 'INSERT INTO users (email, name, okta_id) VALUES ($1, $2, $3) RETURNING id, email, name, avatar_url',
+              values: [email, name, oktaSub],
             });
             user = insert.rows[0];
           }
@@ -119,7 +180,7 @@ router.post('/login', async (req, res, next) => {
     }
     const user = rows[0];
     if (!user.password_hash) {
-      return res.status(401).json({ error: 'Account uses Google sign-in. Use Log in with Google or set a password.' });
+      return res.status(401).json({ error: 'Account uses SSO. Use Sign in with Okta or Sign in with Google.' });
     }
     const ok = await bcrypt.compare(String(password), user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Invalid email or password' });
@@ -131,6 +192,14 @@ router.post('/login', async (req, res, next) => {
   } catch (e) {
     next(e);
   }
+});
+
+// Auth providers (so frontend can show Sign in with Okta / Google only when configured)
+router.get('/providers', (req, res) => {
+  res.json({
+    okta: !!(process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.OKTA_ISSUER),
+    google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
+  });
 });
 
 // Current user (from session)
@@ -180,6 +249,27 @@ router.get(
 router.get(
   '/google/callback',
   passport.authenticate('google', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` }),
+  (req, res) => {
+    res.redirect(`${frontendUrl()}/?auth=ok`);
+  }
+);
+
+// Start Okta OIDC
+router.get(
+  '/okta',
+  (req, res, next) => {
+    if (!process.env.OKTA_CLIENT_ID || !process.env.OKTA_CLIENT_SECRET || !process.env.OKTA_ISSUER) {
+      return res.status(503).json({ error: 'Okta sign-in is not configured' });
+    }
+    next();
+  },
+  passport.authenticate('okta', { scope: ['openid', 'profile', 'email'] })
+);
+
+// Okta OAuth callback
+router.get(
+  '/okta/callback',
+  passport.authenticate('okta', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` }),
   (req, res) => {
     res.redirect(`${frontendUrl()}/?auth=ok`);
   }

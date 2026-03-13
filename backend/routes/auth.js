@@ -3,7 +3,6 @@ const passport = require('passport');
 const bcrypt = require('bcrypt');
 const { pool } = require('../server');
 
-const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const OAuth2Strategy = require('passport-oauth2').Strategy;
 const SALT_ROUNDS = 10;
 
@@ -19,54 +18,7 @@ const apiBase = () => {
   return process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 4000}`;
 };
 
-if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-  passport.use(
-    new GoogleStrategy(
-      {
-        clientID: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-        callbackURL: `${apiBase()}/api/auth/google/callback`,
-        scope: ['profile', 'email'],
-      },
-      async (accessToken, refreshToken, profile, done) => {
-        try {
-          const email = profile.emails?.[0]?.value || profile.id + '@google';
-          const name = profile.displayName || email.split('@')[0];
-          const avatar = profile.photos?.[0]?.value || null;
-          const googleId = profile.id;
-
-          const existing = await pool.query({
-            name: 'auth_google_find_user',
-            text: 'SELECT id, email, name, avatar_url FROM users WHERE google_id = $1 OR email = $2 LIMIT 1',
-            values: [googleId, email],
-          });
-
-          let user;
-          if (existing.rows.length) {
-            await pool.query({
-              name: 'auth_google_update_user',
-              text: 'UPDATE users SET name = $1, avatar_url = $2, google_id = $3 WHERE id = $4',
-              values: [name, avatar, googleId, existing.rows[0].id],
-            });
-            user = { id: existing.rows[0].id, email, name, avatar_url: avatar };
-          } else {
-            const insert = await pool.query({
-              name: 'auth_google_insert_user',
-              text: 'INSERT INTO users (email, name, avatar_url, google_id) VALUES ($1, $2, $3, $4) RETURNING id, email, name, avatar_url',
-              values: [email, name, avatar, googleId],
-            });
-            user = insert.rows[0];
-          }
-          return done(null, user);
-        } catch (err) {
-          return done(err, null);
-        }
-      }
-    )
-  );
-}
-
-// Okta OIDC (OAuth2 authorization code + userinfo)
+// Okta OIDC (OAuth2 authorization code + userinfo) — only SSO provider
 if (process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.OKTA_ISSUER) {
   const oktaIssuer = process.env.OKTA_ISSUER.replace(/\/$/, '');
   passport.use(
@@ -180,7 +132,7 @@ router.post('/login', async (req, res, next) => {
     }
     const user = rows[0];
     if (!user.password_hash) {
-      return res.status(401).json({ error: 'Account uses SSO. Use Sign in with Okta or Sign in with Google.' });
+      return res.status(401).json({ error: 'Account uses Okta SSO. Use Sign in with Okta.' });
     }
     const ok = await bcrypt.compare(String(password), user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Invalid email or password' });
@@ -194,11 +146,10 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
-// Auth providers (so frontend can show Sign in with Okta / Google only when configured)
+// Auth providers (Okta OIDC only; frontend shows "Sign in with Okta" when okta is true)
 router.get('/providers', (req, res) => {
   res.json({
     okta: !!(process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.OKTA_ISSUER),
-    google: !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET),
   });
 });
 
@@ -232,27 +183,6 @@ router.post('/logout', (req, res, next) => {
     });
   });
 });
-
-// Start Google OAuth
-router.get(
-  '/google',
-  (req, res, next) => {
-    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-      return res.status(503).json({ error: 'Google sign-in is not configured' });
-    }
-    next();
-  },
-  passport.authenticate('google', { scope: ['profile', 'email'] })
-);
-
-// Google OAuth callback
-router.get(
-  '/google/callback',
-  passport.authenticate('google', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` }),
-  (req, res) => {
-    res.redirect(`${frontendUrl()}/?auth=ok`);
-  }
-);
 
 // Start Okta OIDC
 router.get(

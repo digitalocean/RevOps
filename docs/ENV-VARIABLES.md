@@ -29,10 +29,6 @@ OKTA_CLIENT_SECRET=paste-your-okta-client-secret
 # Optional: DB with self-signed cert (e.g. DO Managed DB)
 NODE_TLS_REJECT_UNAUTHORIZED=0
 
-# Optional: Google Sign-In
-# GOOGLE_CLIENT_ID=xxx.apps.googleusercontent.com
-# GOOGLE_CLIENT_SECRET=xxx
-
 # Optional: Voice / AI
 # OPENAI_API_KEY=sk-...
 # GRADIENT_MODEL_ACCESS_KEY=do-...
@@ -84,4 +80,4 @@ FRONTEND_URL=http://localhost:5173
 APP_URL=http://localhost:4000
 ```
 
-Add `OKTA_*` and/or `GOOGLE_*` when testing SSO locally. Use redirect URI `http://localhost:4000/api/auth/okta/callback` in Okta for local testing.
+Add `OKTA_*` when testing Okta locally. Use redirect URI `http://localhost:4000/api/auth/okta/callback` in Okta for local testing.

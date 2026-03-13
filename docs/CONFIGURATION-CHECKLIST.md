@@ -90,7 +90,11 @@ If your app is at **https://revops-ntkll.ondigitalocean.app/**:
 | **FRONTEND_URL** (api) | `https://revops-ntkll.ondigitalocean.app` |
 | **APP_URL** or **API_BASE_URL** (api) | `https://revops-ntkll.ondigitalocean.app` |
 | Okta Sign-in redirect URI | `https://revops-ntkll.ondigitalocean.app/api/auth/okta/callback` |
-| Google Authorized redirect URI (if used) | `https://revops-ntkll.ondigitalocean.app/api/auth/google/callback` |
+
+**Okta 404 when clicking “Sign in with Okta”:**
+- **Redirect URL to give Okta Admin** (exactly): `https://revops-ntkll.ondigitalocean.app/api/auth/okta/callback` (no trailing slash).
+- **Start URL** (where the app sends the user first): `https://revops-ntkll.ondigitalocean.app/api/auth/okta`.  
+- If you get 404: (1) Redeploy the **api** component so it runs the latest code with Okta routes. (2) Set **APP_URL** = `https://revops-ntkll.ondigitalocean.app` on the api so the callback URL is correct. (3) In the browser, open `https://revops-ntkll.ondigitalocean.app/api/auth/providers` — you should see `{"okta":true}`; if you get 404, the request is not reaching the API (check ingress / routing).
 
 ---
 

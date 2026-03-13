@@ -11,7 +11,6 @@ interface AuthPageProps {
 
 interface AuthProviders {
   okta: boolean;
-  google: boolean;
 }
 
 export function AuthPage({ onSuccess }: AuthPageProps) {
@@ -20,12 +19,12 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [providers, setProviders] = useState<AuthProviders>({ okta: false, google: false });
+  const [providers, setProviders] = useState<AuthProviders>({ okta: false });
 
   useEffect(() => {
     get<AuthProviders>('/api/auth/providers')
       .then(setProviders)
-      .catch(() => setProviders({ okta: false, google: false }));
+      .catch(() => setProviders({ okta: false }));
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

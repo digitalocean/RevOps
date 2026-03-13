@@ -1,4 +1,4 @@
-# Project Documentation — To-DO (Meridian) RevOps
+# Project Documentation — To-DO (Meridian) 
 
 This document describes the application architecture, authentication model, and how to integrate **Okta SSO**. Use it when planning or implementing Okta (or other SAML/OIDC) identity providers.
 
@@ -11,7 +11,7 @@ This document describes the application architecture, authentication model, and 
 - **Frontend:** React 18, TypeScript, Vite 6, Tailwind 4, Radix UI (in `Helm/`)
 - **Backend:** Node.js, Express, Passport (in `backend/`)
 - **Database:** PostgreSQL
-- **Auth:** Session-based; cookie (`todo.sid`); optional Google OAuth; **Okta can be added as another strategy**
+- **Auth:** Session-based; cookie (`todo.sid`); **Okta OIDC** as the SSO provider; email/password for register and login.
 
 Users sign in, then see projects they own or that are shared with them. All API access is gated by the current session user.
 
@@ -24,7 +24,7 @@ Users sign in, then see projects they own or that are shared with them. All API 
 | `Helm/` | Frontend app (Vite, React). Build: `npm run build`; dev: `npm run dev` (e.g. port 5173). |
 | `backend/` | API server. Run: `node server.js` (port 4000 or `PORT`). |
 | `backend/scripts/schema.sql` | DB schema; applied on server startup or via `npm run db:init`. |
-| `backend/routes/auth.js` | Auth routes: register, login, logout, `/me`, Google OAuth. |
+| `backend/routes/auth.js` | Auth routes: register, login, logout, `/me`, Okta OIDC. |
 | `backend/lib/access.js` | Helpers: `requireUser`, `getAccessibleProjectIds`, `canManageProject`. |
 
 Frontend calls the backend at **`VITE_API_URL`** (build-time) or a URL from query/localStorage (see `docs/API-CONNECTION.md`). All API requests use **`credentials: 'include'`** so the session cookie is sent.
@@ -55,10 +55,10 @@ Session holds the **serialized user** (see Passport below). No JWT; identity is 
 
 - **Strategies in use:**
   - **Local:** email + password (register + login in `auth.js`).
-  - **Google OAuth 2.0:** optional; enabled when `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set.
+  - **Okta OIDC:** enabled when `OKTA_CLIENT_ID`, `OKTA_CLIENT_SECRET`, and `OKTA_ISSUER` are set.
 - **Serialization:** Passport serializes/deserializes the **user object** (id, email, name, avatar_url) into the session. No DB lookup on each request if the session already has the user.
 
-After a successful login (local or Google), the server calls **`req.login(user, ...)`** so the same session shape is used regardless of strategy. All protected APIs then use **`req.user`**.
+After a successful login (local or Okta), the server calls **`req.login(user, ...)`** so the same session shape is used regardless of strategy. All protected APIs then use **`req.user`**.
 
 ---
 
@@ -68,7 +68,7 @@ After a successful login (local or Google), the server calls **`req.login(user, 
 
 | Table | Purpose |
 |-------|--------|
-| **users** | One row per human. `id` (UUID), `email` (unique), `name`, `avatar_url`, `password_hash`, `google_id` (optional). Used as the canonical identity for auth. |
+| **users** | One row per human. `id` (UUID), `email` (unique), `name`, `avatar_url`, `password_hash`, `okta_id` (optional). Used as the canonical identity for auth. |
 | **crew** | “Member” in a workspace; has `user_id` → `users.id`, plus `name`, `email`, `initials`, etc. A user can have multiple crew rows (e.g. different workspaces). |
 | **session** | Express session store (session id, data, expiry). |
 | **projects** | Has `created_by` → `users.id` (optional), `owner_id` → `crew.id`. |
@@ -79,9 +79,9 @@ Access control is **user-centric**: APIs resolve **`req.user.id`** (from session
 ### 4.2 User creation today
 
 - **Register:** `POST /api/auth/register` → insert into `users` with `password_hash`, then `req.login(user)`.
-- **Google:** Passport callback finds or creates `users` by `google_id` or `email`, then `req.login(user)`.
+- **Okta:** Passport callback finds or creates `users` by `okta_id` or `email`, then `req.login(user)`.
 
-For Okta, you will do the same pattern: **find or create a `users` row** from Okta’s identity (e.g. `sub` + email), then **`req.login(user)`** so the rest of the app is unchanged.
+Same pattern for any OIDC provider: **find or create a `users` row** from Okta’s identity (e.g. `sub` + email), then **`req.login(user)`** so the rest of the app is unchanged.
 
 ---
 
@@ -103,7 +103,7 @@ So for Okta: once the user is in the session (via a new Passport strategy + call
 
 For Okta you can either:
 
-- Add an “Sign in with Okta” button that redirects to the backend Okta route (same pattern as Google), or  
+- Add an “Sign in with Okta” button that redirects to the backend Okta route or  
 - Use Okta’s hosted login page and then have the backend validate the Okta token and create a session (e.g. token verification endpoint that calls `req.login(user)`).
 
 ---
@@ -116,10 +116,8 @@ For Okta you can either:
 | `SESSION_SECRET` | backend | **Required in production.** Secret for signing session cookies. |
 | `FRONTEND_URL` | backend | Allowed CORS origin and redirect base (e.g. `https://app.example.com`). |
 | `VITE_API_URL` | frontend (build) | Backend base URL (e.g. `https://api.example.com`). No trailing slash. |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | backend | Optional; enables Google sign-in. |
+| `OKTA_ISSUER`, `OKTA_CLIENT_ID`, `OKTA_CLIENT_SECRET` | backend | Required for Okta OIDC sign-in. |
 | `API_BASE_URL` or `APP_URL` | backend | Used in auth for OAuth callback URL (e.g. `https://api.example.com`). |
-
-For Okta you will add variables such as: `OKTA_ISSUER`, `OKTA_CLIENT_ID`, `OKTA_CLIENT_SECRET`, and optionally `OKTA_CALLBACK_URL` (or derive from `API_BASE_URL`).
 
 ---
 
@@ -134,7 +132,7 @@ For Okta you will add variables such as: `OKTA_ISSUER`, `OKTA_CLIENT_ID`, `OKTA_
    Okta can act as IdP with SAML. You would add a SAML strategy (e.g. `passport-saml`) and map SAML attributes to your `users` table (e.g. email, name), then create session the same way.
 
 3. **Hybrid**  
-   Keep email/password and Google; add Okta as an additional sign-in option. The session and `req.user` contract stay the same.
+   Keep email/password and add Okta as an additional sign-in option. The session and `req.user` contract stay the same. (This app uses Okta OIDC only; no Google.)
 
 ### 8.2 Recommended: OIDC with Passport
 
@@ -148,11 +146,11 @@ For Okta you will add variables such as: `OKTA_ISSUER`, `OKTA_CLIENT_ID`, `OKTA_
     - Calls `req.login(user, ...)` with the same user shape as today (`id`, `email`, `name`, `avatar_url`).
   - Mount routes, e.g. `GET /api/auth/okta`, `GET /api/auth/okta/callback` (and optionally a “Sign in with Okta” link that hits `/api/auth/okta`).
 - **Database:** Add column `okta_id` (or `oidc_sub`) to `users` if you want to link by Okta subject id; otherwise match by email (simpler but less strict).
-- **Frontend:** Add a button that redirects to `GET /api/auth/okta` (same pattern as Google). After callback, redirect to `FRONTEND_URL` (e.g. `/?auth=ok`); AuthGate will then call `/api/auth/me` and get the session user.
+- **Frontend:** Add a button that redirects to `GET /api/auth/okta`. After callback, redirect to `FRONTEND_URL` (e.g. `/?auth=ok`); AuthGate will then call `/api/auth/me` and get the session user.
 
 ### 8.3 User provisioning from Okta
 
-- **Just-in-time (JIT):** In the Passport callback, if no user exists for the Okta identity, insert one into `users` (and optionally create a default crew/workspace). This matches how Google sign-in works today.
+- **Just-in-time (JIT):** In the Passport callback, if no user exists for the Okta identity, insert one into `users` (and optionally create a default crew/workspace).
 - **Optional sync:** For stricter control, you could periodically sync users from Okta (e.g. SCIM or Okta API) and only allow sign-in for users that already exist in `users`; the callback would then only “find” and login.
 
 ### 8.4 Security and config checklist

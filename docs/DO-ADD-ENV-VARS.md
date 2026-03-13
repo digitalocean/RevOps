@@ -1,25 +1,36 @@
-# Add environment variables in DigitalOcean (manual)
+# Add environment variables in DigitalOcean
 
-If the variables from `app.yaml` don’t show up in your app, add them manually so you only paste **values**.
+Use **"Add from .env"** so all variables appear at once; then you only edit the **values**.
 
 ---
 
-## 1. API (backend) component
+## 1. API (backend) — add all variables in one go
 
-1. In DigitalOcean: **Apps** → your app (**meridian** / RevOps) → open the **api** service (not the database, not the static site).
-2. Go to **Settings** → **App-Level Environment Variables** (or **Component** → **Environment Variables**).
-3. Click **Edit** or **Add Variable** and add these **keys** one by one. For each key, paste your **value** in the value field.
+1. Open your app in DigitalOcean → **api** service → **Environment Variables**.
+2. You already have `DATABASE_URL`, `NODE_ENV`, `PORT`. Click **"Add from .env"** and either upload **`docs/do-api-env-extra.env`** or paste the block below. That adds only the missing keys (no duplicates).
+4. Replace only the **values** for:
+   - `SESSION_SECRET` → your long random string
+   - `OKTA_ISSUER` → your Okta issuer URL
+   - `OKTA_CLIENT_ID` → your Okta Client ID
+   - `OKTA_CLIENT_SECRET` → your Okta Client secret  
+   Keep `FRONTEND_URL` and `APP_URL` as `https://revops-ntkll.ondigitalocean.app` (or your app URL).
+5. Save.
 
-| Key (name) | Paste this value |
-|------------|-------------------|
-| `SESSION_SECRET` | A long random string (e.g. from `openssl rand -base64 32`) |
-| `FRONTEND_URL` | `https://revops-ntkll.ondigitalocean.app` |
-| `APP_URL` | `https://revops-ntkll.ondigitalocean.app` |
-| `OKTA_ISSUER` | Your Okta issuer URL (e.g. `https://your-org.okta.com/oauth2/default`) |
-| `OKTA_CLIENT_ID` | Your Okta app Client ID |
-| `OKTA_CLIENT_SECRET` | Your Okta app Client secret |
+**Block to paste into "Add from .env":**
 
-**Note:** `DATABASE_URL`, `NODE_ENV`, `PORT` are usually already set. If not, add them (e.g. `DATABASE_URL` from the linked database).
+```
+NODE_TLS_REJECT_UNAUTHORIZED=0
+SESSION_SECRET=PASTE_LONG_RANDOM_STRING
+FRONTEND_URL=https://revops-ntkll.ondigitalocean.app
+APP_URL=https://revops-ntkll.ondigitalocean.app
+OKTA_ISSUER=PASTE_OKTA_ISSUER
+OKTA_CLIENT_ID=PASTE_OKTA_CLIENT_ID
+OKTA_CLIENT_SECRET=PASTE_OKTA_CLIENT_SECRET
+```
+
+(Do **not** replace `DATABASE_URL` if it’s already set to `${db.DATABASE_URL}` — leave that as is. Only add the lines above so the new keys appear.)
+
+If **"Add from .env"** asks for a file, use **`docs/do-api-env-extra.env`** (only the extra keys, so you won’t get duplicate rows for DATABASE_URL, NODE_ENV, PORT).
 
 ---
 

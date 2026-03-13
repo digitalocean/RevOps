@@ -2,6 +2,8 @@
 
 Your app uses **one public URL** on DigitalOcean: the ingress sends `/api` to the API and `/` to the web app. So the same host is both frontend and backend (e.g. `https://revops-ntkll.ondigitalocean.app`).
 
+**Copy-paste env blocks:** See **[docs/ENV-VARIABLES.md](ENV-VARIABLES.md)** for ready-to-paste environment variable blocks (API + Web).
+
 Use this list to set all required values. Replace `https://revops-ntkll.ondigitalocean.app` with your actual app URL if different.
 
 ---

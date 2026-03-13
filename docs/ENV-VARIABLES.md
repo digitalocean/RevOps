@@ -2,6 +2,8 @@
 
 Use your app URL: **https://revops-ntkll.ondigitalocean.app** (no trailing slash). Replace with your own URL if different.
 
+**DigitalOcean:** All env **keys** are already defined in **`.do/app.yaml`**. In the DO dashboard you only **edit the values** (no need to add or create variable names). Deploy or sync the app from the repo so the spec is applied, then open API/Web component → Environment Variables and paste your values into the existing keys.
+
 ---
 
 ## API (backend) — DigitalOcean or local `.env`

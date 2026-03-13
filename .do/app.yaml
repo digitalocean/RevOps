@@ -32,6 +32,7 @@ alerts:
   - rule: DEPLOYMENT_FAILED
   - rule: DOMAIN_FAILED
 
+# Env keys are predefined below; in DigitalOcean dashboard only edit the values (no need to add keys).
 services:
   - name: api
     environment_slug: node-js
@@ -46,22 +47,27 @@ services:
       - key: PORT
         value: "8080"
         scope: RUN_TIME
-      # Allow DB SSL with self-signed cert (e.g. DO Managed Database)
       - key: NODE_TLS_REJECT_UNAUTHORIZED
         value: "0"
         scope: RUN_TIME
-      # Required in production so session cookies are signed (use a long random string).
       - key: SESSION_SECRET
-        value: "CHANGE_ME_use_a_long_random_string_in_production"
+        value: "PASTE_LONG_RANDOM_STRING"
         scope: RUN_TIME
-      # Optional: DigitalOcean Gradient AI for chat (voice→work item, etc.). Create in DO Control Panel → Gradient → Model API Key.
-      # - key: GRADIENT_MODEL_ACCESS_KEY
-      #   scope: RUN_TIME
-      #   value: "do-..."
-      # Optional: for voice transcription (Field Notes) — Whisper. Gradient does not offer speech-to-text.
-      # - key: OPENAI_API_KEY
-      #   scope: RUN_TIME
-      #   value: "sk-..."
+      - key: FRONTEND_URL
+        value: "https://revops-ntkll.ondigitalocean.app"
+        scope: RUN_TIME
+      - key: APP_URL
+        value: "https://revops-ntkll.ondigitalocean.app"
+        scope: RUN_TIME
+      - key: OKTA_ISSUER
+        value: "PASTE_OKTA_ISSUER"
+        scope: RUN_TIME
+      - key: OKTA_CLIENT_ID
+        value: "PASTE_OKTA_CLIENT_ID"
+        scope: RUN_TIME
+      - key: OKTA_CLIENT_SECRET
+        value: "PASTE_OKTA_CLIENT_SECRET"
+        scope: RUN_TIME
     github:
       deploy_on_push: true
       repo: digitalocean/RevOps
@@ -80,9 +86,8 @@ static_sites:
       - key: NPM_CONFIG_PRODUCTION
         value: "false"
         scope: BUILD_TIME
-      # Set to your app's public URL (e.g. https://your-app-xxxx.ondigitalocean.app) so the UI can reach the API
       - key: VITE_API_URL
-        value: "https://your-app-name.ondigitalocean.app"
+        value: "https://revops-ntkll.ondigitalocean.app"
         scope: BUILD_TIME
     github:
       deploy_on_push: true

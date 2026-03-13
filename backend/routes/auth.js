@@ -146,6 +146,11 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
+// Ping to verify auth routes are reachable (GET /api/auth/ping or /auth/ping)
+router.get('/ping', (req, res) => {
+  res.json({ ok: 'auth', path: req.path, okta: !!(process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.OKTA_ISSUER) });
+});
+
 // Auth providers (Okta OIDC only; frontend shows "Sign in with Okta" when okta is true)
 router.get('/providers', (req, res) => {
   res.json({
@@ -184,26 +189,19 @@ router.post('/logout', (req, res, next) => {
   });
 });
 
-// Start Okta OIDC
-router.get(
-  '/okta',
-  (req, res, next) => {
-    if (!process.env.OKTA_CLIENT_ID || !process.env.OKTA_CLIENT_SECRET || !process.env.OKTA_ISSUER) {
-      return res.status(503).json({ error: 'Okta sign-in is not configured' });
-    }
-    next();
-  },
-  passport.authenticate('okta', { scope: ['openid', 'profile', 'email'] })
-);
+// Start Okta OIDC (match /okta and /okta/ for robustness)
+function oktaStart(req, res, next) {
+  if (!process.env.OKTA_CLIENT_ID || !process.env.OKTA_CLIENT_SECRET || !process.env.OKTA_ISSUER) {
+    return res.status(503).json({ error: 'Okta sign-in is not configured' });
+  }
+  next();
+}
+router.get(['/okta', '/okta/'], oktaStart, passport.authenticate('okta', { scope: ['openid', 'profile', 'email'] }));
 
 // Okta OAuth callback
-router.get(
-  '/okta/callback',
-  passport.authenticate('okta', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` }),
-  (req, res) => {
-    res.redirect(`${frontendUrl()}/?auth=ok`);
-  }
-);
+router.get(['/okta/callback', '/okta/callback/'], passport.authenticate('okta', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` }), (req, res) => {
+  res.redirect(`${frontendUrl()}/?auth=ok`);
+});
 
 module.exports = router;
 module.exports.passport = passport;

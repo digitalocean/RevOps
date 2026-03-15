@@ -253,6 +253,11 @@ BEGIN
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'activity_log' AND column_name = 'details') THEN
     ALTER TABLE activity_log ADD COLUMN details JSONB DEFAULT '{}';
   END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'activity_log')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'activity_log' AND column_name = 'user_id') THEN
+    ALTER TABLE activity_log ADD COLUMN user_id UUID REFERENCES users(id) ON DELETE SET NULL;
+    UPDATE activity_log a SET user_id = (SELECT c.user_id FROM crew c WHERE c.id = a.crew_id LIMIT 1) WHERE a.crew_id IS NOT NULL AND a.user_id IS NULL;
+  END IF;
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'password_hash') THEN
     ALTER TABLE users ADD COLUMN password_hash VARCHAR(255);

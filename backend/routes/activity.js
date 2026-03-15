@@ -22,7 +22,15 @@ router.get('/', async (req, res) => {
 
     let rows = (await pool.query({
       name: 'activity_list',
-      text: 'SELECT a.id, a.project_id, a.crew_id, a.action, a.entity_type, a.entity_id, a.details, a.created_at, c.name as crew_name, c.initials as crew_initials FROM activity_log a LEFT JOIN crew c ON a.crew_id = c.id WHERE a.project_id = $1 ORDER BY a.created_at DESC LIMIT $2',
+      text: `SELECT a.id, a.project_id, a.crew_id, a.action, a.entity_type, a.entity_id, a.details, a.created_at,
+  COALESCE(c.name, u.name, u.email) AS crew_name,
+  COALESCE(c.initials, UPPER(SUBSTRING(COALESCE(TRIM(u.name), SPLIT_PART(u.email, '@', 1), '?') FROM 1 FOR 2)) AS crew_initials
+FROM activity_log a
+LEFT JOIN crew c ON a.crew_id = c.id
+LEFT JOIN users u ON a.user_id = u.id
+WHERE a.project_id = $1
+ORDER BY a.created_at DESC
+LIMIT $2`,
       values: [project_id, lim],
     })).rows;
 

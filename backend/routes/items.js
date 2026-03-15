@@ -108,8 +108,8 @@ async function logActivity(pool, projectId, userId, action, entityId, details = 
     const crewId = crew.rows[0]?.id || null;
     await pool.query({
       name: 'items_activity_insert',
-      text: `INSERT INTO activity_log (project_id, crew_id, action, entity_type, entity_id, details) VALUES ($1, $2, $3, 'item', $4, $5)`,
-      values: [projectId, crewId, action, entityId, JSON.stringify(details)],
+      text: `INSERT INTO activity_log (project_id, crew_id, user_id, action, entity_type, entity_id, details) VALUES ($1, $2, $3, $4, 'item', $5, $6)`,
+      values: [projectId, crewId, userId, action, entityId, JSON.stringify(details)],
     });
   } catch { /* non-fatal */ }
 }

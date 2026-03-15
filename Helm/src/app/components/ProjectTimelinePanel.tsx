@@ -40,73 +40,73 @@ const ACTION_META: Record<
   { label: string; icon: React.ReactNode; bg: string; text: string }
 > = {
   item_created: {
-    label: 'Created',
+    label: 'Task created',
     icon: <CheckCircle2 className="w-3 h-3" />,
     bg: 'bg-emerald-100',
     text: 'text-emerald-700',
   },
   item_deleted: {
-    label: 'Deleted',
+    label: 'Task deleted',
     icon: <Trash2 className="w-3 h-3" />,
     bg: 'bg-red-100',
     text: 'text-red-700',
   },
   item_updated: {
-    label: 'Updated',
+    label: 'Task updated',
     icon: <Edit3 className="w-3 h-3" />,
     bg: 'bg-slate-100',
     text: 'text-slate-700',
   },
   title_changed: {
-    label: 'Title',
+    label: 'Title changed',
     icon: <Type className="w-3 h-3" />,
     bg: 'bg-blue-100',
     text: 'text-blue-700',
   },
   status_changed: {
-    label: 'Status',
+    label: 'Status changed',
     icon: <ListChecks className="w-3 h-3" />,
     bg: 'bg-amber-100',
     text: 'text-amber-700',
   },
   priority_changed: {
-    label: 'Priority',
+    label: 'Priority changed',
     icon: <Edit3 className="w-3 h-3" />,
     bg: 'bg-orange-100',
     text: 'text-orange-700',
   },
   assignee_changed: {
-    label: 'Owner',
+    label: 'Owner changed',
     icon: <UserCheck className="w-3 h-3" />,
     bg: 'bg-violet-100',
     text: 'text-violet-700',
   },
   due_date_changed: {
-    label: 'Due date',
+    label: 'Due date changed',
     icon: <Calendar className="w-3 h-3" />,
     bg: 'bg-cyan-100',
     text: 'text-cyan-700',
   },
   category_changed: {
-    label: 'Category',
+    label: 'Category changed',
     icon: <Tag className="w-3 h-3" />,
     bg: 'bg-teal-100',
     text: 'text-teal-700',
   },
   tracker_created: {
-    label: 'Tracker',
+    label: 'Tracker created',
     icon: <LayoutList className="w-3 h-3" />,
     bg: 'bg-indigo-100',
     text: 'text-indigo-700',
   },
   tracker_updated: {
-    label: 'Tracker',
+    label: 'Tracker renamed',
     icon: <Edit3 className="w-3 h-3" />,
     bg: 'bg-indigo-100',
     text: 'text-indigo-700',
   },
   project_updated: {
-    label: 'Project',
+    label: 'Project renamed',
     icon: <Edit3 className="w-3 h-3" />,
     bg: 'bg-slate-100',
     text: 'text-slate-700',
@@ -186,9 +186,23 @@ function avatarColor(name: string | null | undefined): string {
   return `hsl(${hue}, 55%, 45%)`;
 }
 
+// Normalize name/initials from API (snake_case or camelCase)
+function getCrewName(row: ActivityItem): string | null {
+  const r = row as Record<string, unknown>;
+  const name = (r.crew_name ?? r.crewName) ?? null;
+  return name != null && String(name).trim() ? String(name).trim() : null;
+}
+function getCrewInitials(row: ActivityItem): string | null {
+  const r = row as Record<string, unknown>;
+  const initials = (r.crew_initials ?? r.crewInitials) ?? null;
+  return initials != null && String(initials).trim() ? String(initials).trim() : null;
+}
+
 function getActorDisplayName(row: ActivityItem): string {
-  if (row.crew_name && String(row.crew_name).trim()) return String(row.crew_name).trim();
-  if (row.crew_initials && String(row.crew_initials).trim()) return String(row.crew_initials).trim();
+  const name = getCrewName(row);
+  if (name) return name;
+  const initials = getCrewInitials(row);
+  if (initials) return initials;
   return 'Someone';
 }
 
@@ -559,8 +573,10 @@ export function ProjectTimelinePanel({
                       <ul className="space-y-1.5">
                         {items.map((a, idx) => {
                           const meta = getActionLabel(a.action);
-                          const initials = (a.crew_initials || a.crew_name?.slice(0, 2) || '?').toUpperCase();
-                          const color = avatarColor(a.crew_name || a.crew_initials);
+                          const crewName = getCrewName(a);
+                          const crewInitials = getCrewInitials(a);
+                          const initials = (crewInitials || crewName?.slice(0, 2) || '?').toUpperCase();
+                          const color = avatarColor(crewName || crewInitials);
                           return (
                             <li
                               key={`${a.id}-${idx}`}

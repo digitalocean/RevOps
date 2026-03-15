@@ -744,6 +744,19 @@ export function TrackerSection({
                 </span>
               </button>
             )}
+            {/* Always show Edit for non-uncategorized so first tracker is never missing it */}
+            {section.id !== 'uncategorized' && onRenameSection && editingSectionName === null && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex-shrink-0"
+                onClick={(e) => { e.stopPropagation(); setEditingSectionName(section.title); }}
+                title="Rename section"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </Button>
+            )}
           </div>
           {showSectionActions && section.id !== 'uncategorized' && (onMoveUp != null || onMoveDown != null || onDeleteSection || onRenameSection) && (
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>

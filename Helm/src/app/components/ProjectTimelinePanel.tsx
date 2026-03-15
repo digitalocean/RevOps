@@ -307,19 +307,23 @@ export function ProjectTimelinePanel({
 }: ProjectTimelinePanelProps) {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = async (silent = false) => {
     if (!projectId) {
       setActivities([]);
+      setLoadError(false);
       return;
     }
     if (!silent) setLoading(true);
+    setLoadError(false);
     try {
       const data = await get<ActivityItem[]>(`/api/activity?project_id=${projectId}&limit=80`);
       setActivities(Array.isArray(data) ? data : []);
     } catch {
       setActivities([]);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -390,6 +394,23 @@ export function ProjectTimelinePanel({
               <div className="flex flex-col items-center justify-center py-12 px-4">
                 <div className="w-8 h-8 border-2 border-slate-200 border-t-indigo-500 rounded-full animate-spin" />
                 <p className="text-xs text-slate-500 mt-3">Loading activity…</p>
+              </div>
+            ) : loadError ? (
+              <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
+                <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mb-3">
+                  <Clock className="w-6 h-6 text-red-400" />
+                </div>
+                <p className="text-sm font-medium text-slate-700">Couldn’t load activity</p>
+                <p className="text-xs text-slate-500 mt-1 max-w-[220px]">
+                  Check that the backend is running and you’re signed in. In dev, run the API and use the proxy.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => load()}
+                  className="mt-4 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                >
+                  Retry
+                </button>
               </div>
             ) : activities.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 px-4 text-center">

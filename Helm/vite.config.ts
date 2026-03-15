@@ -21,4 +21,12 @@ export default defineConfig({
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+
+  server: {
+    proxy: {
+      // In dev, forward /api and /auth to backend so activity and other APIs work without VITE_API_URL
+      '/api': { target: 'http://localhost:4000', changeOrigin: true },
+      '/auth': { target: 'http://localhost:4000', changeOrigin: true },
+    },
+  },
 })

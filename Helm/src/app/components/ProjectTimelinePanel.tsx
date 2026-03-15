@@ -206,6 +206,12 @@ function getActorDisplayName(row: ActivityItem): string {
   return 'Someone';
 }
 
+function formatDate(val: unknown): string {
+  if (!val) return '—';
+  const d = new Date(String(val));
+  return Number.isNaN(d.getTime()) ? '—' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 function getMessage(row: ActivityItem): React.ReactNode {
   const details = parseDetails(row.details) as {
     title?: string;
@@ -216,13 +222,16 @@ function getMessage(row: ActivityItem): React.ReactNode {
   };
   const taskTitle = details?.title ? `"${details.title}"` : 'a task';
   const actor = getActorDisplayName(row);
+  const from = details?.from != null && String(details.from).trim() !== '' ? String(details.from).trim() : null;
+  const to = details?.to != null ? String(details.to).trim() : null;
+  const hasFromTo = from !== null && to !== null && to !== '' && from !== to;
 
   switch (row.action) {
     case 'item_created':
       return (
         <>
           <span className="font-medium text-gray-900">{actor}</span>
-          <span className="text-gray-600"> created task </span>
+          <span className="text-gray-600"> added task </span>
           <span className="font-medium text-gray-800">{taskTitle}</span>
         </>
       );
@@ -230,7 +239,7 @@ function getMessage(row: ActivityItem): React.ReactNode {
       return (
         <>
           <span className="font-medium text-gray-900">{actor}</span>
-          <span className="text-gray-600"> deleted </span>
+          <span className="text-gray-600"> removed </span>
           <span className="font-medium text-gray-800">{taskTitle}</span>
         </>
       );
@@ -238,66 +247,122 @@ function getMessage(row: ActivityItem): React.ReactNode {
       return (
         <>
           <span className="font-medium text-gray-900">{actor}</span>
-          <span className="text-gray-600"> edited </span>
+          <span className="text-gray-600"> changed </span>
           <span className="font-medium text-gray-800">{taskTitle}</span>
         </>
       );
     case 'title_changed':
-      return (
+      return hasFromTo ? (
         <>
           <span className="font-medium text-gray-900">{actor}</span>
-          <span className="text-gray-600"> renamed to </span>
-          <span className="font-medium text-gray-800">&quot;{details?.to ?? taskTitle}&quot;</span>
+          <span className="text-gray-600"> changed title from </span>
+          <span className="font-medium text-gray-700">&quot;{from}&quot;</span>
+          <span className="text-gray-600"> to </span>
+          <span className="font-medium text-blue-700">&quot;{to}&quot;</span>
+        </>
+      ) : (
+        <>
+          <span className="font-medium text-gray-900">{actor}</span>
+          <span className="text-gray-600"> set title to </span>
+          <span className="font-medium text-blue-700">&quot;{to ?? taskTitle}&quot;</span>
         </>
       );
     case 'status_changed':
-      return (
+      return hasFromTo ? (
+        <>
+          <span className="font-medium text-gray-900">{actor}</span>
+          <span className="text-gray-600"> changed status from </span>
+          <span className="font-medium text-amber-600">{from}</span>
+          <span className="text-gray-600"> to </span>
+          <span className="font-medium text-amber-700">{to}</span>
+          <span className="text-gray-600"> for </span>
+          <span className="text-gray-700">{taskTitle}</span>
+        </>
+      ) : (
         <>
           <span className="font-medium text-gray-900">{actor}</span>
           <span className="text-gray-600"> set status to </span>
-          <span className="font-medium text-amber-700">{details?.to}</span>
+          <span className="font-medium text-amber-700">{to ?? '—'}</span>
           <span className="text-gray-600"> for </span>
           <span className="text-gray-700">{taskTitle}</span>
         </>
       );
     case 'priority_changed':
-      return (
+      return hasFromTo ? (
+        <>
+          <span className="font-medium text-gray-900">{actor}</span>
+          <span className="text-gray-600"> changed priority from </span>
+          <span className="font-medium text-orange-600">{from}</span>
+          <span className="text-gray-600"> to </span>
+          <span className="font-medium text-orange-700">{to}</span>
+          <span className="text-gray-600"> for </span>
+          <span className="text-gray-700">{taskTitle}</span>
+        </>
+      ) : (
         <>
           <span className="font-medium text-gray-900">{actor}</span>
           <span className="text-gray-600"> set priority to </span>
-          <span className="font-medium text-orange-700">{details?.to}</span>
+          <span className="font-medium text-orange-700">{to ?? '—'}</span>
           <span className="text-gray-600"> for </span>
           <span className="text-gray-700">{taskTitle}</span>
         </>
       );
     case 'assignee_changed':
-      return (
+      return hasFromTo ? (
         <>
           <span className="font-medium text-gray-900">{actor}</span>
-          <span className="text-gray-600"> assigned </span>
-          <span className="font-medium text-gray-800">{taskTitle}</span>
+          <span className="text-gray-600"> changed owner from </span>
+          <span className="font-medium text-violet-600">{from}</span>
           <span className="text-gray-600"> to </span>
-          <span className="font-medium text-violet-700">{details?.to ?? 'Unassigned'}</span>
+          <span className="font-medium text-violet-700">{to}</span>
+          <span className="text-gray-600"> for </span>
+          <span className="text-gray-700">{taskTitle}</span>
+        </>
+      ) : (
+        <>
+          <span className="font-medium text-gray-900">{actor}</span>
+          <span className="text-gray-600"> set owner to </span>
+          <span className="font-medium text-violet-700">{to ?? 'Unassigned'}</span>
+          <span className="text-gray-600"> for </span>
+          <span className="text-gray-700">{taskTitle}</span>
         </>
       );
     case 'due_date_changed':
-      return (
+      return hasFromTo ? (
+        <>
+          <span className="font-medium text-gray-900">{actor}</span>
+          <span className="text-gray-600"> changed due date from </span>
+          <span className="font-medium text-cyan-600">{formatDate(from)}</span>
+          <span className="text-gray-600"> to </span>
+          <span className="font-medium text-cyan-700">{formatDate(to)}</span>
+          <span className="text-gray-600"> for </span>
+          <span className="text-gray-700">{taskTitle}</span>
+        </>
+      ) : (
         <>
           <span className="font-medium text-gray-900">{actor}</span>
           <span className="text-gray-600"> set due date to </span>
-          <span className="font-medium text-cyan-700">
-            {details?.to ? new Date(String(details.to)).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
-          </span>
+          <span className="font-medium text-cyan-700">{formatDate(to)}</span>
           <span className="text-gray-600"> for </span>
           <span className="text-gray-700">{taskTitle}</span>
         </>
       );
     case 'category_changed':
-      return (
+      return hasFromTo ? (
+        <>
+          <span className="font-medium text-gray-900">{actor}</span>
+          <span className="text-gray-600"> changed category from </span>
+          <span className="font-medium text-teal-600">{from}</span>
+          <span className="text-gray-600"> to </span>
+          <span className="font-medium text-teal-700">{to}</span>
+          <span className="text-gray-600"> for </span>
+          <span className="text-gray-700">{taskTitle}</span>
+        </>
+      ) : (
         <>
           <span className="font-medium text-gray-900">{actor}</span>
           <span className="text-gray-600"> set category to </span>
-          <span className="font-medium text-teal-700">{details?.to ?? '—'}</span>
+          <span className="font-medium text-teal-700">{to ?? '—'}</span>
           <span className="text-gray-600"> for </span>
           <span className="text-gray-700">{taskTitle}</span>
         </>
@@ -306,7 +371,7 @@ function getMessage(row: ActivityItem): React.ReactNode {
       return (
         <>
           <span className="font-medium text-gray-900">{actor}</span>
-          <span className="text-gray-600"> created tracker </span>
+          <span className="text-gray-600"> added tracker </span>
           <span className="font-medium text-indigo-700">&quot;{details?.name ?? 'Tracker'}&quot;</span>
         </>
       );
@@ -314,7 +379,7 @@ function getMessage(row: ActivityItem): React.ReactNode {
       return (
         <>
           <span className="font-medium text-gray-900">{actor}</span>
-          <span className="text-gray-600"> renamed tracker to </span>
+          <span className="text-gray-600"> changed tracker name to </span>
           <span className="font-medium text-indigo-700">&quot;{details?.name ?? 'Tracker'}&quot;</span>
         </>
       );
@@ -322,7 +387,7 @@ function getMessage(row: ActivityItem): React.ReactNode {
       return (
         <>
           <span className="font-medium text-gray-900">{actor}</span>
-          <span className="text-gray-600"> renamed project to </span>
+          <span className="text-gray-600"> changed project name to </span>
           <span className="font-medium text-slate-700">&quot;{details?.name ?? 'Project'}&quot;</span>
         </>
       );

@@ -413,7 +413,7 @@ export function ProjectTimelinePanel({
                 </div>
                 <p className="text-sm font-medium text-slate-700">Couldn’t load activity</p>
                 <p className="text-xs text-slate-500 mt-1 max-w-[220px]">
-                  Be sure you’re signed in and the API is running. Dev: start the backend (e.g. <code className="text-[10px] bg-slate-100 px-1 rounded">npm run dev</code> in backend), then reload. Prod: set <code className="text-[10px] bg-slate-100 px-1 rounded">VITE_API_URL</code> to your API URL at build time.
+                  Sign in and ensure the API is running. Local: run <code className="text-[10px] bg-slate-100 px-1 rounded">npm run dev</code> in the <code className="text-[10px] bg-slate-100 px-1 rounded">backend</code> folder, then reload. Deployed: set <code className="text-[10px] bg-slate-100 px-1 rounded">VITE_API_URL</code> to your app URL when building the frontend (see <code className="text-[10px] bg-slate-100 px-1 rounded">docs/CONFIGURATION-CHECKLIST.md</code>).
                 </p>
                 <button
                   type="button"

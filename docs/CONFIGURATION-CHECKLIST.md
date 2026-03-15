@@ -106,3 +106,7 @@ If your app is at **https://revops-ntkll.ondigitalocean.app/**:
 4. Confirm the database is linked and **DATABASE_URL** is set for the API.
 
 After that, login and session cookies should work correctly in production. When you add Okta, add the three Okta env vars and the redirect URI above.
+
+**If the Activity panel shows “Couldn’t load activity”:**  
+- **Local:** Run the API (`npm run dev` in the `backend` folder) and use the frontend dev server so `/api` is proxied to the backend; stay signed in.  
+- **Deployed:** Set **VITE_API_URL** on the **web** component to your app URL (e.g. `https://revops-ntkll.ondigitalocean.app`), then **rebuild** the web app so the frontend can reach the API.

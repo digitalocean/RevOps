@@ -249,6 +249,10 @@ BEGIN
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'activity_log' AND column_name = 'entity_id') THEN
     ALTER TABLE activity_log ADD COLUMN entity_id UUID;
   END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'activity_log')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'activity_log' AND column_name = 'details') THEN
+    ALTER TABLE activity_log ADD COLUMN details JSONB DEFAULT '{}';
+  END IF;
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'password_hash') THEN
     ALTER TABLE users ADD COLUMN password_hash VARCHAR(255);

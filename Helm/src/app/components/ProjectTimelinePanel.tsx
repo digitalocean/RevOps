@@ -427,8 +427,8 @@ export function ProjectTimelinePanel({
                     {loadErrorMessage}
                   </p>
                 )}
-                <p className="text-xs text-slate-500 mt-1 max-w-[220px]">
-                  Sign in and ensure the API is running. Local: run the backend (<code className="text-[10px] bg-slate-100 px-1 rounded">backend</code> folder), then reload. Deployed: set <code className="text-[10px] bg-slate-100 px-1 rounded">VITE_API_URL</code> to your app URL and rebuild the frontend.
+                <p className="text-xs text-slate-500 mt-1 max-w-[240px]">
+                  If the message above says the request may not have reached the API, check that <code className="text-[10px] bg-slate-100 px-1 rounded">VITE_API_URL</code> matches your app URL (no path, e.g. <code className="text-[10px] bg-slate-100 px-1 rounded">https://your-app.ondigitalocean.app</code>), rebuild the frontend, and that the API component is running. Local: run the backend, then reload.
                 </p>
                 <button
                   type="button"

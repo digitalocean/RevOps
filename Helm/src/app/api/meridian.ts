@@ -43,7 +43,10 @@ export async function api<T = unknown>(path: string, opts: RequestInit = {}): Pr
   const contentType = res.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) {
     if (!res.ok) throw new Error(text?.slice(0, 80) || res.statusText || `Request failed (${res.status})`);
-    throw new Error('API returned non-JSON');
+    const hint = res.status === 200
+      ? 'Request may not have reached the API—wrong URL or backend not running.'
+      : `Server returned status ${res.status} with non-JSON response.`;
+    throw new Error(hint);
   }
   if (!res.ok) {
     let msg = res.statusText;

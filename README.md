@@ -119,7 +119,8 @@ curl -X POST http://localhost:4000/api/auth/register \
 
 ## 🚀 Deploy (DigitalOcean App Platform)
 
-The repo is ready for DigitalOcean App Platform using `.do/app.yaml`.
+The repo is ready for DigitalOcean App Platform using **`app.yaml`** (root) or **`.do/app.yaml`**.  
+**Full step-by-step (ingress, env vars, fixing Activity panel):** see **[docs/DEPLOY-DIGITALOCEAN.md](docs/DEPLOY-DIGITALOCEAN.md)**.
 
 ### Required environment variables
 

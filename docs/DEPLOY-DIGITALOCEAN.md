@@ -1,147 +1,119 @@
-# Deploy Meridian to DigitalOcean App Platform
+# Deploy to DigitalOcean App Platform (full setup in repo)
 
-## Recommended settings (helm-deploy)
-
-| Setting | Value |
-|--------|--------|
-| **Repository** | `https://github.com/digitalocean/RevOps` |
-| **Branch** | `helm-deploy` |
-| **API (service)** | Source directory: `/backend` |
-| **Web (static site)** | Source directory: `/Helm` |
-
-Use **Edit your App Spec** and paste `.do/app.yaml` from the repo (branch `helm-deploy`), or set the above in the dashboard for each component.
+Everything you need is in this repo. Follow these steps so the Activity panel and API work correctly.
 
 ---
 
-## How to configure in DigitalOcean
+## 1. Use the app spec from this repo
 
-### 1. Create the app from GitHub
+The repo includes a full App Platform spec so **ingress** (routing) is correct:
 
-1. In [DigitalOcean](https://cloud.digitalocean.com/) go to **Apps** → **Create App**.
-2. Choose **GitHub** and select repo **digitalocean/RevOps**, branch **helm-deploy**.
-3. Either use **App Spec** (recommended) or configure components manually.
+- **Path:** `app.yaml` (root) or `.do/app.yaml`
+- **Important:** The spec defines **ingress rules**: requests to `/api` go to the **api** component; everything else goes to the **web** (frontend). Without this, the Activity panel will show "Couldn't load activity."
 
----
+**If you create a new app from this repo:**
 
-### 2. App structure (what DigitalOcean runs)
+1. In DigitalOcean: **Apps** → **Create App** → **GitHub** (or **GitLab**).
+2. Select this repo and branch.
+3. If DO asks for an app spec, point it to **`app.yaml`** at the repo root (or use **.do/app.yaml**).  
+   Or after creation, go to **Settings** → **App Spec** and paste/load the contents of `app.yaml` so the **ingress** and both components (api + web) are defined.
 
-| Component | Type        | Source directory | Build / Run |
-|-----------|-------------|------------------|------------|
-| **db**    | Database    | —                | PostgreSQL 17 |
-| **api**   | Service     | `/backend`       | `npm start` (Node, port 8080) |
-| **web**   | Static Site | `/Helm` | `npm run build` → serve `dist` |
+**If the app already exists:**
 
-- **Ingress:** Requests to `/api/*` go to **api**; everything else (`/`) goes to **web** (React SPA).
+1. Open your app → **Settings** (or **App Spec**).
+2. Ensure the spec has an **ingress** section like this (order matters: `/api` first, then `/`):
 
----
+```yaml
+ingress:
+  rules:
+    - component:
+        name: api
+      match:
+        path:
+          prefix: /api
+    - component:
+        name: web
+      match:
+        path:
+          prefix: /
+```
 
-### 3. Using the App Spec (`.do/app.yaml`)
-
-If you use **Edit your App Spec** in the dashboard:
-
-1. Paste or sync from the repo the contents of **`.do/app.yaml`**.
-2. **Replace these** with your values:
-   - **`github.repo`** – your GitHub repo (e.g. `your-username/agileops-full`).
-   - **`github.branch`** – branch to deploy (e.g. `meridian` or `main`).
-3. Set **`VITE_API_URL`** (BUILD_TIME) to your app URL (e.g. `https://revops-ntkll.ondigitalocean.app`) so the Meridian UI can reach the API. Or use same-origin: the UI uses `window.location.origin` when not set.
-4. Save and deploy.
-
----
-
-### 4. Environment variables (required)
-
-#### API (backend) component
-
-| Variable       | Scope    | Value / Notes |
-|----------------|----------|----------------|
-| `DATABASE_URL` | RUN_TIME | From linked DB: `${db.DATABASE_URL}` (or paste connection string) |
-| `NODE_ENV`     | RUN_TIME | `production` |
-| `PORT`         | RUN_TIME | `8080` |
-
-Optional:
-
-- **`FRONTEND_URL`** – Your app URL (e.g. `https://meridian-xxxxx.ondigitalocean.app`) if you want to restrict CORS to that origin.
-
-#### Web (Helm — Meridian UI, built from /Helm) component
-
-- **`NPM_CONFIG_PRODUCTION`** = `false` (BUILD_TIME) so devDependencies install during build.
-- **Do not set `VITE_API_URL`** when using the default ingress (same app URL for web and `/api`). The app uses same-origin requests so `/api` is routed to the API. Only set `VITE_API_URL` (BUILD_TIME) if your API is on a **different** URL.
-
-#### Database (db)
-
-- Created by the spec; **api** gets `DATABASE_URL` via `${db.DATABASE_URL}`.
+3. Save and **redeploy** the app so the new routing is applied.
 
 ---
 
-### 5. Static site (web) settings
+## 2. Set environment variables
 
-- **Build command:** `npm install && npm run build`
-- **Output directory:** `dist`
-- **Index document:** `index.html`
-- **Catchall document:** `index.html` (so SPA routes like `/board` work)
+### API component (backend)
 
----
+In the **api** service → **Environment Variables**, set (or confirm):
 
-### 6. After first deploy
+| Key | Value | Notes |
+|-----|--------|--------|
+| `DATABASE_URL` | (auto from linked DB) | Attach the database to the app if not already. |
+| `NODE_ENV` | `production` | |
+| `PORT` | `8080` | |
+| `SESSION_SECRET` | (long random string) | e.g. run `openssl rand -base64 32` and paste. |
+| `FRONTEND_URL` | `https://YOUR-APP-URL.ondigitalocean.app` | Your app’s public URL, no trailing slash. |
+| `APP_URL` | Same as `FRONTEND_URL` | For auth redirects. |
+| `OKTA_ISSUER` / `OKTA_CLIENT_ID` / `OKTA_CLIENT_SECRET` | (from Okta) | Only if you use Okta SSO. |
 
-1. Open your app using its **main URL** (e.g. `https://meridian-xxxxx.ondigitalocean.app` from the app overview). The Meridian UI uses relative `/api` or `VITE_API_URL`, so it must be served from that same URL.
-2. Check the API: open `https://your-app.ondigitalocean.app/api/health` — you should see `{"status":"ok","db":"connected","schema":true}`.
+Replace `YOUR-APP-URL` with your actual app host (e.g. `revops-ntkll`).
 
----
+### Web component (frontend)
 
-### 7. Quick checklist
+In the **web** (static site) component → **Environment Variables** (build-time):
 
-- [ ] Repo and branch set correctly in app spec or UI.
-- [ ] **api** `source_dir`: `/backend`.
-- [ ] **web** `source_dir`: `/Helm`.
-- [ ] **api** has `DATABASE_URL`, `NODE_ENV=production`, `PORT=8080`.
-- [ ] **web** has `NPM_CONFIG_PRODUCTION=false` (BUILD_TIME). No need for `VITE_API_URL` — app uses relative `/api` URLs.
-- [ ] **web** index and catchall document = `index.html`.
-- [ ] Database (PostgreSQL) created and linked to **api**.
+| Key | Value |
+|-----|--------|
+| `VITE_API_URL` | `https://YOUR-APP-URL.ondigitalocean.app` |
 
----
-
-### 8. Troubleshooting
-
-| Issue | Check |
-|-------|--------|
-| **Build failure** (non-zero exit / missing start) | **api**: `backend/package.json` must have a `"build"` script and `"start": "node server.js"`. **web**: `tailwindcss`, etc. in deps; `engines.node` set. |
-| Blank page | Check browser console; ensure **web** build succeeded. |
-| **“Cannot reach API”** | Open the app from its **main URL** (e.g. `https://your-app.ondigitalocean.app`), not a separate “web” or “static” link. The app uses relative `/api` URLs. **Redeploy the web component** after pulling the latest code, then open the main app URL. Verify API: open `https://your-app.ondigitalocean.app/api/health` — should return `{"status":"ok","db":"connected"}`. |
-| “Failed to fetch” / API errors | **api** is running and has `DATABASE_URL`. Check `/api/health` in the browser. |
-| 404 on refresh | Catchall document = `index.html` for the static site. |
-| DB errors | **api** has `DATABASE_URL`; database is running and reachable. |
-
-Health check URL: `https://your-app-url.ondigitalocean.app/api/health` — should return `{"status":"ok","db":"connected",...}`.
-
-**If you still get a build or runtime error:** In the DigitalOcean dashboard go to your app → **Runtime Logs** or **Build Logs** for the failing component (api or web). Copy the **exact error message** (last 20–30 lines). Common causes: wrong **Source Directory** (must be `/backend` for api, `/Helm` for web), **Database** not linked to the api component, or wrong **Branch**.
+Same URL as above, **no** `/api` at the end. After changing this, **trigger a new build** of the web component (Redeploy or push a commit).
 
 ---
 
-### 9. Logs show old app (e.g. "helm-backend", "node src/index.js")
+## 3. Repo layout (so DO finds backend and frontend)
 
-If Runtime Logs show **helm-backend** and **node src/index.js**, the component is **not** running Meridian. Meridian uses **meridian-backend** and **node server.js**.
+The spec expects:
 
-**Fix:** See **[DO-DASHBOARD-CHECKLIST.md](DO-DASHBOARD-CHECKLIST.md)** for step-by-step DigitalOcean dashboard actions. In short: either **replace the entire App Spec** with the contents of `.do/app.yaml` (Option A), or fix the **revops** component’s **Branch** = `meridian`, **Source Directory** = `backend` or `/backend`, **Run Command** = `node server.js` (Option B), then **Force Build and Deploy** with **Clear Build Cache**.
+- **API:** `source_dir: /backend` (or `backend` at repo root).
+- **Web:** `source_dir: /Helm` (or `Helm` at repo root).
+
+If your repo has a different layout, edit the `source_dir` values in `app.yaml` / `.do/app.yaml` to match (e.g. `source_dir: backend`, `source_dir: Helm`).
 
 ---
 
-### 10. "Deploy cluster proxy not ready" when viewing logs
+## 4. Verify after deploy
 
-This is a DigitalOcean platform message: the log viewer can’t connect to the deploy environment. It often happens when:
+1. Open your app URL and log in.
+2. Open a project and expand the **Activity** panel (right side).
+3. If you see "Couldn't load activity", click **Check API** in the panel.
+   - **"API is reachable"** → Try **Retry** or sign in again; the API is working.
+   - **"Request returned a page instead of JSON"** → Ingress is wrong: add the `/api` → **api** rule (Step 1) and redeploy.
 
-- **App structure doesn’t match the spec** — The spec defines two components: **api** (service) and **web** (static site). If the app was created manually and has a single component (e.g. named **revops**), the internal routing and proxy can be wrong and logs may never become available.
+You can also open in a new tab:
 
-**What to do:**
+`https://YOUR-APP-URL.ondigitalocean.app/api/health`
 
-1. **Use the app spec from the repo**  
-   In the DO app: **Settings** → **App Spec** → **Edit**. Replace the spec with the contents of `.do/app.yaml` from the **meridian** branch (components must be named **api** and **web**). Save and deploy. Then try logs again after the new deployment finishes.
+- **JSON** (e.g. `{"status":"ok",...}`) → API is reachable.
+- **HTML** → Ingress is not sending `/api` to the API; fix the app spec and redeploy.
 
-2. **Create a new app from the spec**  
-   Create a new App → **Edit your App Spec** → paste the full contents of `.do/app.yaml` (from the meridian branch). Connect the same GitHub repo and **meridian** branch. This gives you the correct structure (api + web + db) and often fixes proxy/log issues.
+---
 
-3. **Check deployment status**  
-   In **Activity** / **Deployments**, see if the latest deploy is **Failed** or **Live**. If it’s Failed, open that deployment and read the **build** or **deploy** error there (you don’t need runtime logs for that). If it’s Live, open the app URL to confirm it works.
+## 5. Copy-paste env blocks
 
-4. **DigitalOcean status and support**  
-   Check [status.digitalocean.com](https://status.digitalocean.com). If the problem continues, contact DigitalOcean support and mention “deploy cluster proxy not ready” when fetching logs for the app.
+See **`docs/ENV-VARIABLES.md`** and **`docs/do-api-env-paste.env`** for ready-to-paste values. Use **Add from .env** in the DO dashboard for the API component so all keys appear at once.
+
+---
+
+## Quick checklist
+
+| Step | Action |
+|------|--------|
+| 1 | App spec has **ingress** with `/api` → **api** and `/` → **web**. |
+| 2 | **api** component: set `SESSION_SECRET`, `FRONTEND_URL`, `APP_URL`, and DB linked. |
+| 3 | **web** component: set `VITE_API_URL` to app URL, then **rebuild** web. |
+| 4 | Redeploy the whole app after changing the spec or ingress. |
+| 5 | In the app, use **Check API** in the Activity panel to confirm the API is reachable. |
+
+All of this is driven by the **app spec** in the repo (`app.yaml` / `.do/app.yaml`). Once the spec is loaded and env vars are set, deploy from the repo and the Activity panel should work.

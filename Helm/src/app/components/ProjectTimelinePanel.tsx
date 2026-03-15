@@ -309,7 +309,38 @@ export function ProjectTimelinePanel({
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
+  const [apiCheckStatus, setApiCheckStatus] = useState<'idle' | 'checking' | 'ok' | 'html' | 'error'>('idle');
+  const [apiCheckMessage, setApiCheckMessage] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const checkApiReachable = async () => {
+    setApiCheckStatus('checking');
+    setApiCheckMessage(null);
+    try {
+      const url = `${window.location.origin}/api/health`;
+      const res = await fetch(url, { credentials: 'include', method: 'GET' });
+      const contentType = res.headers.get('content-type') ?? '';
+      const text = await res.text();
+      if (contentType.includes('application/json')) {
+        const data = text ? JSON.parse(text) : {};
+        if (data.status === 'ok') {
+          setApiCheckStatus('ok');
+          setApiCheckMessage('API is reachable. If activity still fails, try Retry or sign in again.');
+        } else {
+          setApiCheckStatus('ok');
+          setApiCheckMessage('API responded; activity may need a valid project.');
+        }
+      } else {
+        setApiCheckStatus('html');
+        setApiCheckMessage(
+          'Request returned a page instead of JSON. In DigitalOcean, add an Ingress rule: path prefix /api → api component (before the / rule), then redeploy.'
+        );
+      }
+    } catch (e) {
+      setApiCheckStatus('error');
+      setApiCheckMessage(e instanceof Error ? e.message : 'Check failed');
+    }
+  };
 
   const load = async (silent = false) => {
     if (!projectId) {
@@ -428,15 +459,34 @@ export function ProjectTimelinePanel({
                   </p>
                 )}
                 <p className="text-xs text-slate-500 mt-1 max-w-[240px]">
-                  If the message above says the request may not have reached the API, check that <code className="text-[10px] bg-slate-100 px-1 rounded">VITE_API_URL</code> matches your app URL (no path, e.g. <code className="text-[10px] bg-slate-100 px-1 rounded">https://your-app.ondigitalocean.app</code>), rebuild the frontend, and that the API component is running. Local: run the backend, then reload.
+                  On DigitalOcean: ensure Ingress has path <code className="text-[10px] bg-slate-100 px-1 rounded">/api</code> → api component, then redeploy. Use “Check API” below to verify.
                 </p>
-                <button
-                  type="button"
-                  onClick={() => load()}
-                  className="mt-4 px-3 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
-                >
-                  Retry
-                </button>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => load()}
+                    className="px-3 py-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-colors"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={checkApiReachable}
+                    disabled={apiCheckStatus === 'checking'}
+                    className="px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {apiCheckStatus === 'checking' ? 'Checking…' : 'Check API'}
+                  </button>
+                </div>
+                {apiCheckStatus !== 'idle' && apiCheckStatus !== 'checking' && apiCheckMessage && (
+                  <p
+                    className={`mt-3 text-[11px] max-w-[260px] ${
+                      apiCheckStatus === 'ok' ? 'text-emerald-700' : apiCheckStatus === 'html' ? 'text-amber-700' : 'text-red-700'
+                    }`}
+                  >
+                    {apiCheckMessage}
+                  </p>
+                )}
               </div>
             ) : activities.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 px-4 text-center">

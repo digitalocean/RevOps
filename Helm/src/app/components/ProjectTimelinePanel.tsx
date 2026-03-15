@@ -461,6 +461,19 @@ export function ProjectTimelinePanel({
                 <p className="text-xs text-slate-500 mt-1 max-w-[240px]">
                   On DigitalOcean: ensure Ingress has path <code className="text-[10px] bg-slate-100 px-1 rounded">/api</code> → api component, then redeploy. Use “Check API” below to verify.
                 </p>
+                {projectId && (
+                  <p className="text-[11px] mt-2 max-w-[260px]">
+                    <a
+                      href={`${typeof window !== 'undefined' ? window.location.origin : ''}/api/activity?project_id=${projectId}&limit=10`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-600 hover:underline break-all"
+                    >
+                      Open activity URL in new tab
+                    </a>
+                    {' — if you see JSON (or “project_id required”), the API is reachable; if you see the app page, /api is not routed to the API.'}
+                  </p>
+                )}
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"

@@ -121,5 +121,10 @@ Use **Step 1** first; the result tells you whether the fix is ingress (Step 3), 
 4. **Confirm the api component is running**  
    In DO → your app → **api** component. Status should be **Running** and the last deploy **Succeeded**.
 
-5. **Use “Check API” in the Activity panel**  
-   In the app, open the Activity panel and click **Check API**. If it says “Request returned a page instead of JSON”, the request is still hitting the static site — redeploy and hard refresh again.
+5. **Use the Activity panel link**  
+   When the panel shows the error, click **“Open activity URL in new tab”**.  
+   - If the new tab shows **JSON** (a list or `[]`) or a short message like “project_id required”, the API is reachable; the panel issue may be session or project access.  
+   - If the new tab shows **your app’s page** (login or UI), `/api` is still going to the static site — fix the Ingress rule and redeploy.
+
+6. **Use “Check API” in the Activity panel**  
+   Click **Check API**. If it says “Request returned a page instead of JSON”, the request is still hitting the static site — redeploy and hard refresh again.

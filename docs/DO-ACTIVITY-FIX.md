@@ -1,6 +1,8 @@
 # Fix “Couldn’t load activity” on DigitalOcean
 
-If you’ve set environment variables but the Activity panel still shows an error on your deployed app, follow these steps.
+**Do this first:** Apps → your app → **Networking** tab → **Add routing rule** → Route path: **`/api`** → Target component: **api** → Save → **Deploy**. Then reload the app and try the Activity panel again.
+
+If you’ve set environment variables but the Activity panel still shows an error, follow the steps below.
 
 ---
 
@@ -31,32 +33,46 @@ Then the problem is likely **session/cookies** (e.g. not logged in on that domai
 
 ## Step 3: Ingress — send `/api` to the API component
 
-When `/api/health` returns HTML, the ingress is sending `/api` traffic to the **web** (static) component instead of the **api** component.
+When `/api/health` returns HTML, the request is going to the **web** (static) component instead of the **api** component. Route `/api` to the API using one of the two methods below.
 
-1. In DigitalOcean: **Apps** → your app → **Settings** (or **Components**).
-2. Find **Ingress** or **Routing** (path-based routing).
-3. Ensure you have a rule like:
-   - **Path:** prefix **`/api`**
-   - **Component:** **api**
-   - This rule must be **above** or **before** any rule that uses path **`/`** (catch-all).
-4. If you use an **app spec** (e.g. `.do/app.yaml`), the ingress section should look like:
+---
 
-   ```yaml
-   ingress:
-     rules:
-       - component:
-           name: api
-         match:
-           path:
-             prefix: /api
-       - component:
-           name: web
-         match:
-           path:
-             prefix: /
-   ```
+### Option A: In the DigitalOcean dashboard (do this first)
 
-5. Save and **redeploy** the app so the new routing is applied.
+1. Go to **[cloud.digitalocean.com/apps](https://cloud.digitalocean.com/apps)** and open your app (e.g. **meridian** / **revops**).
+2. Click the **Networking** tab (top of the app page).
+3. In **Component routing rules**, click **Add routing rule** (or **Edit** if you already have rules).
+4. Add a rule:
+   - **Route path:** `/api` or `/api/` (this matches all URLs that start with `/api`).
+   - **Target component:** choose your **api** (backend) component.
+   - If there is a “Path handling” option, use **Forward** or default (do not rewrite the path).
+5. If you have another rule that matches **all** paths (e.g. `/` or blank), make sure the **`/api`** rule is **above** it so `/api` is handled first.
+6. Save the rule(s), then go to the **Overview** or **Components** tab and click **Deploy** (or trigger a redeploy) so the new routing is applied.
+
+After redeploying, open **https://revops-ntkll.ondigitalocean.app/api/health** again. You should see JSON instead of the app’s HTML page.
+
+---
+
+### Option B: Using the app spec (YAML)
+
+If your app is created/updated from the repo’s app spec, the ingress block should look like this. You can paste this into **Settings → App Spec** (or use the repo’s **`app.yaml`**), then save and redeploy:
+
+```yaml
+ingress:
+  rules:
+    - component:
+        name: api
+      match:
+        path:
+          prefix: /api
+    - component:
+        name: web
+      match:
+        path:
+          prefix: /
+```
+
+The **`/api`** rule must be listed **before** the **`/`** rule so that API requests hit the backend and not the static site.
 
 ---
 

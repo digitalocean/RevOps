@@ -113,6 +113,7 @@ export interface MeridianDataResult {
   selectedProjectId: string | null;
   setSelectedProjectId: (id: string | null) => void;
   createProject: (payload: { name: string; description?: string; color?: string; is_personal?: boolean }) => Promise<Project | null>;
+  updateProject: (projectId: string, payload: { name?: string; description?: string; color?: string }) => Promise<unknown>;
   createSprint: (projectId: string, name: string, start_date?: string, end_date?: string) => Promise<Sprint | null>;
   createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; status?: string; category?: string; due_date?: string; type?: string }, parentId?: string | null, trackerId?: string | null) => Promise<unknown>;
   createSection: (projectId: string, name: string, columns?: string[]) => Promise<{ id: string; name: string } | null>;
@@ -125,6 +126,7 @@ export interface MeridianDataResult {
   sprints: Sprint[];
   crew: { id: string; name: string; initials: string; role: string }[];
   customFields: { id: string; name: string; field_type: string; target: string }[];
+  standardFields: { id: string; field_key: string; name: string; field_type: string; options_json?: unknown[] }[];
 }
 
 function apiPath(path: string): string {
@@ -263,6 +265,17 @@ export function useMeridianData(): MeridianDataResult {
     await load();
     if (p?.id) setSelectedProjectId(p.id);
     return p ?? null;
+  }, [load]);
+
+  const updateProject = useCallback(async (projectId: string, payload: { name?: string; description?: string; color?: string }): Promise<unknown> => {
+    const body: Record<string, string> = {};
+    if (payload.name !== undefined) body.name = payload.name.trim();
+    if (payload.description !== undefined) body.description = payload.description;
+    if (payload.color !== undefined) body.color = payload.color;
+    if (Object.keys(body).length === 0) return null;
+    const res = await patch(apiPath(`api/projects/${projectId}`), body);
+    await load();
+    return res;
   }, [load]);
 
   const createSprint = useCallback(async (
@@ -409,6 +422,7 @@ export function useMeridianData(): MeridianDataResult {
     selectedProjectId,
     setSelectedProjectId,
     createProject,
+    updateProject,
     createSprint,
     createItem,
     updateItem,

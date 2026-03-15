@@ -6,6 +6,8 @@ interface ProjectTimelinePanelProps {
   projectId: string | null;
   expanded: boolean;
   onToggle: () => void;
+  /** Increment to force a refresh of the activity list (e.g. after create/update/delete). */
+  refreshKey?: number;
 }
 
 interface ActivityItem {
@@ -64,7 +66,7 @@ function getMessage(row: ActivityItem): React.ReactNode {
   }
 }
 
-export function ProjectTimelinePanel({ projectId, expanded, onToggle }: ProjectTimelinePanelProps) {
+export function ProjectTimelinePanel({ projectId, expanded, onToggle, refreshKey = 0 }: ProjectTimelinePanelProps) {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -86,7 +88,7 @@ export function ProjectTimelinePanel({ projectId, expanded, onToggle }: ProjectT
     if (projectId) load();
     intervalRef.current = setInterval(() => projectId && load(true), 45000);
     return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [projectId]);
+  }, [projectId, refreshKey]);
 
   if (!projectId) return null;
 

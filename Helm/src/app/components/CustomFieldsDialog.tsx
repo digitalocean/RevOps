@@ -71,11 +71,8 @@ const FIELD_TYPES = [
   { value: 'multi_select', label: 'Multi-select', icon: ListOrdered },
 ] as const;
 
-const APPLIES_TO = [
-  { value: 'task', label: 'Task' },
-  { value: 'tracker', label: 'Tracker' },
-  { value: 'project', label: 'Project' },
-] as const;
+// Only task-level fields are supported; custom/standard fields apply to tasks only.
+const APPLIES_TO_TASK_ONLY = [{ value: 'task', label: 'Task' }] as const;
 
 function typeIcon(fieldType: string) {
   const t = FIELD_TYPES.find((f) => f.value === fieldType);
@@ -500,12 +497,7 @@ export function CustomFieldsDialog({
                   ))}
                 </div>
 
-                <Label className="text-[11px] uppercase tracking-wider text-[#9CA3AF] font-medium mb-2">Applies to</Label>
-                <div className="flex gap-1 p-1 rounded-lg bg-[#F0F0F4] mb-4">
-                  {APPLIES_TO.map(({ value, label }) => (
-                    <button key={value} type="button" onClick={() => setAppliesTo(value)} className={`flex-1 py-1.5 rounded-md text-sm font-medium ${appliesTo === value ? 'bg-white text-[#0F0F13] shadow-sm' : 'text-[#6B7280] hover:text-[#0F0F13]'}`}>{label}</button>
-                  ))}
-                </div>
+                <p className="text-xs text-[#6B7280] mb-4">Applies to <strong>Task</strong> level only. Fields will appear in trackers and task details.</p>
 
                 <div className="flex items-center gap-2 mb-4">
                   <Switch id="required" checked={isRequired} onCheckedChange={setIsRequired} />

@@ -94,6 +94,7 @@ export function BaseCampView({
     : DEFAULT_STANDARD_FIELDS;
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [showAudit, setShowAudit] = useState(false);
+  const [auditFilter, setAuditFilter] = useState<'all' | 'custom_field' | 'standard_field'>('all');
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
   const defaultOrder = [...standardFieldsList.map((c) => c.id), ...taskFields.map((f) => f.id)];
@@ -190,6 +191,19 @@ export function BaseCampView({
         <div>
           <h2 className="text-lg font-semibold text-gray-900 mb-2">Field Audit history</h2>
           <p className="text-sm text-gray-500 mb-4">Field metadata only: new custom/standard fields, picklist option changes, etc.</p>
+          <div className="flex gap-2 mb-4">
+            <span className="text-xs font-medium text-gray-500 uppercase tracking-wide self-center">Filter:</span>
+            {(['all', 'custom_field', 'standard_field'] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setAuditFilter(f)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium ${auditFilter === f ? 'bg-indigo-100 text-indigo-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              >
+                {f === 'all' ? 'All' : f === 'custom_field' ? 'Custom fields' : 'Standard fields'}
+              </button>
+            ))}
+          </div>
           {auditLoading ? (
             <div className="py-8 text-center text-gray-500 text-sm">Loading…</div>
           ) : auditEntries.length === 0 ? (
@@ -199,6 +213,7 @@ export function BaseCampView({
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
+                    <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-600 uppercase">Type</th>
                     <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-600 uppercase">User</th>
                     <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-600 uppercase">Date</th>
                     <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-600 uppercase">Entity</th>
@@ -207,8 +222,15 @@ export function BaseCampView({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {auditEntries.map((e) => (
+                  {auditEntries
+                    .filter((e) => auditFilter === 'all' || e.entity_type === auditFilter)
+                    .map((e) => (
                     <tr key={e.id} className="hover:bg-gray-50/80">
+                      <td className="py-2 px-3">
+                        <span className={`text-[10px] font-medium uppercase px-1.5 py-0.5 rounded ${e.entity_type === 'standard_field' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'}`}>
+                          {e.entity_type === 'standard_field' ? 'Standard' : 'Custom'}
+                        </span>
+                      </td>
                       <td className="py-2 px-3 font-medium text-gray-900">{e.crew_name || '—'}</td>
                       <td className="py-2 px-3 text-gray-500">{new Date(e.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</td>
                       <td className="py-2 px-3 text-gray-700">{e.entity_name || e.entity_type || '—'}</td>

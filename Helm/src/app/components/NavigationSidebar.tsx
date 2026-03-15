@@ -56,13 +56,16 @@ interface NavigationSidebarProps {
   onOpenItem?: (itemId: string) => void;
   onDeleteSection?: (trackerId: string) => void;
   onRenameSection?: (trackerId: string, newName: string) => void;
+  onRenameProject?: (projectId: string, newName: string) => void;
 }
 
 export function NavigationSidebar({
   projects, selectedProjectId, onSelectProject, onOpenNewProject,
   trackerSections = [], crew, onOpenAddCrew, currentView, onNavigateView, onOpenPersonalTasks,
-  fieldNotesCount = 0, myTasksCount = 0, onOpenItem, onDeleteSection, onRenameSection,
+  fieldNotesCount = 0, myTasksCount = 0,   onOpenItem, onDeleteSection, onRenameSection, onRenameProject,
 }: NavigationSidebarProps) {
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingProjectName, setEditingProjectName] = useState('');
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(
     () => new Set(selectedProjectId ? [selectedProjectId] : [])
   );
@@ -140,20 +143,66 @@ export function NavigationSidebar({
             const projectTrackers = isActive ? trackerSections : [];
 
             return (
-              <div key={p.id} className="mb-0.5">
+              <div key={p.id} className="mb-0.5 group">
                 <div className="flex items-center gap-0.5">
                   <button type="button" onClick={() => toggleSet(setExpandedProjects, p.id)}
                     className="p-1 text-gray-400 hover:text-gray-600 rounded flex-shrink-0">
                     {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                   </button>
                   <button type="button"
-                    onClick={() => { onSelectProject(p.id); if (!isExpanded) toggleSet(setExpandedProjects, p.id); }}
+                    onClick={() => { if (editingProjectId !== p.id) { onSelectProject(p.id); if (!isExpanded) toggleSet(setExpandedProjects, p.id); } }}
                     className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-sm truncate transition-colors ${
                       isActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                     }`}>
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
-                    <span className="truncate">{p.name}</span>
+                    {editingProjectId === p.id ? (
+                      <input
+                        type="text"
+                        value={editingProjectName}
+                        onChange={(e) => setEditingProjectName(e.target.value)}
+                        onBlur={() => {
+                          if (onRenameProject && editingProjectName.trim() && editingProjectName.trim() !== p.name) {
+                            onRenameProject(p.id, editingProjectName.trim());
+                          }
+                          setEditingProjectId(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (onRenameProject && editingProjectName.trim() && editingProjectName.trim() !== p.name) {
+                              onRenameProject(p.id, editingProjectName.trim());
+                            }
+                            setEditingProjectId(null);
+                          } else if (e.key === 'Escape') {
+                            setEditingProjectName(p.name);
+                            setEditingProjectId(null);
+                          }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 min-w-0 bg-white border border-blue-300 rounded px-1.5 py-0.5 text-sm text-gray-900"
+                        autoFocus
+                      />
+                    ) : (
+                      <span
+                        className="truncate flex-1"
+                        title="Double-click to rename"
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          if (onRenameProject) {
+                            setEditingProjectId(p.id);
+                            setEditingProjectName(p.name);
+                          }
+                        }}
+                      >
+                        {p.name}
+                      </span>
+                    )}
                   </button>
+                  {onRenameProject && editingProjectId !== p.id && (
+                    <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-gray-400 hover:text-gray-700 opacity-0 group-hover:opacity-100 flex-shrink-0" onClick={(e) => { e.stopPropagation(); setEditingProjectId(p.id); setEditingProjectName(p.name); }} title="Rename project">
+                      <Pencil className="w-3 h-3" />
+                    </Button>
+                  )}
                 </div>
 
                 {isExpanded && (

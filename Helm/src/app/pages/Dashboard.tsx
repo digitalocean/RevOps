@@ -79,6 +79,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     selectedProjectId,
     setSelectedProjectId,
     createProject,
+    updateProject,
     createSprint,
     createItem,
     createSection,
@@ -129,6 +130,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const [showImportTemplate, setShowImportTemplate] = useState(false);
   const [drawerInitiative, setDrawerInitiative] = useState<Initiative | null>(null);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [activityRefreshKey, setActivityRefreshKey] = useState(0);
+  const refreshActivity = useCallback(() => setActivityRefreshKey((k) => k + 1), []);
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile sidebar
   const [showPomodoro, setShowPomodoro] = useState(false);
   const [pomodoroTask, setPomodoroTask] = useState<string | undefined>(undefined);
@@ -169,12 +172,14 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     },
     onCompleteItem: async (id) => {
       await updateItem(id, { status: 'Complete' });
+      refreshActivity();
       toast.success('Marked complete ✓');
     },
     onDeleteItem: async (id) => {
       const init = initiatives.find(i => i.id === id);
       if (init && confirm(`Delete "${init.name}"?`)) {
         await deleteItem(id);
+        refreshActivity();
         setFocusedId(null);
       }
     },
@@ -250,6 +255,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           title: item.name + ' (copy)',
           description: item.description,
         }, undefined, item.tracker_id ?? undefined);
+        refreshActivity();
         toast.success('Item duplicated');
       } catch {
         toast.error('Failed to duplicate item');
@@ -257,7 +263,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     };
     window.addEventListener('todo:duplicate-item', handler);
     return () => window.removeEventListener('todo:duplicate-item', handler);
-  }, [initiatives, selectedProjectId, createItem]);
+  }, [initiatives, selectedProjectId, createItem, refreshActivity]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -327,7 +333,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         created++;
       } catch {}
     }
-    if (created > 0) toast.success(`Imported ${created} tasks`);
+    if (created > 0) { refreshActivity(); toast.success(`Imported ${created} tasks`); }
   };
 
   const handleBulkStatusChange = async (status: Status) => {
@@ -335,6 +341,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     try {
       await Promise.all(selectedIds.map((id) => updateItem(id, { status })));
       setSelectedIds([]);
+      refreshActivity();
       toast.success(`Updated ${count} item(s) to ${status}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to update status');
@@ -346,6 +353,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     try {
       await Promise.all(selectedIds.map((id) => updateItem(id, { priority })));
       setSelectedIds([]);
+      refreshActivity();
       toast.success(`Updated ${count} item(s) to ${priority}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to update priority');
@@ -358,6 +366,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     try {
       await Promise.all(selectedIds.map((id) => deleteItem(id)));
       setSelectedIds([]);
+      refreshActivity();
       toast.success(`Deleted ${count} item(s)`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to delete');
@@ -370,6 +379,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     try {
       await Promise.all(selectedIds.map((id) => updateItem(id, { assignee_id: assigneeId })));
       setSelectedIds([]);
+      refreshActivity();
       toast.success(`Assigned ${count} item(s) to ${name}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to assign owner');
@@ -406,11 +416,13 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           await createItem(selectedProjectId, createItemPayload(row), undefined, trackerId ?? undefined);
         }
       }
+      refreshActivity();
     } else if (data.rows?.length) {
       const trackerId = trackerSections.find(s => s.id !== 'uncategorized')?.id ?? null;
       await Promise.all(data.rows.map(row =>
         createItem(selectedProjectId, createItemPayload(row), undefined, trackerId ?? undefined)
       ));
+      refreshActivity();
     }
   };
 
@@ -471,6 +483,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 onOpenItem={(id) => { const init = initiatives.find(i => i.id === id); if (init) setDrawerInitiative(init); }}
                 onDeleteSection={deleteSection}
                 onRenameSection={(trackerId, newName) => updateSection(trackerId, { name: newName })}
+                onRenameProject={(projectId, newName) => updateProject(projectId, { name: newName })}
               />
             </div>
           </div>
@@ -504,6 +517,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
             onOpenItem={(id) => { const init = initiatives.find(i => i.id === id); if (init) setDrawerInitiative(init); }}
             onDeleteSection={deleteSection}
             onRenameSection={(trackerId, newName) => updateSection(trackerId, { name: newName })}
+            onRenameProject={(projectId, newName) => updateProject(projectId, { name: newName })}
           />
         </div>
         <>
@@ -633,6 +647,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                       visibleColumns={visibleColumns}
                       onVisibleColumnsChange={setVisibleColumns}
                       customFields={customFields}
+                      standardFields={standardFields}
                     />
                   </>
                 )}
@@ -671,8 +686,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 crew={crew}
                 currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
                 projects={projects}
-                onUpdateItem={updateItem}
-                onDeleteItem={deleteItem}
+                onUpdateItem={async (id, payload) => { await updateItem(id, payload); refreshActivity(); }}
+                onDeleteItem={async (id) => { await deleteItem(id); refreshActivity(); }}
               />
             ) : currentView === 'personal_tasks' ? (
               <PersonalTasksView
@@ -719,8 +734,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 initiatives={initiatives}
                 crew={crew}
                 onUpdateStatus={async (id, status) => updateItem(id, { status })}
-                onUpdateItem={updateItem}
-                onDeleteItem={deleteItem}
+                onUpdateItem={async (id, payload) => { await updateItem(id, payload); refreshActivity(); }}
+                onDeleteItem={async (id) => { await deleteItem(id); refreshActivity(); }}
                 onAddItem={() => setShowAddInitiative(true)}
               />
             ) : (
@@ -788,8 +803,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     onCreateItem={async (projectId, payload, trackerId) => {
                       await createItem(projectId, payload, undefined, trackerId ?? undefined);
                     }}
-                    onUpdateItem={updateItem}
-                    onDeleteItem={deleteItem}
+                    onUpdateItem={async (id, payload) => { await updateItem(id, payload); refreshActivity(); }}
+                    onDeleteItem={async (id) => { await deleteItem(id); refreshActivity(); }}
                     onCreateSubItem={(parentId) => { setAddInitiativeParentId(parentId); setAddInitiativeTrackerId(null); setShowAddInitiative(true); }}
                     onItemCompleted={() => setCelebrateCount((c) => c + 1)}
                     priorityOptions={priorityOptions}
@@ -812,6 +827,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               projectId={selectedProjectId}
               expanded={timelineExpanded}
               onToggle={() => setTimelineExpanded((e) => !e)}
+              refreshKey={activityRefreshKey}
             />
           )}
         </div>
@@ -827,9 +843,10 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           crew={crew}
           currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
           onClose={() => { setDrawerInitiative(null); setSelectedInitiativeFromSearch(null); }}
-          onSave={async (id, payload) => { await updateItem(id, payload); }}
+          onSave={async (id, payload) => { await updateItem(id, payload); refreshActivity(); }}
           onDelete={async (id) => {
             await deleteItem(id);
+            refreshActivity();
             setDrawerInitiative(null);
             setSelectedInitiativeFromSearch(null);
           }}
@@ -908,7 +925,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         open={showNewSection}
         onOpenChange={setShowNewSection}
         projectId={selectedProjectId}
-        onCreate={async (pid, name) => createSection(pid, name, Array.from(visibleColumns))}
+        onCreate={async (pid, name) => { await createSection(pid, name, Array.from(visibleColumns)); refreshActivity(); }}
       />
 
       <CompletionCelebration trigger={celebrateCount > 0} label="Item completed!" />

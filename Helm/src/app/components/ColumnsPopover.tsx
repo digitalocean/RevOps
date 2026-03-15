@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
 
-const COLUMN_IDS = [
+const DEFAULT_COLUMN_IDS = [
   { id: 'name', label: 'Initiative' },
   { id: 'category', label: 'Category' },
   { id: 'priority', label: 'Priority' },
@@ -33,7 +33,7 @@ function orderStorageKey(projectId: string | null, userId?: string | null): stri
 }
 
 /** Default built-in columns to show when user has not saved a preference (keeps table usable). */
-const DEFAULT_VISIBLE_COLUMN_IDS = COLUMN_IDS.map((c) => c.id);
+const DEFAULT_VISIBLE_COLUMN_IDS = DEFAULT_COLUMN_IDS.map((c) => c.id);
 
 export function loadVisibleColumns(projectId: string | null, userId?: string | null): Set<string> {
   if (typeof window === 'undefined' || !projectId) return new Set(DEFAULT_VISIBLE_COLUMN_IDS);
@@ -79,12 +79,20 @@ export function saveColumnOrder(projectId: string | null, order: string[], userI
   } catch (_) {}
 }
 
+interface StandardFieldDef {
+  id?: string;
+  field_key?: string;
+  name: string;
+}
+
 interface ColumnsPopoverProps {
   projectId: string | null;
   userId?: string | null;
   visibleColumns: Set<string>;
   onVisibleColumnsChange: (visible: Set<string>) => void;
   customFields?: CustomFieldDef[];
+  /** Standard fields from API (global). When provided, used with custom fields to build the full column list. */
+  standardFields?: StandardFieldDef[];
 }
 
 function isTaskFieldForColumns(f: CustomFieldDef) {
@@ -103,12 +111,16 @@ export function ColumnsPopover({
   visibleColumns,
   onVisibleColumnsChange,
   customFields = [],
+  standardFields = [],
 }: ColumnsPopoverProps) {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const taskFields = customFields.filter(isTaskFieldForColumns);
+  const standardCols = standardFields.length > 0
+    ? standardFields.map((f) => ({ id: f.field_key || f.id || '', label: f.name })).filter((c) => c.id)
+    : DEFAULT_COLUMN_IDS;
   const allColumns = [
-    ...COLUMN_IDS,
+    ...standardCols,
     ...taskFields.map((f) => ({ id: f.id, label: f.name })),
   ];
 

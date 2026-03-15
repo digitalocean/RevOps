@@ -629,6 +629,7 @@ export function TrackerSection({
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedInitiative, setSelectedInitiative] = useState<Initiative | null>(null);
   const [showNewRow, setShowNewRow] = useState(false);
+  const [editingSectionName, setEditingSectionName] = useState<string | null>(null);
 
   if (viewMode === 'gantt') return null;
 
@@ -693,17 +694,57 @@ export function TrackerSection({
     <>
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         <div className="border-b border-gray-200 px-4 py-3 bg-gray-50 flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center gap-2 text-sm font-semibold text-gray-900 hover:text-gray-700 transition-colors"
-          >
-            {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
-            {section.title}
-            <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-gray-200 text-gray-700 rounded-full">
-              {filteredInitiatives.length}
-            </span>
-          </button>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <button
+              type="button"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="p-0.5 text-gray-500 hover:text-gray-700 flex-shrink-0"
+            >
+              {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+            </button>
+            {editingSectionName !== null ? (
+              <input
+                type="text"
+                value={editingSectionName}
+                onChange={(e) => setEditingSectionName(e.target.value)}
+                onBlur={() => {
+                  if (onRenameSection && editingSectionName.trim() && editingSectionName.trim() !== section.title) {
+                    onRenameSection(section.id, editingSectionName.trim());
+                  }
+                  setEditingSectionName(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (onRenameSection && editingSectionName.trim() && editingSectionName.trim() !== section.title) {
+                      onRenameSection(section.id, editingSectionName.trim());
+                    }
+                    setEditingSectionName(null);
+                  } else if (e.key === 'Escape') {
+                    setEditingSectionName(null);
+                  }
+                }}
+                className="flex-1 min-w-0 text-sm font-semibold text-gray-900 border border-blue-300 rounded px-2 py-1 bg-white"
+                autoFocus
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="flex items-center gap-2 text-sm font-semibold text-gray-900 hover:text-gray-700 transition-colors text-left flex-1 min-w-0"
+                title={section.id !== 'uncategorized' && onRenameSection ? 'Double-click to rename section' : undefined}
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  if (section.id !== 'uncategorized' && onRenameSection) setEditingSectionName(section.title);
+                }}
+              >
+                <span className="truncate">{section.title}</span>
+                <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-gray-200 text-gray-700 rounded-full flex-shrink-0">
+                  {filteredInitiatives.length}
+                </span>
+              </button>
+            )}
+          </div>
           {showSectionActions && section.id !== 'uncategorized' && (onMoveUp != null || onMoveDown != null || onDeleteSection || onRenameSection) && (
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
               {onMoveUp != null && (
@@ -716,16 +757,13 @@ export function TrackerSection({
                   <ChevronDown className="w-4 h-4" />
                 </Button>
               )}
-              {onRenameSection && (
+              {onRenameSection && editingSectionName === null && (
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
                   className="h-7 px-2 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 gap-1"
-                  onClick={() => {
-                    const newName = window.prompt('Section name', section.title);
-                    if (newName != null && newName.trim()) onRenameSection(section.id, newName.trim());
-                  }}
+                  onClick={() => setEditingSectionName(section.title)}
                 >
                   <Pencil className="w-3 h-3" />
                   Edit

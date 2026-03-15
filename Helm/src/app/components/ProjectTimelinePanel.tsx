@@ -21,8 +21,6 @@ interface ProjectTimelinePanelProps {
   expanded: boolean;
   onToggle: () => void;
   refreshKey?: number;
-  /** When the activity API fails, show these as "Recent tasks" so the panel isn’t empty. */
-  fallbackTasks?: { id: string; name: string; owner?: string }[];
 }
 
 interface ActivityItem {
@@ -306,24 +304,20 @@ export function ProjectTimelinePanel({
   expanded,
   onToggle,
   refreshKey = 0,
-  fallbackTasks = [],
 }: ProjectTimelinePanelProps) {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
-  const [usingFallback, setUsingFallback] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = async (silent = false) => {
     if (!projectId) {
       setActivities([]);
       setLoadError(false);
-      setUsingFallback(false);
       return;
     }
     if (!silent) setLoading(true);
     setLoadError(false);
-    setUsingFallback(false);
     try {
       const query = `project_id=${projectId}&limit=80`;
       let data: ActivityItem[] | undefined;
@@ -336,45 +330,11 @@ export function ProjectTimelinePanel({
           data = undefined;
         }
       }
-      if (Array.isArray(data) && data.length >= 0) {
-        setActivities(data);
-      } else if (fallbackTasks.length > 0) {
-        setActivities(
-          fallbackTasks.slice(0, 50).map((t, i) => ({
-            id: `fallback-${t.id}-${i}`,
-            action: 'item_updated',
-            entity_type: 'item',
-            entity_id: t.id,
-            details: { title: t.name },
-            created_at: new Date().toISOString(),
-            crew_name: t.owner ?? null,
-            crew_initials: t.owner ? t.owner.slice(0, 2).toUpperCase() : null,
-          }))
-        );
-        setUsingFallback(true);
-      } else {
-        setActivities([]);
-        setLoadError(true);
-      }
+      setActivities(Array.isArray(data) ? data : []);
+      if (!Array.isArray(data)) setLoadError(true);
     } catch {
-      if (fallbackTasks.length > 0) {
-        setActivities(
-          fallbackTasks.slice(0, 50).map((t, i) => ({
-            id: `fallback-${t.id}-${i}`,
-            action: 'item_updated',
-            entity_type: 'item',
-            entity_id: t.id,
-            details: { title: t.name },
-            created_at: new Date().toISOString(),
-            crew_name: t.owner ?? null,
-            crew_initials: t.owner ? t.owner.slice(0, 2).toUpperCase() : null,
-          }))
-        );
-        setUsingFallback(true);
-      } else {
-        setActivities([]);
-        setLoadError(true);
-      }
+      setActivities([]);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -438,21 +398,6 @@ export function ProjectTimelinePanel({
               </div>
             </div>
           </div>
-
-          {usingFallback && (
-            <div className="shrink-0 px-3 py-2 bg-amber-50 border-b border-amber-100 flex items-center justify-between gap-2">
-              <p className="text-[11px] text-amber-800">
-                Showing recent tasks. Activity API unavailable.
-              </p>
-              <button
-                type="button"
-                onClick={() => load()}
-                className="text-[11px] font-medium text-amber-700 hover:text-amber-900"
-              >
-                Retry
-              </button>
-            </div>
-          )}
 
           {/* Feed */}
           <div className="flex-1 overflow-y-auto min-h-0">

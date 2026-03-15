@@ -109,4 +109,4 @@ After that, login and session cookies should work correctly in production. When 
 
 **If the Activity panel shows “Couldn’t load activity”:**  
 - **Local:** Run the API (`npm run dev` in the `backend` folder) and use the frontend dev server so `/api` is proxied to the backend; stay signed in.  
-- **Deployed:** (1) Set **VITE_API_URL** on the **web** component to your app URL only (e.g. `https://revops-ntkll.ondigitalocean.app`), then **rebuild** the web app. (2) In **App Platform → your app → Settings → Ingress**, ensure a rule with path **prefix `/api`** routes to the **api** component and is listed **before** the rule for `/` so `/api/activity` hits the API, not the static site. (3) Confirm the **api** component is running and healthy.
+- **Deployed (DO):** See **[DO-ACTIVITY-FIX.md](DO-ACTIVITY-FIX.md)**. Quick check: open `https://your-app.ondigitalocean.app/api/health` — if you see HTML, fix **Ingress** so `/api` → **api** component and redeploy. Set **VITE_API_URL** (web, build-time), then **rebuild** the web component.

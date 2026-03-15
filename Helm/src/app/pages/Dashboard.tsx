@@ -847,6 +847,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               expanded={timelineExpanded}
               onToggle={() => setTimelineExpanded((e) => !e)}
               refreshKey={activityRefreshKey}
+              fallbackTasks={initiatives.map((i) => ({ id: i.id, name: i.name, owner: i.owner }))}
             />
           )}
         </div>

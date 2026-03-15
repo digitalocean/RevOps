@@ -104,3 +104,22 @@ The **`/api`** rule must be listed **before** the **`/`** rule so that API reque
 | Activity still broken after above | Confirm **api** is running (Step 5); try `/api/activity?project_id=...` in a tab. |
 
 Use **Step 1** first; the result tells you whether the fix is ingress (Step 3), rebuild (Step 4), or something else (Steps 2 and 5).
+
+---
+
+## I already have /api → api and / → web but still see the error
+
+1. **Redeploy the app**  
+   In DO: open your app → **Overview** or **Components** → use **Deploy** / **Deploy latest** so the routing rules are applied.
+
+2. **Hard refresh the app**  
+   In the browser: **Ctrl+Shift+R** (Windows/Linux) or **Cmd+Shift+R** (Mac) so you don’t use an old cached frontend.
+
+3. **Rebuild the web component**  
+   After any change to **VITE_API_URL**, trigger a new build of the **web** component (Redeploy that component or push a commit if deploy on push is on).
+
+4. **Confirm the api component is running**  
+   In DO → your app → **api** component. Status should be **Running** and the last deploy **Succeeded**.
+
+5. **Use “Check API” in the Activity panel**  
+   In the app, open the Activity panel and click **Check API**. If it says “Request returned a page instead of JSON”, the request is still hitting the static site — redeploy and hard refresh again.

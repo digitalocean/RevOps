@@ -35,7 +35,9 @@ export async function api<T = unknown>(path: string, opts: RequestInit = {}): Pr
   const origin = typeof window !== 'undefined' ? window.location?.origin ?? '' : '';
   const baseNormalized = base ? base.replace(/\/$/, '') : '';
   const sameOrigin = origin && baseNormalized === origin;
-  const url = sameOrigin ? path : (base ? `${baseNormalized}${pathToUse}` : path);
+  // In production, always use relative path for /api so request hits same origin (DO ingress then routes /api → api)
+  const forceRelative = typeof window !== 'undefined' && import.meta.env.PROD && path.startsWith('/api');
+  const url = forceRelative ? path : (sameOrigin ? path : (base ? `${baseNormalized}${pathToUse}` : path));
   const res = await fetch(url, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...opts.headers } as HeadersInit,

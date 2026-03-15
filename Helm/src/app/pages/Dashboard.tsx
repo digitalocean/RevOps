@@ -482,8 +482,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 myTasksCount={initiatives.filter(i => currentUser && i.assignee_id === currentUser.id && i.status !== 'Complete').length}
                 onOpenItem={(id) => { const init = initiatives.find(i => i.id === id); if (init) setDrawerInitiative(init); }}
                 onDeleteSection={deleteSection}
-                onRenameSection={(trackerId, newName) => updateSection(trackerId, { name: newName })}
-                onRenameProject={(projectId, newName) => updateProject(projectId, { name: newName })}
+                onRenameSection={async (trackerId, newName) => { await updateSection(trackerId, { name: newName }); refreshActivity(); }}
+                onRenameProject={async (projectId, newName) => { await updateProject(projectId, { name: newName }); refreshActivity(); }}
               />
             </div>
           </div>
@@ -516,8 +516,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
             myTasksCount={initiatives.filter(i => currentUser && i.assignee_id === currentUser.id && i.status !== 'Complete').length}
             onOpenItem={(id) => { const init = initiatives.find(i => i.id === id); if (init) setDrawerInitiative(init); }}
             onDeleteSection={deleteSection}
-            onRenameSection={(trackerId, newName) => updateSection(trackerId, { name: newName })}
-            onRenameProject={(projectId, newName) => updateProject(projectId, { name: newName })}
+            onRenameSection={async (trackerId, newName) => { await updateSection(trackerId, { name: newName }); refreshActivity(); }}
+            onRenameProject={async (projectId, newName) => { await updateProject(projectId, { name: newName }); refreshActivity(); }}
           />
         </div>
         <>
@@ -764,7 +764,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     customFields={customFields}
                     visibleColumns={section.columns?.length ? new Set(section.columns) : visibleColumns}
                     onDeleteSection={deleteSection}
-                    onRenameSection={(trackerId, newName) => updateSection(trackerId, { name: newName })}
+                    onRenameSection={async (trackerId, newName) => { await updateSection(trackerId, { name: newName }); refreshActivity(); }}
                     onMoveUp={trackerIndex >= 0 ? () => {
                       if (!selectedProjectId || trackerIndex <= 0) return;
                       const next = [...trackerIds];
@@ -779,7 +779,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     } : undefined}
                     canMoveUp={trackerIndex > 0}
                     canMoveDown={trackerIndex >= 0 && trackerIndex < trackerIds.length - 1}
-                    showSectionActions={section.id !== 'uncategorized' && trackerSections.length > 1}
+                    showSectionActions={section.id !== 'uncategorized'}
                     onUpdateFieldValue={async (taskId, fieldId, value) => {
                       const payload: { fieldId: string; valueText?: string; valueNumber?: number; valueDate?: string; valueBoolean?: boolean } = { fieldId };
                       if (typeof value === 'string') payload.valueText = value;

@@ -122,7 +122,11 @@ router.patch('/:id', async (req, res) => {
       text: `UPDATE trackers SET ${updates.join(', ')} WHERE id = $${i} RETURNING *`,
       values,
     });
-    res.json(rows[0]);
+    const updated = rows[0];
+    if (updated && name !== undefined && String(name).trim()) {
+      logActivity(pool, tr.rows[0].project_id, userId, 'tracker_updated', trackerId, { name: String(name).trim() });
+    }
+    res.json(updated);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -121,7 +121,7 @@ router.patch('/:id', async (req, res) => {
     if (!userId) return;
     const itemCheck = await pool.query({
       name: 'items_get_for_patch',
-      text: 'SELECT project_id, title, status, priority, assignee_id, custom_vals FROM items WHERE id = $1',
+      text: 'SELECT project_id, title, status, priority, assignee_id, due_date, category, custom_vals FROM items WHERE id = $1',
       values: [req.params.id],
     });
     if (!itemCheck.rows.length) return res.status(404).json({ error: 'Not found' });
@@ -148,15 +148,20 @@ router.patch('/:id', async (req, res) => {
     res.json(rows[0]);
     // Real-time broadcast
     try { req.app.locals.broadcast({ type: 'item_updated', projectId: existing.project_id, item: rows[0] }); } catch (_) {}
-    // Activity logging (async, non-blocking)
+    // Activity logging (async, non-blocking) — log each type of change for a rich activity feed
     const title = rows[0].title || existing.title;
-    if (req.body.status && req.body.status !== existing.status) {
+    const logged = [];
+    if (req.body.status !== undefined && req.body.status !== existing.status) {
       logActivity(pool, existing.project_id, userId, 'status_changed', req.params.id,
         { title, from: existing.status, to: req.body.status });
-    } else if (req.body.priority && req.body.priority !== existing.priority) {
+      logged.push('status');
+    }
+    if (req.body.priority !== undefined && req.body.priority !== existing.priority) {
       logActivity(pool, existing.project_id, userId, 'priority_changed', req.params.id,
         { title, from: existing.priority, to: req.body.priority });
-    } else if ('assignee_id' in req.body) {
+      logged.push('priority');
+    }
+    if ('assignee_id' in req.body && String(req.body.assignee_id || '') !== String(existing.assignee_id || '')) {
       let fromName = null;
       let toName = null;
       if (existing.assignee_id) {
@@ -169,7 +174,26 @@ router.patch('/:id', async (req, res) => {
       }
       logActivity(pool, existing.project_id, userId, 'assignee_changed', req.params.id,
         { title, from: fromName, to: toName, assignee: toName });
-    } else {
+      logged.push('assignee');
+    }
+    if (req.body.title !== undefined && String(req.body.title).trim() !== String(existing.title || '').trim()) {
+      logActivity(pool, existing.project_id, userId, 'title_changed', req.params.id,
+        { title: existing.title, to: String(req.body.title).trim() });
+      logged.push('title');
+    }
+    const existingDue = existing.due_date ? (existing.due_date instanceof Date ? existing.due_date.toISOString().slice(0, 10) : String(existing.due_date).slice(0, 10)) : null;
+    const newDue = req.body.due_date ? String(req.body.due_date).slice(0, 10) : null;
+    if (req.body.due_date !== undefined && newDue !== existingDue) {
+      logActivity(pool, existing.project_id, userId, 'due_date_changed', req.params.id,
+        { title, from: existingDue, to: newDue });
+      logged.push('due_date');
+    }
+    if (req.body.category !== undefined && String(req.body.category || '') !== String(existing.category || '')) {
+      logActivity(pool, existing.project_id, userId, 'category_changed', req.params.id,
+        { title, from: existing.category || null, to: req.body.category || null });
+      logged.push('category');
+    }
+    if (logged.length === 0) {
       logActivity(pool, existing.project_id, userId, 'item_updated', req.params.id, { title });
     }
   } catch (e) { res.status(500).json({ error: e.message }); }

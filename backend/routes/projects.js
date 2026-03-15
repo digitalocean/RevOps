@@ -2,6 +2,22 @@ const router = require('express').Router();
 const { pool } = require('../server');
 const { getAccessibleWorkspaceIds, getAccessibleProjectIds, getOrCreateDefaultWorkspaceId, requireUser, canManageProject } = require('../lib/access');
 
+async function logActivity(pool, projectId, userId, action, entityId, details = {}) {
+  try {
+    const crew = await pool.query({
+      name: 'projects_crew_by_user',
+      text: 'SELECT id FROM crew WHERE user_id = $1 LIMIT 1',
+      values: [userId],
+    });
+    const crewId = crew.rows[0]?.id || null;
+    await pool.query({
+      name: 'projects_activity_insert',
+      text: 'INSERT INTO activity_log (project_id, crew_id, action, entity_type, entity_id, details) VALUES ($1, $2, $3, $4, $5, $6)',
+      values: [projectId, crewId, action, 'project', entityId, JSON.stringify(details)],
+    });
+  } catch (_) { /* non-fatal */ }
+}
+
 router.get('/', async (req, res) => {
   try {
     const userId = requireUser(req, res);
@@ -82,7 +98,11 @@ router.patch('/:id', async (req, res) => {
       text: `UPDATE projects SET ${sets} WHERE id=$1 RETURNING *`,
       values: [req.params.id, ...fields.map(f => req.body[f])],
     });
-    res.json(rows[0]);
+    const updated = rows[0];
+    if (updated && req.body.name !== undefined && String(req.body.name).trim()) {
+      logActivity(pool, req.params.id, userId, 'project_updated', req.params.id, { name: String(req.body.name).trim() });
+    }
+    res.json(updated);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

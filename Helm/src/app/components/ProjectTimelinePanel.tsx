@@ -308,33 +308,43 @@ export function ProjectTimelinePanel({
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const [loadErrorMessage, setLoadErrorMessage] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = async (silent = false) => {
     if (!projectId) {
       setActivities([]);
       setLoadError(false);
+      setLoadErrorMessage(null);
       return;
     }
     if (!silent) setLoading(true);
     setLoadError(false);
+    setLoadErrorMessage(null);
     try {
       const query = `project_id=${projectId}&limit=80`;
       let data: ActivityItem[] | undefined;
+      let lastError: string | null = null;
       try {
         data = await get<ActivityItem[]>(`/api/activity?${query}`);
-      } catch {
+      } catch (e) {
+        lastError = e instanceof Error ? e.message : 'Request failed';
         try {
           data = await get<ActivityItem[]>(`/activity?${query}`);
-        } catch (_) {
+        } catch (e2) {
+          lastError = e2 instanceof Error ? e2.message : lastError;
           data = undefined;
         }
       }
       setActivities(Array.isArray(data) ? data : []);
-      if (!Array.isArray(data)) setLoadError(true);
-    } catch {
+      if (!Array.isArray(data)) {
+        setLoadError(true);
+        setLoadErrorMessage(lastError);
+      }
+    } catch (e) {
       setActivities([]);
       setLoadError(true);
+      setLoadErrorMessage(e instanceof Error ? e.message : 'Request failed');
     } finally {
       setLoading(false);
     }
@@ -412,6 +422,11 @@ export function ProjectTimelinePanel({
                   <Clock className="w-6 h-6 text-red-400" />
                 </div>
                 <p className="text-sm font-medium text-slate-700">Couldn’t load activity</p>
+                {loadErrorMessage && (
+                  <p className="text-xs text-amber-700 mt-1 max-w-[220px] font-medium">
+                    {loadErrorMessage}
+                  </p>
+                )}
                 <p className="text-xs text-slate-500 mt-1 max-w-[220px]">
                   Sign in and ensure the API is running. Local: run the backend (<code className="text-[10px] bg-slate-100 px-1 rounded">backend</code> folder), then reload. Deployed: set <code className="text-[10px] bg-slate-100 px-1 rounded">VITE_API_URL</code> to your app URL and rebuild the frontend.
                 </p>

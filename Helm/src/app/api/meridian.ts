@@ -15,19 +15,24 @@ function getBase(): string {
     } catch (_) {}
     return base;
   }
+  // Prefer build-time VITE_API_URL so it's not overridden by old localStorage
+  const v = import.meta.env.VITE_API_URL;
+  if (v && String(v).trim()) return String(v).replace(/\/$/, '');
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored && stored.startsWith('http')) return stored.replace(/\/$/, '');
   } catch (_) {}
-  const v = import.meta.env.VITE_API_URL;
-  if (v && String(v).trim()) return String(v).replace(/\/$/, '');
   if (import.meta.env.DEV) return '';
   return window.location?.origin ?? '';
 }
 
 export async function api<T = unknown>(path: string, opts: RequestInit = {}): Promise<T> {
   const base = getBase();
-  const url = base ? `${base}${path}` : path;
+  let pathToUse = path;
+  if (base && path.startsWith('/api') && base.replace(/\/$/, '').endsWith('/api')) {
+    pathToUse = path.slice(4) || '/';
+  }
+  const url = base ? `${base.replace(/\/$/, '')}${pathToUse}` : path;
   const res = await fetch(url, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...opts.headers } as HeadersInit,

@@ -798,18 +798,6 @@ export function TrackerSection({
                   <ChevronDown className="w-4 h-4" />
                 </Button>
               )}
-              {onRenameSection && editingSectionName === null && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 gap-1"
-                  onClick={() => setEditingSectionName(section.title)}
-                >
-                  <Pencil className="w-3 h-3" />
-                  Edit
-                </Button>
-              )}
               {onDeleteSection && (
                 <Button
                   type="button"

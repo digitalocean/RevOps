@@ -319,8 +319,19 @@ export function ProjectTimelinePanel({
     if (!silent) setLoading(true);
     setLoadError(false);
     try {
-      const data = await get<ActivityItem[]>(`/api/activity?project_id=${projectId}&limit=80`);
+      const query = `project_id=${projectId}&limit=80`;
+      let data: ActivityItem[] | undefined;
+      try {
+        data = await get<ActivityItem[]>(`/api/activity?${query}`);
+      } catch {
+        try {
+          data = await get<ActivityItem[]>(`/activity?${query}`);
+        } catch (_) {
+          data = undefined;
+        }
+      }
       setActivities(Array.isArray(data) ? data : []);
+      if (!Array.isArray(data)) setLoadError(true);
     } catch {
       setActivities([]);
       setLoadError(true);

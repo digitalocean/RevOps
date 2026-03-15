@@ -2,6 +2,11 @@ const router = require('express').Router();
 const { pool } = require('../server');
 const { getAccessibleProjectIds, requireUser } = require('../lib/access');
 
+router.use((_req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
+
 // GET activity feed for a project (user-scoped)
 router.get('/', async (req, res) => {
   try {

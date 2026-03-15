@@ -32,7 +32,10 @@ export async function api<T = unknown>(path: string, opts: RequestInit = {}): Pr
   if (base && path.startsWith('/api') && base.replace(/\/$/, '').endsWith('/api')) {
     pathToUse = path.slice(4) || '/';
   }
-  const url = base ? `${base.replace(/\/$/, '')}${pathToUse}` : path;
+  const origin = typeof window !== 'undefined' ? window.location?.origin ?? '' : '';
+  const baseNormalized = base ? base.replace(/\/$/, '') : '';
+  const sameOrigin = origin && baseNormalized === origin;
+  const url = sameOrigin ? path : (base ? `${baseNormalized}${pathToUse}` : path);
   const res = await fetch(url, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...opts.headers } as HeadersInit,

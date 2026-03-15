@@ -132,6 +132,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const [showTemplates, setShowTemplates] = useState(false);
   const [activityRefreshKey, setActivityRefreshKey] = useState(0);
   const refreshActivity = useCallback(() => setActivityRefreshKey((k) => k + 1), []);
+  const [uncategorizedDisplayNames, setUncategorizedDisplayNames] = useState<Record<string, string>>({});
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile sidebar
   const [showPomodoro, setShowPomodoro] = useState(false);
   const [pomodoroTask, setPomodoroTask] = useState<string | undefined>(undefined);
@@ -243,6 +244,17 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
       setColumnOrder([]);
     }
   }, [selectedProjectId, currentUser?.id]);
+
+  // Load uncategorized section display name from localStorage (per project)
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    try {
+      const stored = localStorage.getItem(`todo_uncategorized_name_${selectedProjectId}`);
+      if (stored && stored.trim()) {
+        setUncategorizedDisplayNames((prev) => ({ ...prev, [selectedProjectId]: stored.trim() }));
+      }
+    } catch (_) {}
+  }, [selectedProjectId]);
 
   // Handle duplicate item event from TrackerSection three-dot menu
   useEffect(() => {
@@ -765,6 +777,13 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     visibleColumns={section.columns?.length ? new Set(section.columns) : visibleColumns}
                     onDeleteSection={deleteSection}
                     onRenameSection={async (trackerId, newName) => { await updateSection(trackerId, { name: newName }); refreshActivity(); }}
+                    sectionTitleOverride={section.id === 'uncategorized' ? uncategorizedDisplayNames[selectedProjectId ?? ''] : undefined}
+                    onUncategorizedNameChange={section.id === 'uncategorized' && selectedProjectId ? (name: string) => {
+                      try {
+                        localStorage.setItem(`todo_uncategorized_name_${selectedProjectId}`, name);
+                        setUncategorizedDisplayNames((prev) => ({ ...prev, [selectedProjectId]: name }));
+                      } catch (_) {}
+                    } : undefined}
                     onMoveUp={trackerIndex >= 0 ? () => {
                       if (!selectedProjectId || trackerIndex <= 0) return;
                       const next = [...trackerIds];

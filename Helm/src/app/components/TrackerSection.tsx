@@ -77,6 +77,10 @@ interface TrackerSectionProps {
   /** From standard fields API — when set, dropdowns use these instead of defaults. */
   priorityOptions?: StandardFieldOption[];
   statusOptions?: StandardFieldOption[];
+  /** Override title for this section (e.g. custom name for uncategorized "Tasks"). */
+  sectionTitleOverride?: string;
+  /** When set for uncategorized section, allows renaming the display name (stored in UI only). */
+  onUncategorizedNameChange?: (name: string) => void;
 }
 
 function getPriorityColor(priority: string, options?: StandardFieldOption[]): string {
@@ -625,11 +629,14 @@ export function TrackerSection({
   onFocusChange,
   priorityOptions,
   statusOptions,
+  sectionTitleOverride,
+  onUncategorizedNameChange,
 }: TrackerSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedInitiative, setSelectedInitiative] = useState<Initiative | null>(null);
   const [showNewRow, setShowNewRow] = useState(false);
   const [editingSectionName, setEditingSectionName] = useState<string | null>(null);
+  const displayTitle = sectionTitleOverride ?? section.title;
 
   if (viewMode === 'gantt') return null;
 
@@ -708,18 +715,28 @@ export function TrackerSection({
                 value={editingSectionName}
                 onChange={(e) => setEditingSectionName(e.target.value)}
                 onBlur={() => {
-                  if (onRenameSection && editingSectionName.trim() && editingSectionName.trim() !== section.title) {
+                  if (section.id === 'uncategorized' && onUncategorizedNameChange) {
+                    if (editingSectionName.trim()) onUncategorizedNameChange(editingSectionName.trim());
+                    setEditingSectionName(null);
+                  } else if (onRenameSection && editingSectionName.trim() && editingSectionName.trim() !== section.title) {
                     onRenameSection(section.id, editingSectionName.trim());
+                    setEditingSectionName(null);
+                  } else {
+                    setEditingSectionName(null);
                   }
-                  setEditingSectionName(null);
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    if (onRenameSection && editingSectionName.trim() && editingSectionName.trim() !== section.title) {
+                    if (section.id === 'uncategorized' && onUncategorizedNameChange) {
+                      if (editingSectionName.trim()) onUncategorizedNameChange(editingSectionName.trim());
+                      setEditingSectionName(null);
+                    } else if (onRenameSection && editingSectionName.trim() && editingSectionName.trim() !== section.title) {
                       onRenameSection(section.id, editingSectionName.trim());
+                      setEditingSectionName(null);
+                    } else {
+                      setEditingSectionName(null);
                     }
-                    setEditingSectionName(null);
                   } else if (e.key === 'Escape') {
                     setEditingSectionName(null);
                   }
@@ -732,27 +749,38 @@ export function TrackerSection({
                 type="button"
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="flex items-center gap-2 text-sm font-semibold text-gray-900 hover:text-gray-700 transition-colors text-left flex-1 min-w-0"
-                title={section.id !== 'uncategorized' && onRenameSection ? 'Double-click to rename section' : undefined}
+                title={onRenameSection || onUncategorizedNameChange ? 'Double-click to rename' : undefined}
                 onDoubleClick={(e) => {
                   e.stopPropagation();
-                  if (section.id !== 'uncategorized' && onRenameSection) setEditingSectionName(section.title);
+                  if (section.id === 'uncategorized' && onUncategorizedNameChange) {
+                    setEditingSectionName(displayTitle);
+                  } else if (section.id !== 'uncategorized' && onRenameSection) {
+                    setEditingSectionName(section.title);
+                  }
                 }}
               >
-                <span className="truncate">{section.title}</span>
+                <span className="truncate">{displayTitle}</span>
                 <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-gray-200 text-gray-700 rounded-full flex-shrink-0">
                   {filteredInitiatives.length}
                 </span>
               </button>
             )}
-            {/* Always show Edit for non-uncategorized so first tracker is never missing it */}
-            {section.id !== 'uncategorized' && onRenameSection && editingSectionName === null && (
+            {/* Edit: for uncategorized (display name only) or for real trackers (rename in backend) */}
+            {editingSectionName === null && (section.id === 'uncategorized' ? onUncategorizedNameChange : onRenameSection) && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 className="h-7 w-7 p-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex-shrink-0"
-                onClick={(e) => { e.stopPropagation(); setEditingSectionName(section.title); }}
-                title="Rename section"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (section.id === 'uncategorized' && onUncategorizedNameChange) {
+                    setEditingSectionName(displayTitle);
+                  } else if (section.id !== 'uncategorized' && onRenameSection) {
+                    setEditingSectionName(section.title);
+                  }
+                }}
+                title={section.id === 'uncategorized' ? 'Rename display name (e.g. Backlog, Inbox)' : 'Rename section'}
               >
                 <Pencil className="w-3.5 h-3.5" />
               </Button>

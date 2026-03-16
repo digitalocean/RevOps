@@ -189,25 +189,34 @@ router.post('/logout', (req, res, next) => {
   });
 });
 
-// Start Okta OIDC (match /okta and /okta/ for robustness)
+// Start Okta OIDC — use form_post so Okta POSTs to callback (no query string), avoiding 404 on some hosts
 function oktaStart(req, res, next) {
   if (!process.env.OKTA_CLIENT_ID || !process.env.OKTA_CLIENT_SECRET || !process.env.OKTA_ISSUER) {
     return res.status(503).json({ error: 'Okta sign-in is not configured' });
   }
   next();
 }
-router.get(['/okta', '/okta/'], oktaStart, passport.authenticate('okta', { scope: ['openid', 'profile', 'email'] }));
+router.get(['/okta', '/okta/'], oktaStart, passport.authenticate('okta', {
+  scope: ['openid', 'profile', 'email'],
+  customParams: { response_mode: 'form_post' },
+}));
 
 // Debug: see what path the server receives (when path is trimmed, you may see /auth/okta/callback-test)
 router.get('/okta/callback-test', (req, res) => {
   res.json({ ok: 'callback-test', path: req.path, originalUrl: req.originalUrl, baseUrl: req.baseUrl, method: req.method });
 });
 
-// Okta OAuth callback — also exported for app-level registration (so /api and /auth both hit same handler)
+// Okta OAuth callback — supports both query (GET) and form_post (POST body); exported for app-level registration
 function oktaCallback(req, res, next) {
-  console.log('[Okta] callback hit', { method: req.method, path: req.path, hasCode: !!(req.query && req.query.code) });
-  if (!req.query || !req.query.code) {
-    return res.json({ ok: 'callback-endpoint', path: req.path, message: 'Okta redirects here with ?code=...&state=...' });
+  // form_post: Okta POSTs code/state in body; Passport reads from req.query so copy over
+  if (req.method === 'POST' && req.body && (req.body.code || req.body.state)) {
+    req.query = req.query || {};
+    if (req.body.code) req.query.code = req.body.code;
+    if (req.body.state) req.query.state = req.body.state;
+  }
+  const code = req.query && req.query.code;
+  if (!code) {
+    return res.json({ ok: 'callback-endpoint', path: req.path, method: req.method, message: 'Okta redirects here with code (query or form_post body)' });
   }
   passport.authenticate('okta', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` })(req, res, (err) => {
     if (err) return next(err);

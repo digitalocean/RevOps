@@ -60,8 +60,8 @@ On the **api** component, set (or confirm):
 
 If step 1 or 2 returns HTML or 404, the problem is still **routing**: path `/api` is not going to the API. Fix the **Networking** rule (step 1) and redeploy.
 
-**If ping works but callback still 404s:** Redeploy the **api** component with the latest code (callback route is now more permissive and supports POST). Then try step 4 again.
+**If ping works but callback still 404s:** The app now uses **form_post** so Okta POSTs to the callback URL with no query string (code/state in the body). That avoids 404s on some hosts that mishandle GET callbacks with query params. Redeploy the **api** component with the latest code and try step 4 again. No Okta dashboard change is required — we request `response_mode=form_post` when starting login.
 
 ---
 
-**Summary:** Okta is sending users to the correct URL. We must ensure that URL is served by our **api** component by routing **path `/api` → api** in DigitalOcean and redeploying.
+**Summary:** Okta is sending users to the correct URL. We must ensure that URL is served by our **api** component by routing **path `/api` → api** in DigitalOcean and redeploying. The app uses form_post for the callback so the browser POSTs to the same URL (no `?code=...` in the URL), which is more reliable on some platforms.

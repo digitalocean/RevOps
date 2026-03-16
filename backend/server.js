@@ -106,7 +106,7 @@ app.use(
     name: 'todo.sid',
     cookie: {
       maxAge: SESSION_MAX_AGE_MS,
-      sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
       path: '/',

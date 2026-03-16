@@ -38,7 +38,7 @@ if (process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.
         tokenURL: `${oktaIssuer}/v1/token`,
         clientID: process.env.OKTA_CLIENT_ID,
         clientSecret: process.env.OKTA_CLIENT_SECRET,
-        callbackURL: `${apiBase()}/api/auth/okta/callback`,
+        callbackURL: `${apiBase()}/api/okta-cb`,
         scope: ['openid', 'profile', 'email'],
         state: true,
         customHeaders: {},
@@ -204,7 +204,7 @@ router.get('/okta/debug', (req, res) => {
   const issuer = process.env.OKTA_ISSUER || '(not set)';
   const clientId = process.env.OKTA_CLIENT_ID ? `${process.env.OKTA_CLIENT_ID.slice(0, 6)}...` : '(not set)';
   const appUrl = apiBase();
-  const callbackURL = `${appUrl}/api/auth/okta/callback`;
+  const callbackURL = `${appUrl}/api/okta-cb`;
   const authorizationURL = `${issuer.replace(/\/$/, '')}/v1/authorize`;
   res.json({
     ok: 'okta-debug',
@@ -232,8 +232,12 @@ function oktaStart(req, res, next) {
   next();
 }
 router.get(['/okta', '/okta/'], oktaStart, (req, res, next) => {
-  // Wrap passport.authenticate to catch errors that would otherwise be swallowed
-  passport.authenticate('okta', { scope: ['openid', 'profile', 'email'] })(req, res, (err) => {
+  console.log('[Okta] start: redirecting to Okta with response_mode=form_post, callback=/api/okta-cb');
+  // customParams may be merged into authorize URL by passport-oauth2 so form_post is used
+  passport.authenticate('okta', {
+    scope: ['openid', 'profile', 'email'],
+    customParams: { response_mode: 'form_post' },
+  })(req, res, (err) => {
     if (err) {
       console.error('Okta authenticate error:', err);
       return res.status(500).json({ error: 'Okta redirect failed', message: err.message, stack: err.stack });

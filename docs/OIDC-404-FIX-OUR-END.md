@@ -105,6 +105,8 @@ If you get 404 and do not see `[Okta] callback route matched`, the request is no
 
 If you see callback route matched but then no code in request, the request reaches the API but code is missing. Use the shorter callback URL and ensure Okta uses form_post (the app requests it).
 
+**GET vs POST:** If you open the callback URL in the browser (e.g. `https://your-app.ondigitalocean.app/api/okta-cb`), you will see a log with `method: 'GET'`, `queryKeys: []`, `bodyKeys: []` — that is expected (no code when you open the URL manually). When you do the **real** Okta flow (click "Sign in with Okta" → log in at Okta), Okta should **POST** to the callback with `code` and `state` in the body. In that case you should see `method: 'POST'`, `bodyKeys: ['code', 'state']`, then `[Okta] copied code/state from body to query` and `[Okta] exchanging code for token...`. If the real flow still shows GET with no params, Okta may not be using form_post — ensure the app uses the updated code that sends `response_mode=form_post` and `redirect_uri=.../api/okta-cb`, and that this URI is allowed in Okta.
+
 ---
 
 **Summary:** Ensure **path `/api` → api** in DigitalOcean Networking, use the shorter redirect URI `https://revops-ntkll.ondigitalocean.app/api/okta-cb` in Okta, and redeploy the API. Use Runtime Logs on the api component to confirm the callback is hit and to debug failures.

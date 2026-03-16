@@ -32,7 +32,7 @@ if (process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.
         clientSecret: process.env.OKTA_CLIENT_SECRET,
         callbackURL: `${apiBase()}/api/auth/okta/callback`,
         scope: ['openid', 'profile', 'email'],
-        state: false, // Callback is cross-site POST; session not always sent. Re-enable when cookie is fixed.
+        state: true,
         customHeaders: {},
       },
       async (accessToken, refreshToken, params, profile, done) => {

@@ -205,6 +205,7 @@ router.get('/okta/callback-test', (req, res) => {
 
 // Okta OAuth callback — also exported for app-level registration (so /api and /auth both hit same handler)
 function oktaCallback(req, res, next) {
+  console.log('[Okta] callback hit', { method: req.method, path: req.path, hasCode: !!(req.query && req.query.code) });
   if (!req.query || !req.query.code) {
     return res.json({ ok: 'callback-endpoint', path: req.path, message: 'Okta redirects here with ?code=...&state=...' });
   }

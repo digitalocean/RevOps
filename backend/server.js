@@ -105,12 +105,17 @@ app.use(
 app.use(authRoutes.passport.initialize());
 app.use(authRoutes.passport.session());
 
-// Okta callback at app level — regex matches /api/auth/okta/callback or /auth/okta/callback, with or without trailing slash
+// Okta callback — run first on every request so we never miss it (with or without query string)
 if (authRoutes.oktaCallback) {
-  const cb = authRoutes.oktaCallback;
-  const callbackPath = /^\/(api\/)?auth\/okta\/callback\/?$/;
-  app.get(callbackPath, cb);
-  app.post(callbackPath, cb);
+  app.use((req, res, next) => {
+    const raw = req.path != null ? req.path : (req.url ? req.url.split('?')[0] : '');
+    const pathname = (raw || '/').replace(/\/+$/, '') || '/';
+    const isCallback =
+      (pathname === '/auth/okta/callback' || pathname === '/api/auth/okta/callback') &&
+      (req.method === 'GET' || req.method === 'POST');
+    if (isCallback) return authRoutes.oktaCallback(req, res, next);
+    next();
+  });
 }
 
 app.use('/api/auth', authRoutes);

@@ -6,6 +6,14 @@ const { pool } = require('../server');
 const OAuth2Strategy = require('passport-oauth2').Strategy;
 const SALT_ROUNDS = 10;
 
+// Subclass so Okta authorize URL includes response_mode=form_post (Okta POSTs to callback; avoids query-string 404s)
+class OktaOAuth2Strategy extends OAuth2Strategy {
+  authorizationParams(options) {
+    const params = typeof super.authorizationParams === 'function' ? super.authorizationParams(options) : {};
+    return Object.assign({}, params, { response_mode: 'form_post' });
+  }
+}
+
 const frontendUrl = () => {
   const u = process.env.FRONTEND_URL || process.env.VITE_API_URL || 'http://localhost:5173';
   return String(u).replace(/\/$/, '');
@@ -23,7 +31,7 @@ if (process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.
   const oktaIssuer = process.env.OKTA_ISSUER.replace(/\/$/, '');
   passport.use(
     'okta',
-    new OAuth2Strategy(
+    new OktaOAuth2Strategy(
       {
         authorizationURL: `${oktaIssuer}/v1/authorize`,
         tokenURL: `${oktaIssuer}/v1/token`,
@@ -196,10 +204,7 @@ function oktaStart(req, res, next) {
   }
   next();
 }
-router.get(['/okta', '/okta/'], oktaStart, passport.authenticate('okta', {
-  scope: ['openid', 'profile', 'email'],
-  customParams: { response_mode: 'form_post' },
-}));
+router.get(['/okta', '/okta/'], oktaStart, passport.authenticate('okta', { scope: ['openid', 'profile', 'email'] }));
 
 // Debug: see what path the server receives (when path is trimmed, you may see /auth/okta/callback-test)
 router.get('/okta/callback-test', (req, res) => {
@@ -216,7 +221,15 @@ function oktaCallback(req, res, next) {
   }
   const code = req.query && req.query.code;
   if (!code) {
-    return res.json({ ok: 'callback-endpoint', path: req.path, method: req.method, message: 'Okta redirects here with code (query or form_post body)' });
+    const queryKeys = Object.keys(req.query || {});
+    return res.json({
+      ok: 'callback-endpoint',
+      path: req.path,
+      method: req.method,
+      message: 'Okta redirects here with code (query or form_post body). If you just logged in via Okta and see this, the code may not have been sent.',
+      hint: queryKeys.length ? 'Query params present but no "code" key' : 'No query params received — if this was the redirect from Okta, the platform may be stripping the query string; form_post (POST) should fix it.',
+      queryKeys,
+    });
   }
   passport.authenticate('okta', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` })(req, res, (err) => {
     if (err) return next(err);

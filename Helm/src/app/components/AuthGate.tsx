@@ -20,10 +20,16 @@ export function AuthGate() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('auth') === 'failed') {
-      toast.error('Sign-in was cancelled or failed. Try again.');
+      const reason = params.get('reason') || 'unknown';
+      const msg = reason === 'no_user' ? 'Okta sign-in failed (token or user). Check API logs.' : reason === 'session' ? 'Session could not be saved. Check API logs.' : 'Sign-in was cancelled or failed. Try again.';
+      toast.error(msg);
       window.history.replaceState({}, '', window.location.pathname);
     } else if (params.get('auth') === 'ok') {
       window.history.replaceState({}, '', window.location.pathname);
+      // Refetch user so we pick up the session set by the Okta callback
+      get<{ user: AuthUser }>('/api/auth/me')
+        .then((data) => setUser(data.user ?? null))
+        .catch(() => setUser(null));
     }
   }, []);
 

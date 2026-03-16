@@ -9,6 +9,7 @@ Helm/.env.production
 
 # Build output
 Helm/dist/
+backend/public/
 
 # OS files
 .DS_Store

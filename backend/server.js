@@ -106,9 +106,10 @@ app.use(
     name: 'todo.sid',
     cookie: {
       maxAge: SESSION_MAX_AGE_MS,
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'lax' : 'lax',
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
+      path: '/',
     },
   })
 );
@@ -216,6 +217,16 @@ const dbEnsureHandler = async (req, res) => {
 };
 app.get('/api/db/ensure', dbEnsureHandler);
 app.get('/db/ensure', dbEnsureHandler);
+
+// ── Optional: serve frontend from this process (single-component deploy; no /api routing needed)
+const staticDir = path.join(__dirname, 'public');
+if (process.env.SERVE_STATIC === 'true' && fs.existsSync(staticDir)) {
+  app.use(express.static(staticDir, { index: false }));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(staticDir, 'index.html'));
+  });
+  console.log('Serving static frontend from public/ (SERVE_STATIC=true)');
+}
 
 // ── Global error handler (catches passport and other errors that would silently 404) ─
 app.use((err, req, res, _next) => {

@@ -285,14 +285,24 @@ function oktaCallback(req, res, next) {
     });
   }
   console.log('[Okta] exchanging code for token...');
-  passport.authenticate('okta', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` })(req, res, (err) => {
+  passport.authenticate('okta', { session: true }, (err, user, info) => {
     if (err) {
       console.error('[Okta] passport.authenticate error', err.message, err.stack);
-      return next(err);
+      return res.redirect(`${frontendUrl()}/?auth=failed&reason=error`);
     }
-    console.log('[Okta] auth success, redirecting to app');
-    res.redirect(`${frontendUrl()}/?auth=ok`);
-  });
+    if (!user) {
+      console.error('[Okta] token exchange or user creation failed', info || 'no user returned');
+      return res.redirect(`${frontendUrl()}/?auth=failed&reason=no_user`);
+    }
+    req.login(user, (loginErr) => {
+      if (loginErr) {
+        console.error('[Okta] req.login error', loginErr.message);
+        return res.redirect(`${frontendUrl()}/?auth=failed&reason=session`);
+      }
+      console.log('[Okta] auth success, redirecting to app');
+      res.redirect(`${frontendUrl()}/?auth=ok`);
+    });
+  })(req, res, next);
 }
 router.get(['/okta/callback', '/okta/callback/'], oktaCallback);
 router.post(['/okta/callback', '/okta/callback/'], oktaCallback);

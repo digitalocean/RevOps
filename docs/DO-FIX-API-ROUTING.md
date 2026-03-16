@@ -1,6 +1,30 @@
-# Fix 404 for /api — Route /api to the API Component (DigitalOcean)
+# Fix 404 for /api (DigitalOcean)
 
-If **https://revops-ntkll.ondigitalocean.app/api/auth/okta** returns **404**, requests to `/api` are going to the **web** (static) component instead of the **api** component. Fix it by adding a **component routing rule** so that path prefix **`/api`** is sent to the **api** component.
+If **https://revops-ntkll.ondigitalocean.app/api/auth/okta** returns **404**, requests to `/api` are going to the **web** (static) component instead of the **api** component.
+
+You have two options:
+
+- **Option A (recommended if routing keeps failing):** Use a **single-component** deploy so one Node service serves both the API and the frontend. No routing rules needed. See **Option A** below.
+- **Option B:** Fix path-based routing so `/api` goes to the API component. See **Option B** below.
+
+---
+
+## Option A — Single component (no routing rules)
+
+One service serves both the API (`/api/*`) and the frontend (everything else). The backend already supports this when `SERVE_STATIC=true` and the built frontend is in `backend/public/`.
+
+**Steps:**
+
+1. In DigitalOcean, open your app → **Settings** → **App Spec** (or create a new app from spec).
+2. Replace the spec with the contents of **`.do/app-single-component.yaml`** in this repo (or copy it and remove the `static_sites` web component and the `ingress` section; use the single `api` service that builds both Helm and backend and sets `SERVE_STATIC=true`).
+3. The single service uses **source_dir: /** (repo root), **build_command** that builds Helm then copies `Helm/dist` to `backend/public`, **run_command: cd backend && node server.js**, and env **SERVE_STATIC=true**.
+4. Save and deploy. All traffic goes to that one component; `/api` is handled by Express, everything else by the SPA.
+
+After deploy, **https://revops-ntkll.ondigitalocean.app/api/auth/okta** and the rest of the app will work without any routing rules.
+
+---
+
+## Option B — Route /api to the API component
 
 ---
 

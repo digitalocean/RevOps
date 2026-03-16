@@ -261,17 +261,28 @@ function oktaCallback(req, res, next) {
     if (req.body.state) req.query.state = req.body.state;
     console.log('[Okta] copied code/state from body to query');
   }
+  // Okta error redirect (e.g. invalid_grant, redirect_uri_mismatch, access_denied)
+  const oktaError = req.query && req.query.error;
+  const oktaErrorDesc = req.query && req.query.error_description;
+  if (oktaError) {
+    console.error('[Okta] Okta returned error', oktaError, oktaErrorDesc);
+    const reason = encodeURIComponent(oktaErrorDesc || oktaError);
+    return res.redirect(`${frontendUrl()}/?auth=failed&reason=okta&error=${encodeURIComponent(oktaError)}&error_description=${reason}`);
+  }
   const code = req.query && req.query.code;
   if (!code) {
     const queryKeys = Object.keys(req.query || {});
-    console.log('[Okta] no code in request — returning diagnostic', { queryKeys });
+    const err = req.query && req.query.error;
+    const errDesc = req.query && req.query.error_description;
+    if (err) console.error('[Okta] Okta returned error', err, errDesc);
     return res.json({
       ok: 'callback-endpoint',
       path: req.path,
       method: req.method,
-      message: 'Okta redirects here with code (query or form_post body). If you just logged in via Okta and see this, the code may not have been sent.',
-      hint: queryKeys.length ? 'Query params present but no "code" key' : 'No query params received — if this was the redirect from Okta, the platform may be stripping the query string; form_post (POST) should fix it.',
+      message: err ? 'Okta returned an error (see error and error_description below).' : 'Okta redirects here with code (query or form_post body). If you just logged in via Okta and see this, the code may not have been sent.',
+      hint: err ? 'Fix the Okta app or env config per the error below.' : (queryKeys.length ? 'Query params present but no "code" key' : 'No query params received — if this was the redirect from Okta, the platform may be stripping the query string; form_post (POST) should fix it.'),
       queryKeys,
+      ...(err && { error: err, error_description: errDesc }),
     });
   }
   console.log('[Okta] exchanging code for token...');

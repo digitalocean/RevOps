@@ -21,7 +21,15 @@ export function AuthGate() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('auth') === 'failed') {
       const reason = params.get('reason') || 'unknown';
-      const msg = reason === 'no_user' ? 'Okta sign-in failed (token or user). Check API logs.' : reason === 'session' ? 'Session could not be saved. Check API logs.' : 'Sign-in was cancelled or failed. Try again.';
+      const oktaDesc = params.get('error_description');
+      const oktaError = params.get('error');
+      const msg = reason === 'okta' && (oktaDesc || oktaError)
+        ? (oktaDesc || oktaError)
+        : reason === 'no_user'
+          ? 'Okta sign-in failed (token or user). Check API logs.'
+          : reason === 'session'
+            ? 'Session could not be saved. Check API logs.'
+            : 'Sign-in was cancelled or failed. Try again.';
       toast.error(msg);
       window.history.replaceState({}, '', window.location.pathname);
     } else if (params.get('auth') === 'ok') {

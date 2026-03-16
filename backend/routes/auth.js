@@ -203,11 +203,16 @@ router.get('/okta/callback-test', (req, res) => {
   res.json({ ok: 'callback-test', path: req.path, originalUrl: req.originalUrl, baseUrl: req.baseUrl, method: req.method });
 });
 
-// Okta OAuth callback — GET (standard) and POST (some IdPs), permissive path for trimmed/untrimmed
-const oktaCb = passport.authenticate('okta', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` });
-const oktaCbDone = (req, res) => { res.redirect(`${frontendUrl()}/?auth=ok`); };
-router.get(/^\/okta\/callback\/?$/i, oktaCb, oktaCbDone);
-router.post(/^\/okta\/callback\/?$/i, oktaCb, oktaCbDone);
+// Okta OAuth callback — also exported for app-level registration (so /api and /auth both hit same handler)
+function oktaCallback(req, res, next) {
+  passport.authenticate('okta', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` })(req, res, (err) => {
+    if (err) return next(err);
+    res.redirect(`${frontendUrl()}/?auth=ok`);
+  });
+}
+router.get(['/okta/callback', '/okta/callback/'], oktaCallback);
+router.post(['/okta/callback', '/okta/callback/'], oktaCallback);
 
 module.exports = router;
 module.exports.passport = passport;
+module.exports.oktaCallback = oktaCallback;

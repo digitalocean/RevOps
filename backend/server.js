@@ -105,6 +105,14 @@ app.use(
 app.use(authRoutes.passport.initialize());
 app.use(authRoutes.passport.session());
 
+// Okta callback at app level so both /api/auth/okta/callback and /auth/okta/callback (trimmed) are guaranteed to hit
+if (authRoutes.oktaCallback) {
+  app.get('/api/auth/okta/callback', authRoutes.oktaCallback);
+  app.get('/auth/okta/callback', authRoutes.oktaCallback);
+  app.post('/api/auth/okta/callback', authRoutes.oktaCallback);
+  app.post('/auth/okta/callback', authRoutes.oktaCallback);
+}
+
 app.use('/api/auth', authRoutes);
 app.use('/auth', authRoutes);
 

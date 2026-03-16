@@ -198,10 +198,16 @@ function oktaStart(req, res, next) {
 }
 router.get(['/okta', '/okta/'], oktaStart, passport.authenticate('okta', { scope: ['openid', 'profile', 'email'] }));
 
-// Okta OAuth callback
-router.get(['/okta/callback', '/okta/callback/'], passport.authenticate('okta', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` }), (req, res) => {
-  res.redirect(`${frontendUrl()}/?auth=ok`);
+// Debug: see what path the server receives (when path is trimmed, you may see /auth/okta/callback-test)
+router.get('/okta/callback-test', (req, res) => {
+  res.json({ ok: 'callback-test', path: req.path, originalUrl: req.originalUrl, baseUrl: req.baseUrl, method: req.method });
 });
+
+// Okta OAuth callback — GET (standard) and POST (some IdPs), permissive path for trimmed/untrimmed
+const oktaCb = passport.authenticate('okta', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` });
+const oktaCbDone = (req, res) => { res.redirect(`${frontendUrl()}/?auth=ok`); };
+router.get(/^\/okta\/callback\/?$/i, oktaCb, oktaCbDone);
+router.post(/^\/okta\/callback\/?$/i, oktaCb, oktaCbDone);
 
 module.exports = router;
 module.exports.passport = passport;

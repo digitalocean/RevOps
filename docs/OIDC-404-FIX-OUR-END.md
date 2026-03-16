@@ -55,9 +55,12 @@ On the **api** component, set (or confirm):
 |------|------------|
 | 1 | Open `https://revops-ntkll.ondigitalocean.app/api/auth/ping` → expect JSON, not HTML. |
 | 2 | Open `https://revops-ntkll.ondigitalocean.app/api/auth/providers` → expect `{"okta":true}`. |
-| 3 | Click “Sign in with Okta” in the app → you should go to Okta, then back to the app without 404. |
+| 3 | Open `https://revops-ntkll.ondigitalocean.app/api/auth/okta/callback-test` → expect JSON like `{"ok":"callback-test","path":"/okta/callback-test",...}`. If you see `path: "/auth/okta/callback-test"` or `baseUrl: "/auth"`, path trimming is on (callback is still handled). |
+| 4 | Click “Sign in with Okta” in the app → you should go to Okta, then back to the app without 404. |
 
 If step 1 or 2 returns HTML or 404, the problem is still **routing**: path `/api` is not going to the API. Fix the **Networking** rule (step 1) and redeploy.
+
+**If ping works but callback still 404s:** Redeploy the **api** component with the latest code (callback route is now more permissive and supports POST). Then try step 4 again.
 
 ---
 

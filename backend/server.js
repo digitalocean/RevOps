@@ -1,3 +1,4 @@
+
 require('dotenv').config();
 
 const dbUrl = process.env.DATABASE_URL || '';
@@ -96,7 +97,7 @@ app.use(
     name: 'todo.sid',
     cookie: {
       maxAge: SESSION_MAX_AGE_MS,
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
     },

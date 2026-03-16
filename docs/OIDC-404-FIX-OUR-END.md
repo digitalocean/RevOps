@@ -37,7 +37,7 @@ On the **api** component, set (or confirm):
 | **OKTA_CLIENT_ID** | From Okta |
 | **OKTA_CLIENT_SECRET** | From Okta |
 
-**APP_URL** is used to build the callback URL our app sends to Okta; it must match the redirect URI in Okta exactly: `https://revops-ntkll.ondigitalocean.app/api/auth/okta/callback`.
+**APP_URL** is used to build the callback URL. The app now uses the **shorter callback URL** (see step 5 below) to avoid 404s.
 
 ---
 
@@ -60,8 +60,22 @@ On the **api** component, set (or confirm):
 
 If step 1 or 2 returns HTML or 404, the problem is still **routing**: path `/api` is not going to the API. Fix the **Networking** rule (step 1) and redeploy.
 
-**If ping works but callback still 404s:** The app now uses **form_post** so Okta POSTs to the callback URL with no query string (code/state in the body). That avoids 404s on some hosts that mishandle GET callbacks with query params. Redeploy the **api** component with the latest code and try step 4 again. No Okta dashboard change is required — we request `response_mode=form_post` when starting login.
+**If ping works but callback still 404s:** Use the **shorter callback URL** (step 5) and redeploy.
 
 ---
 
-**Summary:** Okta is sending users to the correct URL. We must ensure that URL is served by our **api** component by routing **path `/api` → api** in DigitalOcean and redeploying. The app uses form_post for the callback so the browser POSTs to the same URL (no `?code=...` in the URL), which is more reliable on some platforms.
+## 5. Use the shorter callback URL in Okta (recommended if you still get 404)
+
+The app supports a **shorter** callback path so routing is less likely to fail:
+
+1. In **Okta Admin** → your application → **General** → **Sign-in redirect URIs**.
+2. **Add** (or replace with):  
+   `https://revops-ntkll.ondigitalocean.app/api/okta-cb`  
+   (No trailing slash.)
+3. Save the app in Okta.
+4. **Redeploy the API** component so it uses the new callback path.
+5. Try “Sign in with Okta” again. The browser will be sent to `/api/okta-cb` after login; the API handles both `/api/okta-cb` and `/api/auth/okta/callback`.
+
+---
+
+**Summary:** Ensure **path `/api` → api** in DigitalOcean Networking, use the shorter redirect URI `https://revops-ntkll.ondigitalocean.app/api/okta-cb` in Okta, and redeploy the API.

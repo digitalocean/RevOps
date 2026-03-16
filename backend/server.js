@@ -105,15 +105,15 @@ app.use(
 app.use(authRoutes.passport.initialize());
 app.use(authRoutes.passport.session());
 
-// Okta callback — run first on every request so we never miss it (with or without query string)
+// Okta callback — run first on every request; match any path that looks like the callback (platform may trim /api or path)
 if (authRoutes.oktaCallback) {
   app.use((req, res, next) => {
     const raw = req.path != null ? req.path : (req.url ? req.url.split('?')[0] : '');
-    const pathname = (raw || '/').replace(/\/+$/, '') || '/';
-    const isCallback =
-      (pathname === '/auth/okta/callback' || pathname === '/api/auth/okta/callback') &&
-      (req.method === 'GET' || req.method === 'POST');
-    if (isCallback) return authRoutes.oktaCallback(req, res, next);
+    const pathname = (raw || '/').replace(/\/+$/, '').replace(/^\/+/, '') || '';
+    const isOktaCb = pathname === 'okta-cb' || pathname === 'api/okta-cb';
+    const isOktaCallback = pathname.endsWith('okta/callback') || pathname === 'okta/callback';
+    const looksLikeCallback = (isOktaCb || isOktaCallback) && (req.method === 'GET' || req.method === 'POST');
+    if (looksLikeCallback) return authRoutes.oktaCallback(req, res, next);
     next();
   });
 }

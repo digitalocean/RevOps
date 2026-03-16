@@ -249,15 +249,28 @@ router.get('/okta/callback-test', (req, res) => {
 
 // Okta OAuth callback — supports both query (GET) and form_post (POST body); exported for app-level registration
 function oktaCallback(req, res, next) {
+  const bodyKeys = req.body ? Object.keys(req.body) : [];
+  const hasCodeInBody = req.body && !!req.body.code;
+  const hasStateInBody = req.body && !!req.body.state;
+  console.log('[Okta] callback handler entered', {
+    method: req.method,
+    path: req.path,
+    queryKeys: Object.keys(req.query || {}),
+    bodyKeys,
+    hasCodeInBody,
+    hasStateInBody,
+  });
   // form_post: Okta POSTs code/state in body; Passport reads from req.query so copy over
   if (req.method === 'POST' && req.body && (req.body.code || req.body.state)) {
     req.query = req.query || {};
     if (req.body.code) req.query.code = req.body.code;
     if (req.body.state) req.query.state = req.body.state;
+    console.log('[Okta] copied code/state from body to query');
   }
   const code = req.query && req.query.code;
   if (!code) {
     const queryKeys = Object.keys(req.query || {});
+    console.log('[Okta] no code in request — returning diagnostic', { queryKeys });
     return res.json({
       ok: 'callback-endpoint',
       path: req.path,
@@ -267,8 +280,13 @@ function oktaCallback(req, res, next) {
       queryKeys,
     });
   }
+  console.log('[Okta] exchanging code for token...');
   passport.authenticate('okta', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` })(req, res, (err) => {
-    if (err) return next(err);
+    if (err) {
+      console.error('[Okta] passport.authenticate error', err.message, err.stack);
+      return next(err);
+    }
+    console.log('[Okta] auth success, redirecting to app');
     res.redirect(`${frontendUrl()}/?auth=ok`);
   });
 }

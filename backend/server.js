@@ -114,7 +114,10 @@ if (authRoutes.oktaCallback) {
     const isOktaCb = pathname === 'okta-cb' || pathname === 'api/okta-cb';
     const isOktaCallback = pathname.endsWith('okta/callback') || pathname === 'okta/callback';
     const looksLikeCallback = (isOktaCb || isOktaCallback) && (req.method === 'GET' || req.method === 'POST');
-    if (looksLikeCallback) return authRoutes.oktaCallback(req, res, next);
+    if (looksLikeCallback) {
+      console.log('[Okta] callback route matched', { method: req.method, path: req.path, pathname });
+      return authRoutes.oktaCallback(req, res, next);
+    }
     next();
   });
 }

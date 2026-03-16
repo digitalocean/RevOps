@@ -78,4 +78,33 @@ The app supports a **shorter** callback path so routing is less likely to fail:
 
 ---
 
-**Summary:** Ensure **path `/api` → api** in DigitalOcean Networking, use the shorter redirect URI `https://revops-ntkll.ondigitalocean.app/api/okta-cb` in Okta, and redeploy the API.
+## 6. Check API logs (see what's happening)
+
+The API logs `[Okta]` lines so you can see whether the callback is hit and why it might fail.
+
+**Where to see logs (DigitalOcean):**
+
+1. **Apps** → your app → **api** component.
+2. Open the **Runtime Logs** (or **Logs**) tab.
+3. Reproduce the flow: click "Sign in with Okta", sign in at Okta, wait for redirect.
+4. Watch the logs during and right after the redirect.
+
+**What to look for:**
+
+| Log line | Meaning |
+|----------|--------|
+| `[Okta] callback route matched` | Request reached the API and was recognized as the Okta callback path. If you never see this when you get a 404, the request is not reaching the API (routing or platform issue). |
+| `[Okta] callback handler entered` | The callback handler ran. Check method, queryKeys, bodyKeys, hasCodeInBody. |
+| `[Okta] no code in request` | Handler ran but no code in query or body; platform may be stripping query/body, or form_post not used. |
+| `[Okta] copied code/state from body to query` | form_post body was received and copied for Passport. |
+| `[Okta] exchanging code for token...` | About to call Passport to exchange the code. |
+| `[Okta] passport.authenticate error` | Token exchange or userinfo failed (wrong secret, network, etc.). |
+| `[Okta] auth success, redirecting to app` | Login succeeded; user is redirected to the app. |
+
+If you get 404 and do not see `[Okta] callback route matched`, the request is not hitting the API. Fix Networking so path /api goes to the api component, then redeploy.
+
+If you see callback route matched but then no code in request, the request reaches the API but code is missing. Use the shorter callback URL and ensure Okta uses form_post (the app requests it).
+
+---
+
+**Summary:** Ensure **path `/api` → api** in DigitalOcean Networking, use the shorter redirect URI `https://revops-ntkll.ondigitalocean.app/api/okta-cb` in Okta, and redeploy the API. Use Runtime Logs on the api component to confirm the callback is hit and to debug failures.

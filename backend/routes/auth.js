@@ -198,14 +198,49 @@ router.post('/logout', (req, res, next) => {
   });
 });
 
+// ── Diagnostic: shows exactly what passport would do without actually redirecting ──
+router.get('/okta/debug', (req, res) => {
+  const hasStrategy = !!(passport._strategies && passport._strategies.okta);
+  const issuer = process.env.OKTA_ISSUER || '(not set)';
+  const clientId = process.env.OKTA_CLIENT_ID ? `${process.env.OKTA_CLIENT_ID.slice(0, 6)}...` : '(not set)';
+  const appUrl = apiBase();
+  const callbackURL = `${appUrl}/api/auth/okta/callback`;
+  const authorizationURL = `${issuer.replace(/\/$/, '')}/v1/authorize`;
+  res.json({
+    ok: 'okta-debug',
+    hasStrategy,
+    issuer,
+    clientId,
+    appUrl,
+    callbackURL,
+    authorizationURL,
+    sessionID: req.sessionID || '(none)',
+    sessionExists: !!req.session,
+    env: process.env.NODE_ENV || '(not set)',
+  });
+});
+
 // Start Okta OIDC — use form_post so Okta POSTs to callback (no query string), avoiding 404 on some hosts
 function oktaStart(req, res, next) {
   if (!process.env.OKTA_CLIENT_ID || !process.env.OKTA_CLIENT_SECRET || !process.env.OKTA_ISSUER) {
     return res.status(503).json({ error: 'Okta sign-in is not configured' });
   }
+  // Verify strategy is actually registered
+  if (!passport._strategies || !passport._strategies.okta) {
+    return res.status(500).json({ error: 'Okta strategy not registered despite env vars being set. Restart the API.' });
+  }
   next();
 }
-router.get(['/okta', '/okta/'], oktaStart, passport.authenticate('okta', { scope: ['openid', 'profile', 'email'] }));
+router.get(['/okta', '/okta/'], oktaStart, (req, res, next) => {
+  // Wrap passport.authenticate to catch errors that would otherwise be swallowed
+  passport.authenticate('okta', { scope: ['openid', 'profile', 'email'] })(req, res, (err) => {
+    if (err) {
+      console.error('Okta authenticate error:', err);
+      return res.status(500).json({ error: 'Okta redirect failed', message: err.message, stack: err.stack });
+    }
+    next();
+  });
+});
 
 // Debug: see what path the server receives (when path is trimmed, you may see /auth/okta/callback-test)
 router.get('/okta/callback-test', (req, res) => {

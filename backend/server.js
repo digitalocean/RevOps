@@ -203,6 +203,16 @@ const dbEnsureHandler = async (req, res) => {
 app.get('/api/db/ensure', dbEnsureHandler);
 app.get('/db/ensure', dbEnsureHandler);
 
+// ── Global error handler (catches passport and other errors that would silently 404) ─
+app.use((err, req, res, _next) => {
+  console.error('Express error:', err);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    path: req.originalUrl,
+    method: req.method,
+  });
+});
+
 // ── WebSocket for real-time collaboration ─
 const http = require('http');
 const { WebSocketServer } = require('ws');

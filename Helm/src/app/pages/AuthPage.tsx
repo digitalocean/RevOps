@@ -3,7 +3,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { post, get, getApiBaseUrl } from '../api/meridian';
+import { post, get } from '../api/meridian';
 
 interface AuthPageProps {
   onSuccess: (user: { id: string; email?: string; name?: string; initials?: string }) => void;
@@ -145,8 +145,8 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                     variant="outline"
                     className="w-full h-11 rounded-lg font-medium border-gray-300 hover:bg-gray-50"
                     onClick={() => {
-                      const base = getApiBaseUrl();
-                      window.location.href = base ? `${base}/api/auth/okta` : '/api/auth/okta';
+                      // Always use same-origin relative path so /api is routed to the API component
+                      window.location.href = '/api/auth/okta';
                     }}
                   >
                     Sign in with Okta

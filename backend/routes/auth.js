@@ -7,14 +7,6 @@ const { pool } = require('../server');
 const OAuth2Strategy = require('passport-oauth2').Strategy;
 const SALT_ROUNDS = 10;
 
-// Subclass so Okta authorize URL includes response_mode=form_post (Okta POSTs to callback; avoids query-string 404s)
-class OktaOAuth2Strategy extends OAuth2Strategy {
-  authorizationParams(options) {
-    const params = typeof super.authorizationParams === 'function' ? super.authorizationParams(options) : {};
-    return Object.assign({}, params, { response_mode: 'form_post' });
-  }
-}
-
 const frontendUrl = () => {
   const u = process.env.FRONTEND_URL || process.env.VITE_API_URL || 'http://localhost:5173';
   return String(u).replace(/\/$/, '');
@@ -32,7 +24,7 @@ if (process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.
   const oktaIssuer = process.env.OKTA_ISSUER.replace(/\/$/, '');
   passport.use(
     'okta',
-    new OktaOAuth2Strategy(
+    new OAuth2Strategy(
       {
         authorizationURL: `${oktaIssuer}/v1/authorize`,
         tokenURL: `${oktaIssuer}/v1/token`,
@@ -232,12 +224,8 @@ function oktaStart(req, res, next) {
   next();
 }
 router.get(['/okta', '/okta/'], oktaStart, (req, res, next) => {
-  console.log('[Okta] start: redirecting to Okta with response_mode=form_post, callback=/api/auth/okta/callback');
-  // customParams may be merged into authorize URL by passport-oauth2 so form_post is used
-  passport.authenticate('okta', {
-    scope: ['openid', 'profile', 'email'],
-    customParams: { response_mode: 'form_post' },
-  })(req, res, (err) => {
+  console.log('[Okta] start: redirecting to Okta (GET callback with code in query)');
+  passport.authenticate('okta', { scope: ['openid', 'profile', 'email'] })(req, res, (err) => {
     if (err) {
       console.error('Okta authenticate error:', err);
       return res.status(500).json({ error: 'Okta redirect failed', message: err.message, stack: err.stack });
@@ -256,6 +244,7 @@ function oktaCallback(req, res, next) {
   const bodyKeys = req.body ? Object.keys(req.body) : [];
   const hasCodeInBody = req.body && !!req.body.code;
   const hasStateInBody = req.body && !!req.body.state;
+  const contentType = (req.headers && req.headers['content-type']) || '(none)';
   console.log('[Okta] callback handler entered', {
     method: req.method,
     path: req.path,
@@ -263,6 +252,7 @@ function oktaCallback(req, res, next) {
     bodyKeys,
     hasCodeInBody,
     hasStateInBody,
+    contentType,
   });
   // form_post: Okta POSTs code/state in body; Passport reads from req.query so copy over
   if (req.method === 'POST' && req.body && (req.body.code || req.body.state)) {

@@ -37,7 +37,7 @@ if (process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.
         tokenURL: `${oktaIssuer}/v1/token`,
         clientID: process.env.OKTA_CLIENT_ID,
         clientSecret: process.env.OKTA_CLIENT_SECRET,
-        callbackURL: `${apiBase()}/api/okta-cb`,
+        callbackURL: `${apiBase()}/api/auth/okta/callback`,
         scope: ['openid', 'profile', 'email'],
         state: true,
         customHeaders: {},

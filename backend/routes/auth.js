@@ -205,6 +205,9 @@ router.get('/okta/callback-test', (req, res) => {
 
 // Okta OAuth callback — also exported for app-level registration (so /api and /auth both hit same handler)
 function oktaCallback(req, res, next) {
+  if (!req.query || !req.query.code) {
+    return res.json({ ok: 'callback-endpoint', path: req.path, message: 'Okta redirects here with ?code=...&state=...' });
+  }
   passport.authenticate('okta', { session: true, failureRedirect: `${frontendUrl()}/?auth=failed` })(req, res, (err) => {
     if (err) return next(err);
     res.redirect(`${frontendUrl()}/?auth=ok`);

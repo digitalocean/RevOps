@@ -26,14 +26,17 @@ After redeploying the API with the latest code:
 
 ## 1. Route `/api` to the API component (main fix)
 
-On DigitalOcean, requests to `/api/auth/okta/callback` must go to the **api** component, not the web component.
+On DigitalOcean, requests to `/api/auth/okta` and `/api/auth/okta/callback` must go to the **api** component, not the web component. If **https://revops-ntkll.ondigitalocean.app/api/auth/okta** returns **404**, the `/api` rule is missing or wrong.
 
+**Step-by-step:** See **[DO-FIX-API-ROUTING.md](DO-FIX-API-ROUTING.md)** for exact dashboard steps.
+
+Summary:
 1. In DigitalOcean: **Apps** → your app → **Networking** tab.
-2. Under **Component routing rules**, ensure you have:
-   - **Route path:** `/api`
-   - **Target component:** **api**
+2. Under **Component routing rules**, click **Add routing rule** (or ensure you have a rule):
+   - **Route path:** `/api` or `/api/`
+   - **Target component:** **api** (your Node backend)
    - This rule must be **above** any rule that matches `/` (so `/api` is handled first).
-3. Save, then **redeploy** the app so the routing is applied.
+3. Save, then **redeploy the app** (not just one component) so the routing is applied.
 
 **Check:** Open in a browser:
 

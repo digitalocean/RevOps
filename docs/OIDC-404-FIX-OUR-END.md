@@ -6,6 +6,24 @@ Fix everything below on **our** side (app and platform config).
 
 ---
 
+## Why am I still getting 404? (check logs first)
+
+After redeploying the API with the latest code:
+
+1. **Open API Runtime Logs** in DigitalOcean (Apps → your app → **api** component → **Runtime Logs**).
+2. **Reproduce the 404**: click "Sign in with Okta", log in at Okta, wait until you see the 404.
+3. **Look for this line** in the logs:  
+   `[Okta] request reached API { method: '...', path: '...', ... }`
+
+**If you do NOT see that line** when the 404 happens:
+- The callback request is **not** reaching the API. The request is going to the **web** component (or another component), which returns 404 for `/api/auth/okta/callback`.
+- **Fix:** In **Networking**, add or reorder rules so that **path prefix `/api`** goes to the **api** component, and this rule is **above** the rule that sends `/` to the web component. Save and redeploy the **whole app** (not just the API). See section 1 below.
+
+**If you DO see that line** but still get 404:
+- The request reaches the API; something else is wrong (e.g. our handler runs but then an error or redirect returns 404). Check for the next line: `[Okta] callback route matched` and any error lines after it.
+
+---
+
 ## 1. Route `/api` to the API component (main fix)
 
 On DigitalOcean, requests to `/api/auth/okta/callback` must go to the **api** component, not the web component.
@@ -20,8 +38,9 @@ On DigitalOcean, requests to `/api/auth/okta/callback` must go to the **api** co
 **Check:** Open in a browser:
 
 - `https://revops-ntkll.ondigitalocean.app/api/auth/ping`
+- `https://revops-ntkll.ondigitalocean.app/api/auth/okta/callback` (no query string)
 
-If you see **JSON** (e.g. `{"ok":"auth","path":"/ping","okta":true}`), the API is reachable and the 404 should stop. If you see **HTML** or **404**, the request is still going to the web component — fix the routing rule and redeploy.
+If you see **JSON** (e.g. `{"ok":"auth",...}` or `{"ok":"callback-endpoint",...}`), the API is reachable. If you see **HTML** (your app’s login page) or **404**, requests to `/api` are going to the **web** component — fix the routing rule so **path prefix `/api`** targets the **api** component, then redeploy. In the dashboard, the rule is often under **Settings** → **Networking** or **Ingress**; the order of rules matters (more specific first).
 
 ---
 

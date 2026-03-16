@@ -67,6 +67,15 @@ function runSchemaWithRetry() {
 // Trust first proxy (e.g. DigitalOcean App Platform) so req.secure and req.ip are correct; required for cookies.
 app.set('trust proxy', 1);
 
+// Log auth/okta requests so we can see if callback reaches this app (if 404 and no log, request went to wrong component)
+app.use((req, res, next) => {
+  const p = (req.path || req.url || '').split('?')[0];
+  if (p.includes('auth') || p.includes('okta')) {
+    console.log('[Okta] request reached API', { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl });
+  }
+  next();
+});
+
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? true
@@ -106,16 +115,18 @@ app.use(
 app.use(authRoutes.passport.initialize());
 app.use(authRoutes.passport.session());
 
-// Okta callback — run first on every request; match any path that looks like the callback (platform may trim /api or path)
+// Okta callback — run for every request; match by path or by URL containing okta+callback (platform may trim or rewrite path)
 if (authRoutes.oktaCallback) {
   app.use((req, res, next) => {
     const raw = req.path != null ? req.path : (req.url ? req.url.split('?')[0] : '');
     const pathname = (raw || '/').replace(/\/+$/, '').replace(/^\/+/, '') || '';
+    const fullUrl = req.originalUrl || req.url || '';
     const isOktaCb = pathname === 'okta-cb' || pathname === 'api/okta-cb';
     const isOktaCallback = pathname.endsWith('okta/callback') || pathname === 'okta/callback';
-    const looksLikeCallback = (isOktaCb || isOktaCallback) && (req.method === 'GET' || req.method === 'POST');
+    const urlHasOktaCallback = fullUrl.includes('okta') && fullUrl.split('?')[0].includes('callback');
+    const looksLikeCallback = (isOktaCb || isOktaCallback || urlHasOktaCallback) && (req.method === 'GET' || req.method === 'POST');
     if (looksLikeCallback) {
-      console.log('[Okta] callback route matched', { method: req.method, path: req.path, pathname });
+      console.log('[Okta] callback route matched', { method: req.method, path: req.path, pathname, originalUrl: req.originalUrl });
       return authRoutes.oktaCallback(req, res, next);
     }
     next();

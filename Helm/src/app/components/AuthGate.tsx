@@ -4,7 +4,14 @@ import { AuthPage } from '../pages/AuthPage';
 import { Dashboard } from '../pages/Dashboard';
 import { toast } from 'sonner';
 
-type AuthUser = { id: string; email?: string; name?: string; initials?: string } | null;
+type AuthUser = {
+  id: string;
+  email?: string;
+  name?: string;
+  initials?: string;
+  global_role?: string | null;
+  saml_attributes?: Record<string, string[]>;
+} | null;
 
 export function AuthGate() {
   const [user, setUser] = useState<AuthUser>(null);

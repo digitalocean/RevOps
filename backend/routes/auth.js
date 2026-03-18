@@ -7,6 +7,7 @@ const bcrypt = require('bcrypt');
 const { pool } = require('../server');
 
 const OAuth2Strategy = require('passport-oauth2').Strategy;
+const { snapshotSamlAttributes, deriveGlobalRoleFromProfile } = require('../lib/saml-claims');
 const SALT_ROUNDS = 10;
 
 const frontendUrl = () => {
@@ -223,9 +224,21 @@ async function ensureSamlStrategy() {
               profile['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] ||
               email.split('@')[0];
 
+            const samlSnap = snapshotSamlAttributes(profile);
+            const globalRole = deriveGlobalRoleFromProfile(profile);
+
+            const attrKeys = Object.keys(samlSnap);
+            console.log(
+              `[SAML] login ${email} — IdP sent ${attrKeys.length} attribute(s): ${attrKeys.length ? attrKeys.join(', ') : '(none — add Attribute Statements in Okta)'}`
+            );
+            if (process.env.SAML_LOG_LOGIN === 'true') {
+              console.log('[SAML] login full snapshot (SAML_LOG_LOGIN):', JSON.stringify(samlSnap, null, 2));
+              console.log('[SAML] derived global_role:', globalRole ?? '(null)');
+            }
+
             const existing = await pool.query({
               name: 'auth_saml_find_user',
-              text: 'SELECT id, email, name, avatar_url FROM users WHERE email = $1 LIMIT 1',
+              text: 'SELECT id, email, name, avatar_url, global_role FROM users WHERE email = $1 LIMIT 1',
               values: [email],
             });
 
@@ -234,22 +247,34 @@ async function ensureSamlStrategy() {
               const nm = displayName || existing.rows[0].name;
               await pool.query({
                 name: 'auth_saml_update_user',
-                text: 'UPDATE users SET name = $1 WHERE id = $2',
-                values: [nm, existing.rows[0].id],
+                text: `UPDATE users SET name = $1, global_role = $2, saml_attributes = $3::jsonb WHERE id = $4`,
+                values: [nm, globalRole, JSON.stringify(samlSnap), existing.rows[0].id],
               });
               user = {
                 id: existing.rows[0].id,
                 email,
                 name: nm,
                 avatar_url: existing.rows[0].avatar_url,
+                global_role: globalRole,
               };
             } else {
               const insert = await pool.query({
                 name: 'auth_saml_insert_user',
-                text: 'INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id, email, name, avatar_url',
-                values: [email, displayName || email.split('@')[0]],
+                text: `INSERT INTO users (email, name, global_role, saml_attributes) VALUES ($1, $2, $3, $4::jsonb) RETURNING id, email, name, avatar_url, global_role`,
+                values: [
+                  email,
+                  displayName || email.split('@')[0],
+                  globalRole,
+                  JSON.stringify(samlSnap),
+                ],
               });
-              user = insert.rows[0];
+              user = {
+                id: insert.rows[0].id,
+                email: insert.rows[0].email,
+                name: insert.rows[0].name,
+                avatar_url: insert.rows[0].avatar_url,
+                global_role: insert.rows[0].global_role || globalRole,
+              };
             }
             return done(null, user);
           } catch (err) {
@@ -359,24 +384,71 @@ router.get('/providers', (req, res) => {
   });
 });
 
-// Current user (from session)
-router.get('/me', (req, res) => {
-  if (req.user) {
-    const u = req.user;
-    const initials = u.name
-      ? u.name.split(/\s+/).map((n) => n[0]).join('').slice(0, 2).toUpperCase()
-      : (u.email || '').slice(0, 2).toUpperCase();
-    return res.json({
-      user: {
-        id: u.id,
-        email: u.email,
-        name: u.name,
-        avatar_url: u.avatar_url,
-        initials: initials || 'U',
-      },
+/** After SAML login: JSON of stored attributes (set SAML_DEBUG_ATTRIBUTES_ENDPOINT=true). */
+router.get('/saml/debug-attributes', async (req, res) => {
+  if (!req.user?.id) {
+    return res.status(401).json({ error: 'Sign in first, then open this URL again (same browser).' });
+  }
+  if (process.env.SAML_DEBUG_ATTRIBUTES_ENDPOINT !== 'true') {
+    return res.status(404).json({
+      error: 'Disabled. Set SAML_DEBUG_ATTRIBUTES_ENDPOINT=true on the API, redeploy, sign in via SAML, then refresh.',
     });
   }
-  res.json({ user: null });
+  try {
+    const { rows } = await pool.query({
+      name: 'auth_saml_debug_attrs',
+      text: 'SELECT email, global_role, saml_attributes FROM users WHERE id = $1',
+      values: [req.user.id],
+    });
+    res.json({
+      ok: 'saml-debug',
+      email: rows[0]?.email,
+      global_role: rows[0]?.global_role ?? null,
+      saml_attributes: rows[0]?.saml_attributes ?? {},
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Current user (session + DB fields: global_role, saml_attributes from last SAML login)
+router.get('/me', async (req, res) => {
+  if (!req.user) {
+    return res.json({ user: null });
+  }
+  const u = req.user;
+  const initials = u.name
+    ? u.name.split(/\s+/).map((n) => n[0]).join('').slice(0, 2).toUpperCase()
+    : (u.email || '').slice(0, 2).toUpperCase();
+  let globalRole = u.global_role ?? null;
+  let samlAttributes = null;
+  try {
+    const { rows } = await pool.query({
+      name: 'auth_me_saml_fields',
+      text: 'SELECT global_role, saml_attributes FROM users WHERE id = $1',
+      values: [u.id],
+    });
+    if (rows[0]) {
+      globalRole = rows[0].global_role ?? globalRole;
+      samlAttributes = rows[0].saml_attributes;
+    }
+  } catch (_) {
+    /* columns may be missing before migration */
+  }
+  const showSamlAttrs = process.env.SAML_EXPOSE_ATTRIBUTES_IN_ME === 'true';
+  return res.json({
+    user: {
+      id: u.id,
+      email: u.email,
+      name: u.name,
+      avatar_url: u.avatar_url,
+      initials: initials || 'U',
+      global_role: globalRole || null,
+      ...(showSamlAttrs && samlAttributes && typeof samlAttributes === 'object'
+        ? { saml_attributes: samlAttributes }
+        : {}),
+    },
+  });
 });
 
 // Logout

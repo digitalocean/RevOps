@@ -64,13 +64,47 @@ Usually the **AuthnRequest** Issuer or **AssertionConsumerServiceURL** does not 
 
 **User identity:** Name ID (prefer email) + optional attributes → find/create **`users`** by email (same pattern as OIDC).
 
+---
+
+### SAML roles & attributes (implemented)
+
+On each SAML login, the API:
+
+1. Stores a **snapshot** of assertion attributes in **`users.saml_attributes`** (JSON).
+2. Sets **`users.global_role`** from the first matching claim (see env below).
+
+**Okta — add attribute statements** (App → **General** → **SAML Settings** → scroll to **Attribute Statements**), for example:
+
+| Name | Value |
+|------|--------|
+| `Role` | `user.role` or `StringArray.contains(user.groups, "ToDo-Admins") ? "admin" : "member"` (use Okta Expression Language as needed) |
+| `Groups` | `user.groups` |
+| `Department` | `user.department` |
+
+Use **short names** (`Role`, `Groups`) so they appear on the profile. Okta may also emit long URIs; the backend checks both.
+
+**API env (optional):**
+
+| Variable | Description |
+|----------|-------------|
+| **`SAML_ROLE_ATTRIBUTE_NAMES`** | Comma-separated claim names to read for `global_role` (default includes `Role`, `Groups`, `group`, Microsoft role URI, etc.). |
+| **`SAML_ROLE_MAP_JSON`** | Map IdP values to app roles, e.g. `{"ToDo-Admins":"admin","Everyone":"member"}`. First matching group/role wins. |
+| **`SAML_EXPOSE_ATTRIBUTES_IN_ME`** | Set to `true` to include full **`saml_attributes`** on **`GET /api/auth/me`** (for debugging; can be large). |
+| **`SAML_LOG_LOGIN`** | Set to **`true`** — on each SAML login the API logs the **full attribute snapshot** and derived **`global_role`** (App Platform → Runtime logs). |
+| **`SAML_DEBUG_ATTRIBUTES_ENDPOINT`** | Set to **`true`** — after SAML sign-in, open **`GET /api/auth/saml/debug-attributes`** (same session) to see JSON of what was stored. Turn off after debugging. |
+
+**See what Okta sends today:** (1) Sign in with SSO. (2) In DO → API → **Runtime logs**, find **`[SAML] login … — IdP sent N attribute(s): …`** (logged on every SAML login). (3) For **full values**, set **`SAML_LOG_LOGIN=true`**, redeploy, sign in again. Or set **`SAML_DEBUG_ATTRIBUTES_ENDPOINT=true`** and open **`https://your-app.ondigitalocean.app/api/auth/saml/debug-attributes`** in the browser while logged in.
+
+**Frontend:** `GET /api/auth/me` returns **`global_role`** for every signed-in user. Use it to show/hide admin UI, etc.
+
+**Backend:** `access.getUserGlobalRole(pool, userId)` returns the DB `global_role` for route checks (e.g. only `admin` may call an endpoint).
+
 ### Step 3: Map SAML attributes to app roles and access levels
 
-Your app already has **project-level roles** (e.g. in `project_members`: admin, moderator, editor, viewer). You can add:
+Your app already has **project-level roles** (e.g. in `project_members`: admin, moderator, editor, viewer). **Global role** from SAML is stored in **`users.global_role`**. You can:
 
 - **Global/tenant role** (e.g. “org admin”, “member”) from SAML:
-  - In `users` table add a column, e.g. `global_role` or `saml_roles` (array/json).
-  - In the SAML callback, read attribute(s) from the assertion (e.g. `Role`, `Group`) and set `user.global_role` or `user.saml_roles` when creating/updating the user.
+  - Configured via Okta attribute statements + **`SAML_ROLE_MAP_JSON`** above.
 - **Access levels / feature flags:** Use that role (and optionally group names) to:
   - Allow/deny access to certain routes or UI (e.g. only “admin” can open Admin Camp).
   - Default project membership (e.g. “viewer” vs “editor”) when sharing.

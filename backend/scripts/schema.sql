@@ -535,3 +535,13 @@ INSERT INTO project_templates (name, description, icon, trackers) VALUES
 ('Weekly OKR Review', 'Weekly review tracker for OKR alignment', '🎯',
  '[{"name":"Key Results","tasks":[{"title":"Review KR progress","priority":"P0"},{"title":"Update status in tracker","priority":"P1"}]},{"name":"Blockers","tasks":[{"title":"Identify blockers","priority":"P0"},{"title":"Escalate to leadership","priority":"P1"}]}]')
 ON CONFLICT DO NOTHING;
+
+-- SAML: role + raw attributes from IdP (updated each SAML login)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'global_role') THEN
+    ALTER TABLE users ADD COLUMN global_role VARCHAR(120);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'saml_attributes') THEN
+    ALTER TABLE users ADD COLUMN saml_attributes JSONB DEFAULT '{}'::jsonb;
+  END IF;
+END $$;

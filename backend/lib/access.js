@@ -80,10 +80,26 @@ function requireUser(req, res) {
   return req.user.id;
 }
 
+/** From users.global_role (SAML). Returns null if column missing or unset. */
+async function getUserGlobalRole(pool, userId) {
+  if (!userId) return null;
+  try {
+    const { rows } = await pool.query({
+      name: 'access_user_global_role',
+      text: 'SELECT global_role FROM users WHERE id = $1',
+      values: [userId],
+    });
+    return rows[0]?.global_role || null;
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   getAccessibleWorkspaceIds,
   getAccessibleProjectIds,
   getOrCreateDefaultWorkspaceId,
   canManageProject,
   requireUser,
+  getUserGlobalRole,
 };

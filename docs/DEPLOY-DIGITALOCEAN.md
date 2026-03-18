@@ -56,9 +56,25 @@ In the **api** service → **Environment Variables**, set (or confirm):
 | `SESSION_SECRET` | (long random string) | e.g. run `openssl rand -base64 32` and paste. |
 | `FRONTEND_URL` | `https://YOUR-APP-URL.ondigitalocean.app` | Your app’s public URL, no trailing slash. |
 | `APP_URL` | Same as `FRONTEND_URL` | For auth redirects. |
-| `OKTA_ISSUER` / `OKTA_CLIENT_ID` / `OKTA_CLIENT_SECRET` | (from Okta) | Only if you use Okta SSO. |
+| `OKTA_ISSUER` / `OKTA_CLIENT_ID` / `OKTA_CLIENT_SECRET` | (from Okta) | Only if you use **OIDC** (“Sign in with Okta”). Omit if you use **SAML only** (below). |
 
 Replace `YOUR-APP-URL` with your actual app host (e.g. `revops-ntkll`).
+
+### SAML sign-in (Okta SAML app) — API component only
+
+Okta is configured with **Audience** and **Single sign-on URL**. On DigitalOcean, set these on the **api** component (same place as `DATABASE_URL`):
+
+| Key | Value | Notes |
+|-----|--------|--------|
+| **`SAML_IDP_METADATA_URL`** | Okta metadata URL | App → **Sign On** → **Metadata URL** (or download XML and use `SAML_IDP_METADATA_FILE`). |
+| **`SAML_SP_ENTITY_ID`** | `https://YOUR-APP.ondigitalocean.app` | Must match Okta **Audience URI (SP Entity ID)** exactly. |
+| **`SAML_APP_BASE_URL`** | Same `https://…` origin | Same host as above (no path). Ensures SAML **ACS** is `https://…/api/auth/saml/callback`. If unsure, duplicate `APP_URL` here. |
+| **`APP_URL`** | Same public `https://…` | Should match; used for API base + redirects. |
+| **`FRONTEND_URL`** | Same public `https://…` | Where users land after login (`/?auth=ok`). |
+
+**Optional:** Remove `OKTA_*` if you only use SAML so the UI shows **Sign in with SSO** only.
+
+**Routing:** `/api/auth/saml` and **`POST /api/auth/saml/callback`** must hit the **api** component — the ingress rule **`/api` → api** covers that. No extra Okta callback URL in DO beyond your normal app URL.
 
 ### Web component (frontend)
 

@@ -17,6 +17,7 @@ router.get('/', async (req, res) => {
     const { sprint_id, project_id } = req.query;
     let query = `
       SELECT i.*, c.name as assignee_name, c.initials as assignee_initials, c.color as assignee_color,
+             c.user_id as assignee_user_id, c.email as assignee_email,
              bc.name as column_name, bc.color as column_color, bc.slug as column_slug
       FROM items i
       LEFT JOIN crew c ON i.assignee_id = c.id

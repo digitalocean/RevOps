@@ -38,6 +38,7 @@ interface CustomFieldDef {
   field_type: string;
   target?: string;
   applies_to?: string;
+  options_json?: unknown[];
 }
 
 interface TrackerSectionProps {
@@ -77,6 +78,7 @@ interface TrackerSectionProps {
   /** From standard fields API — when set, dropdowns use these instead of defaults. */
   priorityOptions?: StandardFieldOption[];
   statusOptions?: StandardFieldOption[];
+  categoryOptions?: StandardFieldOption[];
   /** Override title for this section (e.g. custom name for uncategorized "Tasks"). */
   sectionTitleOverride?: string;
   /** When set for uncategorized section, allows renaming the display name (stored in UI only). */
@@ -162,6 +164,7 @@ interface InitiativeRowEditableProps {
   isDragging?: boolean;
   priorityOptions?: StandardFieldOption[];
   statusOptions?: StandardFieldOption[];
+  categoryOptions?: StandardFieldOption[];
 }
 
 function colVisible(visibleColumns: Set<string> | undefined, colId: string): boolean {
@@ -173,20 +176,30 @@ function isTaskField(f: CustomFieldDef) {
   return (f.target === 'item' || f.applies_to === 'task' || !f.applies_to);
 }
 
+function normalizeFieldOptions(raw: unknown[] | undefined): { label: string; color?: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((o) =>
+    typeof o === 'string' ? { label: o } : { label: String((o as { label?: string }).label ?? ''), color: (o as { color?: string }).color }
+  ).filter((o) => o.label);
+}
+
 function CustomFieldCell({
   taskId,
   fieldId,
   fieldType,
+  optionsJson,
   value,
   onSave,
 }: {
   taskId: string;
   fieldId: string;
   fieldType: string;
+  optionsJson?: unknown[];
   value: string | number | boolean | null | undefined;
   onSave?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
 }) {
   const normalizedType = (fieldType || 'text').toLowerCase();
+  const selectOpts = normalizeFieldOptions(optionsJson);
   const [editing, setEditing] = useState(false);
   const toLocal = (val: string | number | boolean | null | undefined) => {
     if (val == null) return '';
@@ -239,6 +252,28 @@ function CustomFieldCell({
           ? 'url'
           : 'text';
 
+  if ((normalizedType === 'select' || normalizedType === 'multi_select') && selectOpts.length > 0 && onSave) {
+    const v = value == null || value === '' ? '__empty' : String(value);
+    return (
+      <td className="py-2 px-4 align-middle min-w-[100px]" onClick={(e) => e.stopPropagation()}>
+        <Select
+          value={v}
+          onValueChange={(nv) => onSave(taskId, fieldId, nv === '__empty' ? null : nv)}
+        >
+          <SelectTrigger className="h-8 text-xs border-gray-200 bg-white">
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent className="z-[110]">
+            <SelectItem value="__empty" className="text-xs">—</SelectItem>
+            {selectOpts.map((o) => (
+              <SelectItem key={o.label} value={o.label} className="text-xs">{o.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </td>
+    );
+  }
+
   return (
     <td className="py-2 px-4 align-middle min-w-[100px]" onClick={() => onSave && setEditing(true)}>
       {editing && onSave ? (
@@ -289,8 +324,13 @@ function InitiativeRowEditable({
   isDragging = false,
   priorityOptions,
   statusOptions,
+  categoryOptions,
 }: InitiativeRowEditableProps) {
   const [title, setTitle] = useState(initiative.name);
+  const catList: StandardFieldOption[] = (categoryOptions?.length ? categoryOptions : CATEGORIES.map((c) => ({ label: c }))).slice();
+  if (initiative.category && !catList.some((o) => o.label === initiative.category)) {
+    catList.push({ label: initiative.category, color: '#6b7280' });
+  }
   const priorityList: StandardFieldOption[] = (priorityOptions?.length ? priorityOptions : DEFAULT_PRIORITY_OPTIONS.map((p) => ({ label: p }))).slice();
   if (initiative.priority && !priorityList.some((o) => o.label === initiative.priority)) {
     priorityList.push({ label: initiative.priority, color: '#6b7280' });
@@ -360,8 +400,8 @@ function InitiativeRowEditable({
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="z-[110]">
-            {CATEGORIES.map((c) => (
-              <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>
+            {catList.map((c) => (
+              <SelectItem key={c.label} value={c.label} className="text-xs">{c.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -478,6 +518,7 @@ function InitiativeRowEditable({
           taskId={initiative.id}
           fieldId={field.id}
           fieldType={field.field_type}
+          optionsJson={field.options_json}
           value={initiative.field_values?.[field.id] ?? null}
           onSave={onUpdateFieldValue}
         />
@@ -629,6 +670,7 @@ export function TrackerSection({
   onFocusChange,
   priorityOptions,
   statusOptions,
+  categoryOptions,
   sectionTitleOverride,
   onUncategorizedNameChange,
 }: TrackerSectionProps) {
@@ -869,6 +911,7 @@ export function TrackerSection({
                     onItemCompleted={onItemCompleted}
                     priorityOptions={priorityOptions}
                     statusOptions={statusOptions}
+                    categoryOptions={categoryOptions}
                   />
                 ))}
                 {showNewRow && (

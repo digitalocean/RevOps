@@ -42,6 +42,8 @@ function mapItemToInitiative(item: {
   points?: number | null;
   progress?: number | null;
   assignee_id?: string | null;
+  assignee_user_id?: string | null;
+  assignee_email?: string | null;
   assignee_initials?: string | null;
   assignee_name?: string | null;
   project_id?: string | null;
@@ -71,7 +73,10 @@ function mapItemToInitiative(item: {
     progress: typeof item.progress === 'number' ? item.progress : (status === 'Complete' ? 100 : status === 'Not Started' ? 0 : 50),
     tracker_id: item.tracker_id ?? null,
     assignee_id: item.assignee_id ?? null,
+    assignee_user_id: item.assignee_user_id ?? null,
+    assignee_email: item.assignee_email ?? null,
     field_values: item.field_values ?? undefined,
+    project_id: item.project_id ?? null,
   };
 }
 
@@ -125,8 +130,11 @@ export interface MeridianDataResult {
   deleteProject: (projectId: string) => Promise<void>;
   sprints: Sprint[];
   crew: { id: string; name: string; initials: string; role: string }[];
-  customFields: { id: string; name: string; field_type: string; target: string }[];
+  customFields: { id: string; name: string; field_type: string; target: string; applies_to?: string; options_json?: unknown[] }[];
   standardFields: { id: string; field_key: string; name: string; field_type: string; options_json?: unknown[] }[];
+  myTasksInitiatives: Initiative[];
+  myTasksLoading: boolean;
+  loadMyTasksAcrossProjects: () => Promise<void>;
 }
 
 function apiPath(path: string): string {
@@ -140,7 +148,9 @@ export function useMeridianData(): MeridianDataResult {
   const [initiatives, setInitiatives] = useState<Initiative[]>(mockInitiatives);
   const [sections, setSections] = useState<TrackerSection[]>(mockTrackerSections);
   const [crew, setCrew] = useState<{ id: string; name: string; initials: string; role: string }[]>([]);
-  const [customFields, setCustomFields] = useState<{ id: string; name: string; field_type: string; target: string }[]>([]);
+  const [customFields, setCustomFields] = useState<{ id: string; name: string; field_type: string; target: string; applies_to?: string; options_json?: unknown[] }[]>([]);
+  const [myTasksInitiatives, setMyTasksInitiatives] = useState<Initiative[]>([]);
+  const [myTasksLoading, setMyTasksLoading] = useState(false);
   const [standardFields, setStandardFields] = useState<{ id: string; field_key: string; name: string; field_type: string; options_json?: unknown[] }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -196,6 +206,8 @@ export function useMeridianData(): MeridianDataResult {
           priority: i.priority as string | null,
           points: i.points as number | null,
           assignee_id: i.assignee_id as string | null,
+          assignee_user_id: i.assignee_user_id as string | null,
+          assignee_email: i.assignee_email as string | null,
           assignee_initials: i.assignee_initials as string | null,
           assignee_name: i.assignee_name as string | null,
           project_id: i.project_id as string | null,
@@ -251,6 +263,51 @@ export function useMeridianData(): MeridianDataResult {
       setLoading(false);
     }
   }, [selectedProjectId]);
+
+  const loadMyTasksAcrossProjects = useCallback(async () => {
+    const base = getApiBaseUrl();
+    if (!base) {
+      setMyTasksInitiatives([]);
+      return;
+    }
+    setMyTasksLoading(true);
+    try {
+      const projRes = await get<Project[]>(apiPath('api/projects')).catch(() => []);
+      const plist = Array.isArray(projRes) ? projRes : [];
+      if (plist.length === 0) {
+        setMyTasksInitiatives([]);
+        return;
+      }
+      const chunks = await Promise.all(
+        plist.map((p) => get<Record<string, unknown>[]>(`${apiPath('api/items')}?project_id=${p.id}`).catch(() => []))
+      );
+      const flat = chunks.flat();
+      const mapped = flat.map((i) =>
+        mapItemToInitiative({
+          id: String(i.id),
+          title: String(i.title ?? ''),
+          description: i.description as string | null,
+          status: i.status as string | null,
+          priority: i.priority as string | null,
+          points: i.points as number | null,
+          progress: i.progress as number | null,
+          assignee_id: i.assignee_id as string | null,
+          assignee_user_id: i.assignee_user_id as string | null,
+          assignee_email: i.assignee_email as string | null,
+          assignee_initials: i.assignee_initials as string | null,
+          assignee_name: i.assignee_name as string | null,
+          project_id: i.project_id as string | null,
+          tracker_id: i.tracker_id as string | null,
+          due_date: i.due_date as string | null,
+          category: i.category as string | null,
+          field_values: i.field_values as Record<string, string | number | boolean | null> | undefined,
+        })
+      );
+      setMyTasksInitiatives(mapped);
+    } finally {
+      setMyTasksLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     load();
@@ -433,5 +490,8 @@ export function useMeridianData(): MeridianDataResult {
     sprints,
     customFields,
     standardFields,
+    myTasksInitiatives,
+    myTasksLoading,
+    loadMyTasksAcrossProjects,
   };
 }

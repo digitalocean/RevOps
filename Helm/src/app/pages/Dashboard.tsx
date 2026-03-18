@@ -17,7 +17,6 @@ import { TaskDetailDrawer } from '../components/TaskDetailDrawer';
 import { AddInitiativeDialog } from '../components/AddInitiativeDialog';
 import { SpreadsheetImport, type ImportRow } from '../components/SpreadsheetImport';
 import { ImportTemplateDialog } from '../components/ImportTemplateDialog';
-import { TeamMembersDialog } from '../components/TeamMembersDialog';
 import { CustomFieldsDialog } from '../components/CustomFieldsDialog';
 import { NewProjectDialog } from '../components/NewProjectDialog';
 import { NewSprintDialog } from '../components/NewSprintDialog';
@@ -92,6 +91,9 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     crew,
     customFields,
     standardFields,
+    myTasksInitiatives,
+    myTasksLoading,
+    loadMyTasksAcrossProjects,
   } = useMeridianData();
   const [currentView, setCurrentView] = useState<NavView>('summit_board');
   const [showActivityPanel, setShowActivityPanel] = useState(false);
@@ -100,7 +102,6 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
   const [showAddInitiative, setShowAddInitiative] = useState(false);
-  const [showTeamMembers, setShowTeamMembers] = useState(false);
   const [showCustomFields, setShowCustomFields] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [showNewSprint, setShowNewSprint] = useState(false);
@@ -151,14 +152,38 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     const opts = f?.options_json;
     return Array.isArray(opts) ? opts.map((o: { label?: string; color?: string }) => ({ label: String(o?.label ?? ''), color: o?.color })) : undefined;
   }, [standardFields]);
+  const categoryOptions = useMemo(() => {
+    const f = standardFields?.find((s: { field_key?: string }) => s.field_key === 'category');
+    const opts = f?.options_json;
+    return Array.isArray(opts) && opts.length
+      ? opts.map((o: { label?: string; color?: string }) => ({ label: String(o?.label ?? ''), color: o?.color }))
+      : undefined;
+  }, [standardFields]);
+
+  const taskAssignedToCurrentUser = (i: Initiative, u: { id: string; email?: string }) => {
+    if (i.assignee_user_id && i.assignee_user_id === u.id) return true;
+    const ue = (u.email || '').toLowerCase().trim();
+    if (ue && i.assignee_email && String(i.assignee_email).toLowerCase().trim() === ue) return true;
+    return false;
+  };
+  const myTasksCount = useMemo(() => {
+    if (!currentUser) return 0;
+    return myTasksInitiatives.filter((i) => taskAssignedToCurrentUser(i, currentUser) && i.status !== 'Complete').length;
+  }, [myTasksInitiatives, currentUser]);
+
+  useEffect(() => {
+    if (!fromApi || projects.length === 0) return;
+    loadMyTasksAcrossProjects();
+  }, [fromApi, projects.length, loadMyTasksAcrossProjects]);
 
   // Real-time WebSocket — refresh data on item/comment events
   useWebSocket({
     onMessage: useCallback((msg: { type: string }) => {
       if (['item_updated', 'item_created', 'item_deleted', 'comment_added'].includes(msg.type)) {
         refresh();
+        loadMyTasksAcrossProjects();
       }
-    }, [refresh]),
+    }, [refresh, loadMyTasksAcrossProjects]),
   });
 
   // Keyboard navigation across all visible tasks
@@ -184,7 +209,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         setFocusedId(null);
       }
     },
-    enabled: !showGlobalSearch && !showAddInitiative && !showTeamMembers && !showImport,
+    enabled: !showGlobalSearch && !showAddInitiative && !showImport,
   });
 
   // Auth: fetch current user on load only when not provided by parent (e.g. AuthGate)
@@ -486,12 +511,11 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 initiatives={initiatives}
                 trackerSections={trackerSections}
                 crew={crew}
-                onOpenAddCrew={() => setShowTeamMembers(true)}
                 onOpenCustomFields={() => setShowCustomFields(true)}
                 currentView={currentView}
                 onNavigateView={(v) => { setCurrentView(v); setSidebarOpen(false); }}
                 fieldNotesCount={0}
-                myTasksCount={initiatives.filter(i => currentUser && i.assignee_id === currentUser.id && i.status !== 'Complete').length}
+                myTasksCount={myTasksCount}
                 onOpenItem={(id) => { const init = initiatives.find(i => i.id === id); if (init) setDrawerInitiative(init); }}
                 onDeleteSection={deleteSection}
                 onRenameSection={async (trackerId, newName) => { await updateSection(trackerId, { name: newName }); refreshActivity(); }}
@@ -520,12 +544,11 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
             initiatives={initiatives}
             trackerSections={trackerSections}
             crew={crew}
-            onOpenAddCrew={() => setShowTeamMembers(true)}
             onOpenCustomFields={() => setShowCustomFields(true)}
             currentView={currentView}
             onNavigateView={(v) => setCurrentView(v)}
             fieldNotesCount={0}
-            myTasksCount={initiatives.filter(i => currentUser && i.assignee_id === currentUser.id && i.status !== 'Complete').length}
+            myTasksCount={myTasksCount}
             onOpenItem={(id) => { const init = initiatives.find(i => i.id === id); if (init) setDrawerInitiative(init); }}
             onDeleteSection={deleteSection}
             onRenameSection={async (trackerId, newName) => { await updateSection(trackerId, { name: newName }); refreshActivity(); }}
@@ -694,12 +717,21 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               <AnalyticsView projectId={selectedProjectId} />
             ) : currentView === 'my_tasks' ? (
               <MyTasksView
-                initiatives={initiatives}
+                initiatives={myTasksInitiatives}
                 crew={crew}
-                currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
+                currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User', email: currentUser.email } : null}
                 projects={projects}
-                onUpdateItem={async (id, payload) => { await updateItem(id, payload); refreshActivity(); }}
-                onDeleteItem={async (id) => { await deleteItem(id); refreshActivity(); }}
+                loading={myTasksLoading}
+                onUpdateItem={async (id, payload) => {
+                  await updateItem(id, payload);
+                  await loadMyTasksAcrossProjects();
+                  refreshActivity();
+                }}
+                onDeleteItem={async (id) => {
+                  await deleteItem(id);
+                  await loadMyTasksAcrossProjects();
+                  refreshActivity();
+                }}
               />
             ) : currentView === 'personal_tasks' ? (
               <PersonalTasksView
@@ -712,7 +744,11 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 onOpenTask={(task) => setDrawerInitiative(task)}
               />
             ) : currentView === 'expedition_map' ? (
-              <GanttChart initiatives={initiatives} />
+              <GanttChart
+                initiatives={initiatives}
+                trackerSections={trackerSections.map((s) => ({ id: s.id, title: s.title }))}
+                customFields={customFields as { id: string; name: string; field_type: string; target?: string; applies_to?: string }[]}
+              />
             ) : currentView === 'field_notes' ? (
               <FieldNotesView projectId={selectedProjectId} onRefresh={refresh} />
             ) : currentView === 'base_camp' ? (
@@ -828,6 +864,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     onItemCompleted={() => setCelebrateCount((c) => c + 1)}
                     priorityOptions={priorityOptions}
                     statusOptions={statusOptions}
+                    categoryOptions={categoryOptions}
                   />
                   );
                 })}
@@ -871,6 +908,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           }}
           priorityOptions={priorityOptions}
           statusOptions={statusOptions}
+          categoryOptions={categoryOptions}
         />
       )}
 
@@ -948,13 +986,6 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
       />
 
       <CompletionCelebration trigger={celebrateCount > 0} label="Item completed!" />
-
-      <TeamMembersDialog
-        open={showTeamMembers}
-        onOpenChange={setShowTeamMembers}
-        workspaceId={selectedProjectId ? (projects.find((p) => p.id === selectedProjectId)?.workspace_id ?? projects[0]?.workspace_id ?? null) : (projects[0]?.workspace_id ?? null)}
-        onAdded={refresh}
-      />
 
       <CustomFieldsDialog
         open={showCustomFields}

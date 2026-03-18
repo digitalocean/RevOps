@@ -46,7 +46,7 @@ interface NavigationSidebarProps {
   trackerSections?: TrackerSectionType[];
   initiatives?: Initiative[];
   crew: { id: string; name: string; initials?: string }[];
-  onOpenAddCrew: () => void;
+  onOpenAddCrew?: () => void;
   onOpenCustomFields: () => void;
   currentView: NavView;
   onNavigateView: (view: NavView) => void;
@@ -61,7 +61,7 @@ interface NavigationSidebarProps {
 
 export function NavigationSidebar({
   projects, selectedProjectId, onSelectProject, onOpenNewProject,
-  trackerSections = [], crew, onOpenAddCrew, currentView, onNavigateView, onOpenPersonalTasks,
+  trackerSections = [], crew: _crew, onOpenAddCrew: _onOpenAddCrew, currentView, onNavigateView, onOpenPersonalTasks,
   fieldNotesCount = 0, myTasksCount = 0,   onOpenItem, onDeleteSection, onRenameSection, onRenameProject,
 }: NavigationSidebarProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
@@ -313,27 +313,6 @@ export function NavigationSidebar({
           })}
         </div>
 
-        {/* Crew members */}
-        <div className="px-3 pt-3 pb-4 border-t border-gray-100 mt-1">
-          <div className="flex items-center justify-between mb-2 px-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">Crew members</span>
-            <button type="button" onClick={onOpenAddCrew}
-              className="flex items-center justify-center w-5 h-5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" title="Add crew">
-              <Plus className="w-3 h-3" />
-            </button>
-          </div>
-          <div className="space-y-0.5">
-            {crew.length === 0 && <p className="text-xs text-gray-400 px-1 py-1">No crew. Click + to add.</p>}
-            {crew.map((c) => (
-              <div key={c.id} className="flex items-center gap-2 px-1 py-1.5 rounded-md hover:bg-gray-50">
-                <div className="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white text-[10px] font-semibold flex-shrink-0">
-                  {c.initials || c.name.slice(0, 2).toUpperCase()}
-                </div>
-                <span className="truncate text-xs text-gray-600">{c.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       <div className="px-3 py-3 border-t border-gray-100 flex justify-end">

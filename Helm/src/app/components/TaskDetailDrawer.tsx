@@ -82,9 +82,10 @@ interface TaskDetailDrawerProps {
   onDelete?: (id: string) => Promise<void>;
   priorityOptions?: StandardFieldOption[];
   statusOptions?: StandardFieldOption[];
+  categoryOptions?: StandardFieldOption[];
 }
 
-export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, onSave, onDelete, priorityOptions, statusOptions }: TaskDetailDrawerProps) {
+export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, onSave, onDelete, priorityOptions, statusOptions, categoryOptions }: TaskDetailDrawerProps) {
   // Editable fields
   const [title, setTitle] = useState(initiative.name);
   const [description, setDescription] = useState(initiative.description || '');
@@ -96,6 +97,10 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
   if (priority && !priorityList.some((o) => o.label === priority)) priorityList.push({ label: priority });
   const [assigneeId, setAssigneeId] = useState<string | null>(initiative.assignee_id ?? null);
   const [category, setCategory] = useState<Category>(initiative.category);
+  const categoryList = (categoryOptions?.length ? categoryOptions : CATEGORIES.map((c) => ({ label: c }))).slice();
+  if (category && !categoryList.some((o) => o.label === category)) {
+    categoryList.push({ label: category, color: '#6b7280' });
+  }
   const [progress, setProgress] = useState(initiative.progress ?? 0);
   const dueDateStr = initiative.endDate && !isNaN(initiative.endDate.getTime())
     ? initiative.endDate.toISOString().slice(0, 10) : '';
@@ -482,7 +487,7 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="z-[200]">
-                      {CATEGORIES.map(c => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}
+                      {categoryList.map((c) => <SelectItem key={c.label} value={c.label} className="text-xs">{c.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </MetaField>

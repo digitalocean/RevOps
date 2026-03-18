@@ -24,8 +24,13 @@ export interface Initiative {
   tracker_id?: string | null;
   /** Crew member id for assignee */
   assignee_id?: string | null;
+  /** users.id of assignee when crew.user_id is set */
+  assignee_user_id?: string | null;
+  assignee_email?: string | null;
   /** Custom field values: field_id -> value */
   field_values?: Record<string, string | number | boolean | null>;
+  /** Present when aggregating across projects (e.g. My Tasks) */
+  project_id?: string | null;
 }
 
 export interface TrackerSection {

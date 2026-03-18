@@ -10,16 +10,24 @@ const STATUS_DOT: Record<Status, string> = {
 
 type FilterMode = 'all' | 'due_today' | 'overdue' | 'blocked' | 'in_review' | 'complete';
 
+function taskAssignedToMe(i: Initiative, u: { id: string; email?: string }): boolean {
+  if (i.assignee_user_id && i.assignee_user_id === u.id) return true;
+  const ue = (u.email || '').toLowerCase().trim();
+  if (ue && i.assignee_email && String(i.assignee_email).toLowerCase().trim() === ue) return true;
+  return false;
+}
+
 interface MyTasksViewProps {
   initiatives: Initiative[];
   crew: { id: string; name: string; initials?: string }[];
-  currentUser: { id: string; name: string } | null;
+  currentUser: { id: string; name: string; email?: string } | null;
   projects: { id: string; name: string }[];
   onUpdateItem: (id: string, payload: Record<string, unknown>) => Promise<unknown>;
   onDeleteItem: (id: string) => Promise<void>;
+  loading?: boolean;
 }
 
-export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdateItem, onDeleteItem }: MyTasksViewProps) {
+export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdateItem, onDeleteItem, loading }: MyTasksViewProps) {
   const [filter, setFilter] = useState<FilterMode>('all');
   const [selected, setSelected] = useState<Initiative | null>(null);
 
@@ -29,10 +37,9 @@ export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdate
     return m;
   }, [projects]);
 
-  // Get tasks assigned to current user across all projects
   const myTasks = useMemo(() => {
-    if (!currentUser) return initiatives; // if no user, show all
-    return initiatives.filter(i => i.assignee_id === currentUser.id);
+    if (!currentUser) return initiatives;
+    return initiatives.filter((i) => taskAssignedToMe(i, currentUser));
   }, [initiatives, currentUser]);
 
   const today = new Date();
@@ -102,14 +109,16 @@ export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdate
       </div>
 
       {/* Task list */}
-      {filtered.length === 0 ? (
+      {loading && myTasks.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-2xl border border-gray-200 text-gray-500 text-sm">Loading tasks from all your projects…</div>
+      ) : filtered.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
           <CheckCircle2 className="w-12 h-12 text-emerald-300 mx-auto mb-3" />
           <p className="text-lg font-semibold text-gray-700">
             {filter === 'all' ? "You're all caught up!" : `No ${filters.find(f => f.id === filter)?.label.toLowerCase()} tasks`}
           </p>
           <p className="text-sm text-gray-400 mt-1">
-            {filter === 'all' ? 'No active tasks assigned to you.' : 'Check other filters or add new tasks.'}
+            {filter === 'all' ? 'No tasks assigned to you (by account or email). Assign a task to yourself in Trackers, or link your crew profile to your user.' : 'Check other filters or add new tasks.'}
           </p>
         </div>
       ) : (
@@ -135,6 +144,9 @@ export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdate
                     {init.name}
                   </p>
                   <div className="flex items-center gap-3 mt-1 flex-wrap">
+                    {init.project_id && projectMap[init.project_id] && (
+                      <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{projectMap[init.project_id]}</span>
+                    )}
                     <span className="text-xs text-gray-400 flex items-center gap-1">
                       <Tag className="w-3 h-3" />{init.category}
                     </span>

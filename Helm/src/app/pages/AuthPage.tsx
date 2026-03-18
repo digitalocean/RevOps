@@ -8,17 +8,23 @@ interface AuthPageProps {
 
 interface AuthProviders {
   okta: boolean;
+  saml?: boolean;
 }
 
 export function AuthPage({ onSuccess }: AuthPageProps) {
   const [loading, setLoading] = useState(false);
-  const [providers, setProviders] = useState<AuthProviders>({ okta: false });
+  const [providers, setProviders] = useState<AuthProviders>({ okta: false, saml: false });
 
   useEffect(() => {
     get<AuthProviders>('/api/auth/providers')
-      .then(setProviders)
-      .catch(() => setProviders({ okta: false }));
+      .then((p) => setProviders({ okta: !!p.okta, saml: !!p.saml }))
+      .catch(() => setProviders({ okta: false, saml: false }));
   }, []);
+
+  const handleSamlSignIn = () => {
+    setLoading(true);
+    window.location.href = '/api/auth/saml';
+  };
 
   const handleOktaSignIn = () => {
     setLoading(true);
@@ -55,12 +61,12 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
   };
   ——— */
 
-  if (!providers.okta) {
+  if (!providers.okta && !providers.saml) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50/30 p-4">
         <div className="w-full max-w-md text-center">
           <h1 className="text-3xl font-bold text-gray-900 tracking-tight">To-DO</h1>
-          <p className="text-gray-500 mt-4">SSO (Okta) is not configured. Contact your administrator.</p>
+          <p className="text-gray-500 mt-4">SSO is not configured. Contact your administrator.</p>
         </div>
       </div>
     );
@@ -79,7 +85,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
 
           <button
             type="button"
-            onClick={handleOktaSignIn}
+            onClick={providers.saml ? handleSamlSignIn : handleOktaSignIn}
             disabled={loading}
             className="w-full flex items-center justify-center gap-3 h-14 px-6 rounded-xl font-semibold text-white bg-[#007dc1] hover:bg-[#006ba1] focus:ring-2 focus:ring-[#007dc1] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed shadow-md hover:shadow-lg"
           >
@@ -93,7 +99,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
                 <svg className="w-6 h-6 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
                 </svg>
-                Sign in with Okta
+                {providers.saml ? 'Sign in with SSO' : 'Sign in with Okta'}
               </>
             )}
           </button>

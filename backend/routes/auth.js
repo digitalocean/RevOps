@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 
 const router = require('express').Router();
 const passport = require('passport');
@@ -79,6 +81,151 @@ if (process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.
   );
 }
 
+// ── SAML 2.0 (IdP metadata URL, file, or raw XML) ─────────────────────────
+function parseIdpMetadata(xml) {
+  const matches = [...String(xml).matchAll(/SingleSignOnService\s+([^>]+)>/gi)];
+  let postUrl;
+  let redirectUrl;
+  for (const [, attrs] of matches) {
+    const loc = attrs.match(/Location="([^"]+)"/i);
+    const binding = attrs.match(/Binding="([^"]+)"/i);
+    if (!loc) continue;
+    const b = (binding && binding[1]) || '';
+    if (b.includes('HTTP-POST')) postUrl = loc[1];
+    else if (b.includes('HTTP-Redirect')) redirectUrl = loc[1];
+  }
+  const entryPoint = postUrl || redirectUrl;
+  const certRaw = [...String(xml).matchAll(/X509Certificate>\s*([^<]+?)\s*</gi)].map((m) =>
+    m[1].replace(/\s/g, '')
+  );
+  const idpCerts = [...new Set(certRaw.filter(Boolean))];
+  return { entryPoint, idpCerts };
+}
+
+function certToPem(b64) {
+  const lines = b64.match(/.{1,64}/g) || [b64];
+  return `-----BEGIN CERTIFICATE-----\n${lines.join('\n')}\n-----END CERTIFICATE-----`;
+}
+
+function samlMetadataEnvPresent() {
+  return !!(
+    process.env.SAML_IDP_METADATA_URL ||
+    process.env.SAML_IDP_METADATA_FILE ||
+    (process.env.SAML_IDP_METADATA_XML && String(process.env.SAML_IDP_METADATA_XML).trim().length > 80)
+  );
+}
+
+let samlStrategyReady = false;
+let samlInitPromise = null;
+
+async function ensureSamlStrategy() {
+  if (samlStrategyReady) return;
+  if (!samlMetadataEnvPresent()) {
+    throw new Error('SAML is not configured (set SAML_IDP_METADATA_URL, SAML_IDP_METADATA_FILE, or SAML_IDP_METADATA_XML)');
+  }
+  if (samlInitPromise) {
+    await samlInitPromise;
+    return;
+  }
+  samlInitPromise = (async () => {
+    let xml;
+    if (process.env.SAML_IDP_METADATA_FILE) {
+      const fp = path.resolve(process.cwd(), process.env.SAML_IDP_METADATA_FILE);
+      xml = fs.readFileSync(fp, 'utf8');
+    } else if (process.env.SAML_IDP_METADATA_XML) {
+      xml = process.env.SAML_IDP_METADATA_XML;
+    } else {
+      const res = await fetch(process.env.SAML_IDP_METADATA_URL, {
+        headers: { Accept: 'application/xml, text/xml, */*' },
+      });
+      if (!res.ok) throw new Error(`SAML metadata fetch failed: ${res.status} ${res.statusText}`);
+      xml = await res.text();
+    }
+    const { entryPoint, idpCerts } = parseIdpMetadata(xml);
+    if (!entryPoint) throw new Error('IdP metadata: no SingleSignOnService URL found');
+    if (!idpCerts.length) throw new Error('IdP metadata: no X509Certificate found');
+    const { Strategy } = require('@node-saml/passport-saml');
+    const callbackUrl = `${apiBase()}/api/auth/saml/callback`;
+    const issuer = (process.env.SAML_SP_ENTITY_ID || apiBase()).replace(/\/$/, '');
+    const idpCert = idpCerts.length === 1 ? certToPem(idpCerts[0]) : idpCerts.map(certToPem);
+
+    passport.use(
+      'saml',
+      new Strategy(
+        {
+          callbackUrl,
+          entryPoint,
+          issuer,
+          idpCert,
+          identifierFormat: process.env.SAML_NAME_ID_FORMAT || undefined,
+          wantAssertionsSigned: process.env.SAML_WANT_ASSERTIONS_SIGNED !== 'false',
+          validateInResponseTo: process.env.SAML_VALIDATE_IN_RESPONSE_TO || 'never',
+        },
+        async (profile, done) => {
+          try {
+            const nid = profile.nameID;
+            const nameIdStr =
+              typeof nid === 'string' ? nid : nid && typeof nid === 'object' && nid.value ? String(nid.value) : String(nid || '');
+            const attrEmail =
+              profile.email ||
+              profile.mail ||
+              profile['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'];
+            const emailRaw =
+              (typeof attrEmail === 'string' ? attrEmail : Array.isArray(attrEmail) ? attrEmail[0] : attrEmail) ||
+              (nameIdStr && nameIdStr.includes('@') ? nameIdStr : null);
+            const email = (emailRaw || `${nameIdStr || 'user'}.saml@local`).toLowerCase().trim();
+            const displayName =
+              profile.displayName ||
+              [profile.firstName, profile.lastName].filter(Boolean).join(' ') ||
+              profile['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] ||
+              email.split('@')[0];
+
+            const existing = await pool.query({
+              name: 'auth_saml_find_user',
+              text: 'SELECT id, email, name, avatar_url FROM users WHERE email = $1 LIMIT 1',
+              values: [email],
+            });
+
+            let user;
+            if (existing.rows.length) {
+              const nm = displayName || existing.rows[0].name;
+              await pool.query({
+                name: 'auth_saml_update_user',
+                text: 'UPDATE users SET name = $1 WHERE id = $2',
+                values: [nm, existing.rows[0].id],
+              });
+              user = {
+                id: existing.rows[0].id,
+                email,
+                name: nm,
+                avatar_url: existing.rows[0].avatar_url,
+              };
+            } else {
+              const insert = await pool.query({
+                name: 'auth_saml_insert_user',
+                text: 'INSERT INTO users (email, name) VALUES ($1, $2) RETURNING id, email, name, avatar_url',
+                values: [email, displayName || email.split('@')[0]],
+              });
+              user = insert.rows[0];
+            }
+            return done(null, user);
+          } catch (err) {
+            return done(err, null);
+          }
+        }
+      )
+    );
+    samlStrategyReady = true;
+    console.log('[SAML] Strategy registered', { callbackUrl, issuer, entryPoint: entryPoint.slice(0, 48) + '…' });
+  })();
+  try {
+    await samlInitPromise;
+  } catch (e) {
+    samlInitPromise = null;
+    throw e;
+  }
+}
+
 passport.serializeUser((user, done) => {
   done(null, user);
 });
@@ -133,7 +280,7 @@ router.post('/login', async (req, res, next) => {
     }
     const user = rows[0];
     if (!user.password_hash) {
-      return res.status(401).json({ error: 'Account uses Okta SSO. Use Sign in with Okta.' });
+      return res.status(401).json({ error: 'Account uses SSO. Use Sign in with SSO / Okta on the login page.' });
     }
     const ok = await bcrypt.compare(String(password), user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Invalid email or password' });
@@ -149,13 +296,19 @@ router.post('/login', async (req, res, next) => {
 
 // Ping to verify auth routes are reachable (GET /api/auth/ping or /auth/ping)
 router.get('/ping', (req, res) => {
-  res.json({ ok: 'auth', path: req.path, okta: !!(process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.OKTA_ISSUER) });
+  res.json({
+    ok: 'auth',
+    path: req.path,
+    okta: !!(process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.OKTA_ISSUER),
+    saml: samlMetadataEnvPresent(),
+  });
 });
 
-// Auth providers (Okta OIDC only; frontend shows "Sign in with Okta" when okta is true)
+// Auth providers: SAML preferred when configured (SSO button); else Okta OIDC
 router.get('/providers', (req, res) => {
   res.json({
     okta: !!(process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.OKTA_ISSUER),
+    saml: samlMetadataEnvPresent(),
   });
 });
 
@@ -308,6 +461,48 @@ function oktaCallback(req, res, next) {
 router.get(['/okta/callback', '/okta/callback/'], oktaCallback);
 router.post(['/okta/callback', '/okta/callback/'], oktaCallback);
 
+async function samlCallback(req, res, next) {
+  try {
+    await ensureSamlStrategy();
+  } catch (e) {
+    console.error('[SAML] init failed on ACS', e.message);
+    return res.status(503).send('SAML is not configured.');
+  }
+  passport.authenticate('saml', { session: true }, (err, user) => {
+    if (err) {
+      console.error('[SAML] passport.authenticate error', err.message, err.stack);
+      return res.redirect(`${frontendUrl()}/?auth=failed&reason=saml_error`);
+    }
+    if (!user) {
+      console.error('[SAML] no user from assertion');
+      return res.redirect(`${frontendUrl()}/?auth=failed&reason=saml_no_user`);
+    }
+    req.login(user, (loginErr) => {
+      if (loginErr) {
+        console.error('[SAML] req.login error', loginErr.message);
+        return res.redirect(`${frontendUrl()}/?auth=failed&reason=session`);
+      }
+      console.log('[SAML] auth success, redirecting to app');
+      res.redirect(`${frontendUrl()}/?auth=ok`);
+    });
+  })(req, res, next);
+}
+
+router.get(['/saml', '/saml/'], async (req, res, next) => {
+  try {
+    await ensureSamlStrategy();
+  } catch (e) {
+    return res.status(503).json({ error: 'SAML sign-in is not configured', message: e.message });
+  }
+  if (!passport._strategies || !passport._strategies.saml) {
+    return res.status(500).json({ error: 'SAML strategy not registered' });
+  }
+  passport.authenticate('saml')(req, res, next);
+});
+
+router.post(['/saml/callback', '/saml/callback/'], samlCallback);
+
 module.exports = router;
 module.exports.passport = passport;
 module.exports.oktaCallback = oktaCallback;
+module.exports.samlCallback = samlMetadataEnvPresent() ? samlCallback : null;

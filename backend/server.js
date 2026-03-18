@@ -70,8 +70,8 @@ app.set('trust proxy', 1);
 // Log auth/okta requests so we can see if callback reaches this app (if 404 and no log, request went to wrong component)
 app.use((req, res, next) => {
   const p = (req.path || req.url || '').split('?')[0];
-  if (p.includes('auth') || p.includes('okta')) {
-    console.log('[Okta] request reached API', { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl });
+  if (p.includes('auth') || p.includes('okta') || p.includes('saml')) {
+    console.log('[Auth] request reached API', { method: req.method, path: req.path, url: req.url, originalUrl: req.originalUrl });
   }
   next();
 });
@@ -85,7 +85,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// SAML ACS POST sends large base64 SAMLResponse; default 100kb is too small
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 // ── Session & Auth (must be before routes that use req.user) ─
 const session = require('express-session');
@@ -95,8 +96,24 @@ const authRoutes = require('./routes/auth');
 const PgStore = pgSession(session);
 const sessionStore = new PgStore({ pool, createTableIfMissing: true, tableName: 'session' });
 
+// SAML ACS is a cross-site POST from the IdP; SameSite=Lax would drop the session cookie. Use None+Secure when SAML metadata is configured.
+const samlMetadataConfigured = !!(
+  process.env.SAML_IDP_METADATA_URL ||
+  process.env.SAML_IDP_METADATA_FILE ||
+  (process.env.SAML_IDP_METADATA_XML && String(process.env.SAML_IDP_METADATA_XML).trim().length > 80)
+);
+
 // Session: long-lived so refresh doesn't log out; resave so activity extends session
 const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const sessionSecure = process.env.NODE_ENV === 'production';
+const sessionSameSite =
+  process.env.SESSION_SAME_SITE === 'none'
+    ? 'none'
+    : process.env.SESSION_SAME_SITE === 'lax'
+      ? 'lax'
+      : samlMetadataConfigured && sessionSecure
+        ? 'none'
+        : 'lax';
 app.use(
   session({
     store: sessionStore,
@@ -106,13 +123,16 @@ app.use(
     name: 'todo.sid',
     cookie: {
       maxAge: SESSION_MAX_AGE_MS,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
+      sameSite: sessionSameSite,
+      secure: sessionSameSite === 'none' ? true : sessionSecure,
       httpOnly: true,
       path: '/',
     },
   })
 );
+if (samlMetadataConfigured) {
+  console.log('[SAML] Session cookie sameSite=%s (needed for IdP POST to ACS)', sessionSameSite);
+}
 app.use(authRoutes.passport.initialize());
 app.use(authRoutes.passport.session());
 
@@ -129,6 +149,23 @@ if (authRoutes.oktaCallback) {
     if (looksLikeCallback) {
       console.log('[Okta] callback route matched', { method: req.method, path: req.path, pathname, originalUrl: req.originalUrl });
       return authRoutes.oktaCallback(req, res, next);
+    }
+    next();
+  });
+}
+
+if (authRoutes.samlCallback) {
+  app.use((req, res, next) => {
+    const raw = req.path != null ? req.path : (req.url ? req.url.split('?')[0] : '');
+    const pathname = (raw || '/').replace(/\/+$/, '').replace(/^\/+/, '') || '';
+    const fullUrl = req.originalUrl || req.url || '';
+    const isSamlAcs =
+      pathname.endsWith('saml/callback') ||
+      pathname === 'saml/callback' ||
+      (fullUrl.includes('saml') && fullUrl.includes('callback') && req.method === 'POST');
+    if (isSamlAcs && req.method === 'POST') {
+      console.log('[SAML] ACS route matched', { method: req.method, path: req.path, pathname, originalUrl: req.originalUrl });
+      return authRoutes.samlCallback(req, res, next);
     }
     next();
   });

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { CheckCircle2, Clock, AlertTriangle, Calendar, Tag, ArrowRight, Inbox } from 'lucide-react';
+import { CheckCircle2, Clock, AlertTriangle, Calendar, Tag, ArrowRight, Inbox, RefreshCw } from 'lucide-react';
+import { Button } from './ui/button';
 import type { Initiative, Status } from '../data/mockData';
 import { TaskDetailDrawer } from './TaskDetailDrawer';
 
@@ -25,11 +26,26 @@ interface MyTasksViewProps {
   onUpdateItem: (id: string, payload: Record<string, unknown>) => Promise<unknown>;
   onDeleteItem: (id: string) => Promise<void>;
   loading?: boolean;
+  /** Reload tasks from all projects (manual + called after saves) */
+  onRefresh?: () => Promise<void>;
 }
 
-export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdateItem, onDeleteItem, loading }: MyTasksViewProps) {
+export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdateItem, onDeleteItem, loading, onRefresh }: MyTasksViewProps) {
   const [filter, setFilter] = useState<FilterMode>('all');
   const [selected, setSelected] = useState<Initiative | null>(null);
+  const [manualRefreshing, setManualRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (!onRefresh || manualRefreshing) return;
+    setManualRefreshing(true);
+    try {
+      await onRefresh();
+    } finally {
+      setManualRefreshing(false);
+    }
+  };
+
+  const showRefreshSpinner = manualRefreshing || (Boolean(loading) && initiatives.length > 0);
 
   const projectMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -79,11 +95,27 @@ export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdate
   return (
     <div className="max-w-3xl mx-auto">
       {/* Header */}
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">My Tasks</h2>
-        <p className="text-sm text-gray-500 mt-1">
-          {currentUser ? `Tasks assigned to ${currentUser.name}` : 'All tasks across projects'} — {myTasks.length} total
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">My Tasks</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            {currentUser ? `Tasks assigned to ${currentUser.name}` : 'All tasks across projects'} — {myTasks.length} total
+          </p>
+        </div>
+        {onRefresh && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 rounded-xl border-gray-200 text-gray-700 hover:bg-gray-50"
+            onClick={() => void handleRefresh()}
+            disabled={manualRefreshing}
+            title="Reload tasks from all projects"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${showRefreshSpinner ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        )}
       </div>
 
       {/* Filter pills */}

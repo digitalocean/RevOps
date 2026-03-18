@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { NavigationSidebar, type NavView } from '../components/NavigationSidebar';
 import { WorkspaceHeader } from '../components/WorkspaceHeader';
@@ -175,6 +175,15 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     if (!fromApi || projects.length === 0) return;
     loadMyTasksAcrossProjects();
   }, [fromApi, projects.length, loadMyTasksAcrossProjects]);
+
+  const prevViewForMyTasksRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (currentView === 'my_tasks' && fromApi && projects.length > 0) {
+      const entered = prevViewForMyTasksRef.current !== 'my_tasks';
+      if (entered) loadMyTasksAcrossProjects();
+    }
+    prevViewForMyTasksRef.current = currentView;
+  }, [currentView, fromApi, projects.length, loadMyTasksAcrossProjects]);
 
   // Real-time WebSocket — refresh data on item/comment events
   useWebSocket({
@@ -732,6 +741,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                   await loadMyTasksAcrossProjects();
                   refreshActivity();
                 }}
+                onRefresh={loadMyTasksAcrossProjects}
               />
             ) : currentView === 'personal_tasks' ? (
               <PersonalTasksView

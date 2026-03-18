@@ -64,6 +64,15 @@ services:
       - key: OKTA_CLIENT_SECRET
         value: "PASTE_OKTA_CLIENT_SECRET"
         scope: RUN_TIME
+      - key: SAML_IDP_METADATA_URL
+        value: ""
+        scope: RUN_TIME
+      - key: SAML_SP_ENTITY_ID
+        value: "https://revops-ntkll.ondigitalocean.app"
+        scope: RUN_TIME
+      - key: SAML_APP_BASE_URL
+        value: "https://revops-ntkll.ondigitalocean.app"
+        scope: RUN_TIME
     github:
       deploy_on_push: true
       repo: digitalocean/RevOps

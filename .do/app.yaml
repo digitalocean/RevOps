@@ -32,7 +32,8 @@ alerts:
   - rule: DEPLOYMENT_FAILED
   - rule: DOMAIN_FAILED
 
-# Env keys are predefined below; in DigitalOcean dashboard only edit the values (no need to add keys).
+# Env keys are predefined below; in DigitalOcean dashboard edit the values.
+# SAML: fill SAML_IDP_METADATA_URL (Okta metadata link). Match SAML_SP_ENTITY_ID to Okta Audience URI.
 services:
   - name: api
     environment_slug: node-js
@@ -67,6 +68,16 @@ services:
         scope: RUN_TIME
       - key: OKTA_CLIENT_SECRET
         value: "PASTE_OKTA_CLIENT_SECRET"
+        scope: RUN_TIME
+      # SAML SSO (Okta SAML app) — leave URL empty if you only use OIDC above
+      - key: SAML_IDP_METADATA_URL
+        value: ""
+        scope: RUN_TIME
+      - key: SAML_SP_ENTITY_ID
+        value: "https://revops-ntkll.ondigitalocean.app"
+        scope: RUN_TIME
+      - key: SAML_APP_BASE_URL
+        value: "https://revops-ntkll.ondigitalocean.app"
         scope: RUN_TIME
     github:
       deploy_on_push: true

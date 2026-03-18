@@ -2,7 +2,7 @@
 
 Use your app URL: **https://revops-ntkll.ondigitalocean.app** (no trailing slash). Replace with your own URL if different.
 
-**DigitalOcean:** All env **keys** are already defined in **`.do/app.yaml`**. In the DO dashboard you only **edit the values** (no need to add or create variable names). Deploy or sync the app from the repo so the spec is applied, then open API/Web component → Environment Variables and paste your values into the existing keys.
+**DigitalOcean:** Env **keys** are defined in **`.do/app.yaml`**. Sync the app from the repo (or paste updated spec), then open **api** → **Environment Variables**. You should see keys like `SAML_IDP_METADATA_URL` — **if an older app predates SAML**, click **Edit** on the spec or **Add variable** and add any missing keys from the list below.
 
 ---
 
@@ -21,10 +21,15 @@ SESSION_SECRET=paste-a-long-random-string-here-at-least-32-chars
 FRONTEND_URL=https://revops-ntkll.ondigitalocean.app
 APP_URL=https://revops-ntkll.ondigitalocean.app
 
-# Okta SSO (optional — omit if not using Okta)
+# Okta OIDC (optional — omit if using SAML only)
 OKTA_ISSUER=https://your-org.okta.com/oauth2/default
 OKTA_CLIENT_ID=paste-your-okta-client-id
 OKTA_CLIENT_SECRET=paste-your-okta-client-secret
+
+# Okta SAML (optional — omit if using OIDC only). Frontend shows "Sign in with SSO" when SAML_IDP_METADATA_URL is set.
+SAML_IDP_METADATA_URL=https://your-org.okta.com/app/xxxxx/sso/saml/metadata
+SAML_SP_ENTITY_ID=https://revops-ntkll.ondigitalocean.app
+SAML_APP_BASE_URL=https://revops-ntkll.ondigitalocean.app
 
 # Optional: DB with self-signed cert (e.g. DO Managed DB)
 NODE_TLS_REJECT_UNAUTHORIZED=0
@@ -67,6 +72,9 @@ Use this list when you only need to paste **your** values (e.g. from Okta or a s
 | `OKTA_ISSUER` | Okta Admin → your OIDC app / Authorization Server | `https://dev-12345.okta.com/oauth2/default` |
 | `OKTA_CLIENT_ID` | Okta Admin → Application → Client ID | `0oa...` |
 | `OKTA_CLIENT_SECRET` | Okta Admin → Application → Client secret | `xxx...` |
+| `SAML_IDP_METADATA_URL` | Okta SAML app → **Sign On** → metadata URL | `https://….okta.com/app/…/sso/saml/metadata` |
+| `SAML_SP_ENTITY_ID` | Same as Okta **Audience URI** | `https://your-app.ondigitalocean.app` |
+| `SAML_APP_BASE_URL` | Same public `https` origin as app | same as `APP_URL` |
 | `DATABASE_URL` | DigitalOcean: from linked DB; local: your Postgres connection string | `postgresql://...` |
 
 ---

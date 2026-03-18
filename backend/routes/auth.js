@@ -160,10 +160,17 @@ async function ensureSamlStrategy() {
     } else if (process.env.SAML_IDP_METADATA_XML) {
       xml = process.env.SAML_IDP_METADATA_XML;
     } else {
-      const res = await fetch(process.env.SAML_IDP_METADATA_URL, {
+      const metaUrl = process.env.SAML_IDP_METADATA_URL;
+      const res = await fetch(metaUrl, {
         headers: { Accept: 'application/xml, text/xml, */*' },
       });
-      if (!res.ok) throw new Error(`SAML metadata fetch failed: ${res.status} ${res.statusText}`);
+      if (!res.ok) {
+        const hint =
+          res.status === 404
+            ? ' Okta IdP metadata is usually at https://YOUR_ORG.okta.com/app/APP_INSTANCE_ID/sso/saml/metadata (path /app/INSTANCE_ID/..., not /app/AppName/INSTANCE_ID/...).'
+            : '';
+        throw new Error(`SAML metadata fetch failed: ${res.status} ${res.statusText}.${hint}`);
+      }
       xml = await res.text();
     }
     const { entryPoint, idpCerts, postUrl, redirectUrl } = parseIdpMetadata(xml);

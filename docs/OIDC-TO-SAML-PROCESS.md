@@ -43,7 +43,7 @@ The backend uses **`@node-saml/passport-saml`** with IdP metadata from Okta.
 
 | Variable | Description |
 |----------|-------------|
-| **`SAML_IDP_METADATA_URL`** | Okta metadata URL (e.g. *Sign On* → *Identity Provider metadata*). Easiest for production. |
+| **`SAML_IDP_METADATA_URL`** | Okta **Sign On** → metadata URL. Format: `https://org.okta.com/app/INSTANCE_ID/sso/saml/metadata`. If you see **404**, the URL must use `/app/exk…/` only — not `/app/AppName/exk…/`. |
 | **`SAML_IDP_METADATA_FILE`** | Path to downloaded `metadata.xml` (relative to process cwd, e.g. backend). |
 | **`SAML_IDP_METADATA_XML`** | Raw metadata XML (large; usually use URL or file instead). |
 | **`SAML_SP_ENTITY_ID`** | **Audience URI** in Okta — must match exactly, e.g. `https://your-app.ondigitalocean.app`. |

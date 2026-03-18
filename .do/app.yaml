@@ -71,7 +71,7 @@ services:
         scope: RUN_TIME
       # IdP metadata from Okta (digitalocean_todosaml_1 / exk1a2t62juiN4Nmk2p8)
       - key: SAML_IDP_METADATA_URL
-        value: "https://digitalocean.okta.com/app/digitalocean_todosaml_1/exk1a2t62juiN4Nmk2p8/sso/saml/metadata"
+        value: "https://digitalocean.okta.com/app/exk1a2t62juiN4Nmk2p8/sso/saml/metadata"
         scope: RUN_TIME
       - key: SAML_SP_ENTITY_ID
         value: "https://revops-ntkll.ondigitalocean.app"

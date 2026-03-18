@@ -51,6 +51,15 @@ The backend uses **`@node-saml/passport-saml`** with IdP metadata from Okta.
 
 Optional: `SAML_NAME_ID_FORMAT`, `SAML_VALIDATE_IN_RESPONSE_TO`, `SESSION_SAME_SITE` (defaults to **`none`** in production when SAML metadata is set so the session cookie is sent on the IdP’s **POST** to ACS).
 
+### Okta: “Your request resulted in an error” / Bad SAML request (400)
+
+Usually the **AuthnRequest** Issuer or **AssertionConsumerServiceURL** does not match what Okta expects.
+
+1. **`SAML_SP_ENTITY_ID`** must equal Okta **Audience URI (SP Entity ID)** exactly (e.g. `https://your-app.ondigitalocean.app`, no trailing slash).
+2. **`SAML_APP_BASE_URL`** or **`APP_URL`** must be that same public **https** origin so ACS is `https://your-app…/api/auth/saml/callback` — same as Okta **Single sign-on URL**. If the app runs in production without `APP_URL`, the library used to default to **localhost** in the SAML request; Okta then rejects it.
+3. In Okta → **Sign On** → **SAML Signing Requests**: if **Assertion Signature** requires a signed AuthnRequest, you must configure an SP signing key (`SAML_PRIVATE_KEY` / `SAML_PUBLIC_CERT` in node-saml) or turn that requirement off in Okta for SP-initiated login.
+4. Optional: `SAML_AUTHN_BINDING=POST` if Redirect binding fails; `SAML_REQUEST_AUTHN_CONTEXT=true` to restore default requested auth context if disabling it causes issues.
+
 **Frontend:** If `saml` is true in `/api/auth/providers`, the sign-in button uses **`/api/auth/saml`** (“Sign in with SSO”). Remove or omit `OKTA_*` if you only use SAML.
 
 **User identity:** Name ID (prefer email) + optional attributes → find/create **`users`** by email (same pattern as OIDC).

@@ -21,6 +21,30 @@ const apiBase = () => {
   return process.env.API_BASE_URL || `http://localhost:${process.env.PORT || 4000}`;
 };
 
+/** Public HTTPS base for SAML Issuer + ACS — must match Okta Audience + SSO URL host. */
+function samlPublicBase() {
+  const candidates = [
+    process.env.SAML_APP_BASE_URL,
+    process.env.SAML_SP_ENTITY_ID,
+    process.env.APP_URL,
+    process.env.API_BASE_URL,
+  ].filter(Boolean);
+  for (const u of candidates) {
+    const b = String(u).replace(/\/$/, '');
+    if (b && !/^https?:\/\/localhost/i.test(b) && !/^https?:\/\/127\./i.test(b)) {
+      return b;
+    }
+  }
+  return apiBase();
+}
+
+function samlIssuerAndCallback() {
+  const base = samlPublicBase().replace(/\/$/, '');
+  const issuer = (process.env.SAML_SP_ENTITY_ID || base).replace(/\/$/, '');
+  const callbackUrl = `${base}/api/auth/saml/callback`;
+  return { issuer, callbackUrl, base };
+}
+
 // Okta OIDC (OAuth2 authorization code + userinfo) — only SSO provider
 if (process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.OKTA_ISSUER) {
   const oktaIssuer = process.env.OKTA_ISSUER.replace(/\/$/, '');
@@ -94,12 +118,13 @@ function parseIdpMetadata(xml) {
     if (b.includes('HTTP-POST')) postUrl = loc[1];
     else if (b.includes('HTTP-Redirect')) redirectUrl = loc[1];
   }
-  const entryPoint = postUrl || redirectUrl;
+  // SP default is HTTP-Redirect AuthnRequest — prefer Redirect SSO URL (same as POST on Okta, but avoids edge cases)
+  const entryPoint = redirectUrl || postUrl;
   const certRaw = [...String(xml).matchAll(/X509Certificate>\s*([^<]+?)\s*</gi)].map((m) =>
     m[1].replace(/\s/g, '')
   );
   const idpCerts = [...new Set(certRaw.filter(Boolean))];
-  return { entryPoint, idpCerts };
+  return { entryPoint, idpCerts, postUrl, redirectUrl };
 }
 
 function certToPem(b64) {
@@ -141,25 +166,36 @@ async function ensureSamlStrategy() {
       if (!res.ok) throw new Error(`SAML metadata fetch failed: ${res.status} ${res.statusText}`);
       xml = await res.text();
     }
-    const { entryPoint, idpCerts } = parseIdpMetadata(xml);
+    const { entryPoint, idpCerts, postUrl, redirectUrl } = parseIdpMetadata(xml);
     if (!entryPoint) throw new Error('IdP metadata: no SingleSignOnService URL found');
     if (!idpCerts.length) throw new Error('IdP metadata: no X509Certificate found');
     const { Strategy } = require('@node-saml/passport-saml');
-    const callbackUrl = `${apiBase()}/api/auth/saml/callback`;
-    const issuer = (process.env.SAML_SP_ENTITY_ID || apiBase()).replace(/\/$/, '');
+    const { issuer, callbackUrl, base: samlBase } = samlIssuerAndCallback();
+    if (process.env.NODE_ENV === 'production' && /localhost|127\.0\.0\.1/i.test(samlBase)) {
+      console.error(
+        '[SAML] Issuer/ACS base looks local — Okta will show "Bad SAML request". Set SAML_SP_ENTITY_ID and SAML_APP_BASE_URL (or APP_URL) to your public https URL.'
+      );
+    }
     const idpCert = idpCerts.length === 1 ? certToPem(idpCerts[0]) : idpCerts.map(certToPem);
+
+    const authnBinding = process.env.SAML_AUTHN_BINDING === 'POST' ? 'HTTP-POST' : 'HTTP-Redirect';
+    const entry =
+      authnBinding === 'HTTP-POST' ? postUrl || redirectUrl : redirectUrl || postUrl;
 
     passport.use(
       'saml',
       new Strategy(
         {
           callbackUrl,
-          entryPoint,
+          entryPoint: entry,
           issuer,
           idpCert,
           identifierFormat: process.env.SAML_NAME_ID_FORMAT || undefined,
           wantAssertionsSigned: process.env.SAML_WANT_ASSERTIONS_SIGNED !== 'false',
+          wantAuthnResponseSigned: process.env.SAML_WANT_RESPONSE_SIGNED === 'true',
           validateInResponseTo: process.env.SAML_VALIDATE_IN_RESPONSE_TO || 'never',
+          disableRequestedAuthnContext: process.env.SAML_REQUEST_AUTHN_CONTEXT !== 'true',
+          authnRequestBinding: authnBinding,
         },
         async (profile, done) => {
           try {
@@ -216,7 +252,11 @@ async function ensureSamlStrategy() {
       )
     );
     samlStrategyReady = true;
-    console.log('[SAML] Strategy registered', { callbackUrl, issuer, entryPoint: entryPoint.slice(0, 48) + '…' });
+    console.log('[SAML] Strategy registered', {
+      callbackUrl,
+      issuer,
+      entryPoint: (entry || entryPoint).slice(0, 56) + '…',
+    });
   })();
   try {
     await samlInitPromise;
@@ -496,6 +536,14 @@ router.get(['/saml', '/saml/'], async (req, res, next) => {
   }
   if (!passport._strategies || !passport._strategies.saml) {
     return res.status(500).json({ error: 'SAML strategy not registered' });
+  }
+  const { base } = samlIssuerAndCallback();
+  if (process.env.NODE_ENV === 'production' && /localhost|127\.0\.0\.1/i.test(base)) {
+    return res.status(503).json({
+      error: 'SAML misconfigured',
+      message:
+        'Public app URL is not set. Okta returns "Bad SAML request" if Issuer/ACS use localhost. Set SAML_SP_ENTITY_ID and SAML_APP_BASE_URL (or APP_URL) to https://your-app.ondigitalocean.app',
+    });
   }
   passport.authenticate('saml')(req, res, next);
 });

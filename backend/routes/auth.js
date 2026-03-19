@@ -232,9 +232,28 @@ async function ensureSamlStrategy() {
             console.log(
               `[SAML] login ${email} — IdP sent ${attrKeys.length} attribute(s): ${attrKeys.length ? attrKeys.join(', ') : '(none — add Attribute Statements in Okta)'}`
             );
-            if (process.env.SAML_LOG_LOGIN === 'true') {
-              console.log('[SAML] login full snapshot (SAML_LOG_LOGIN):', JSON.stringify(samlSnap, null, 2));
-              console.log('[SAML] derived global_role:', globalRole ?? '(null)');
+            // What the IdP put on the SAML profile (values truncated in snapshotSamlAttributes)
+            console.log('[SAML] assertion attributes:', JSON.stringify(samlSnap));
+            console.log('[SAML] nameID:', nameIdStr, '| issuer:', profile.issuer || '(none)');
+            const verboseSaml =
+              process.env.SAML_LOG_LOGIN === 'true' || process.env.SAML_LOG_ASSERTION === 'true';
+            if (verboseSaml) {
+              console.log(
+                '[SAML] verbose profile:',
+                JSON.stringify(
+                  {
+                    nameID: nameIdStr,
+                    nameIDFormat: profile.nameIDFormat,
+                    issuer: profile.issuer,
+                    sessionIndex: profile.sessionIndex,
+                    inResponseTo: profile.inResponseTo,
+                    attributes: samlSnap,
+                    global_role_derived: globalRole,
+                  },
+                  null,
+                  2
+                )
+              );
             }
 
             await ensureUsersTableForAuth(pool);

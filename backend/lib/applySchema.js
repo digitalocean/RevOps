@@ -32,6 +32,11 @@ async function ensureUsersTableForAuth(pool) {
         console.warn('[schema] schema.sql applied OK.');
       } catch (err) {
         console.error('[schema] applySchema failed:', err.message);
+        if (/permission denied.*public/i.test(String(err.message))) {
+          console.error(
+            '[schema] Hint: DATABASE_URL user needs CREATE on schema public (use doadmin URI or GRANT … TO appuser). See docs/DEPLOY-DB-SCHEMA.md § permission denied'
+          );
+        }
         throw err;
       }
       return;

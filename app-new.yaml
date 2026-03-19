@@ -1,0 +1,107 @@
+# DigitalOcean App Platform spec — TEMPLATE for a NEW app (not todoapp production).
+# For production (todoapp-jzfe4 + branch "production"), use app-production.yaml instead.
+#
+# Replace YOUR_APP_NAME, YOUR_ORG/YOUR_REPO, and YOUR_BRANCH before or in the DO dashboard.
+# Frontend component is named "web" so it works when DO creates the app from scratch.
+#
+# Database: Do NOT add a "databases" block here (DO rejects create+delete in one spec change).
+# Add the database in the DO dashboard: App → Resources → Add Resource → Database, then
+# link it to the api component and set DATABASE_URL, or use the app.yaml from repo root
+# only when creating a brand-new app with no existing resources.
+
+name: meridian
+region: nyc
+
+features:
+  - buildpack-stack=ubuntu-22
+
+ingress:
+  rules:
+    - component:
+        name: api
+      match:
+        path:
+          prefix: /api
+    - component:
+        name: web
+      match:
+        path:
+          prefix: /
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+
+services:
+  - name: api
+    environment_slug: node-js
+    build_command: npm install && npm run build
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: "SET_IN_DASHBOARD_OR_LINK_DATABASE"
+      - key: NODE_ENV
+        value: production
+        scope: RUN_TIME
+      - key: PORT
+        value: "8080"
+        scope: RUN_TIME
+      - key: NODE_TLS_REJECT_UNAUTHORIZED
+        value: "0"
+        scope: RUN_TIME
+      - key: SESSION_SECRET
+        value: "PASTE_LONG_RANDOM_STRING"
+        scope: RUN_TIME
+      - key: FRONTEND_URL
+        value: "https://YOUR_APP_NAME.ondigitalocean.app"
+        scope: RUN_TIME
+      - key: APP_URL
+        value: "https://YOUR_APP_NAME.ondigitalocean.app"
+        scope: RUN_TIME
+      - key: OKTA_ISSUER
+        value: "PASTE_OKTA_ISSUER"
+        scope: RUN_TIME
+      - key: OKTA_CLIENT_ID
+        value: "PASTE_OKTA_CLIENT_ID"
+        scope: RUN_TIME
+      - key: OKTA_CLIENT_SECRET
+        value: "PASTE_OKTA_CLIENT_SECRET"
+        scope: RUN_TIME
+      - key: SAML_IDP_METADATA_URL
+        value: "PASTE_OKTA_SAML_METADATA_URL"
+        scope: RUN_TIME
+      - key: SAML_SP_ENTITY_ID
+        value: "https://YOUR_APP_NAME.ondigitalocean.app"
+        scope: RUN_TIME
+      - key: SAML_APP_BASE_URL
+        value: "https://YOUR_APP_NAME.ondigitalocean.app"
+        scope: RUN_TIME
+    github:
+      deploy_on_push: true
+      repo: digitalocean/RevOps
+      branch: helm-deploy
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    run_command: node server.js
+    source_dir: /backend
+
+static_sites:
+  - name: web
+    build_command: npm install && npm run build
+    environment_slug: node-js
+    envs:
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
+        scope: BUILD_TIME
+      - key: VITE_API_URL
+        value: "https://YOUR_APP_NAME.ondigitalocean.app"
+        scope: BUILD_TIME
+    github:
+      deploy_on_push: true
+      repo: digitalocean/RevOps
+      branch: helm-deploy
+    output_dir: dist
+    source_dir: /Helm
+    index_document: index.html
+    catchall_document: index.html

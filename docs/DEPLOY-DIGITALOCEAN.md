@@ -154,6 +154,12 @@ See **`docs/ENV-VARIABLES.md`** and **`docs/do-api-env-paste.env`** for ready-to
 
 ---
 
+## API run command
+
+The **api** service **`run_command`** must match your backend entry file. This repo uses **`npm start`** (see `backend/package.json` → `node src/index.js`). If the spec says `node server.js` but there is no `backend/server.js`, the container will crash with **Cannot find module ... server.js**.
+
+---
+
 ## Quick checklist
 
 | Step | Action |

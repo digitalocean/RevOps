@@ -84,7 +84,7 @@ services:
     http_port: 8080
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
-    run_command: node server.js
+    run_command: npm start
     source_dir: /backend
 
 # Frontend (Static Site) — name must match existing DO component (e.g. "revops") so "/" route is not duplicated

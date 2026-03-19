@@ -53,14 +53,21 @@ async function ensureSchema() {
   }
 }
 
-function runSchemaWithRetry() {
-  ensureSchema().then((ok) => {
-    if (ok) return;
-    setTimeout(() => ensureSchema().then((ok2) => {
-      if (ok2) return;
-      setTimeout(() => ensureSchema(), 5000);
-    }), 2000);
-  });
+/** Apply schema before accepting traffic (avoids SAML hitting DB before `users` exists). */
+async function waitForSchemaBeforeListen() {
+  const maxAttempts = 15;
+  const delayMs = 2000;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (await ensureSchema()) {
+      if (attempt > 1) console.log(`To-DO schema OK on attempt ${attempt}.`);
+      return;
+    }
+    console.warn(`Schema attempt ${attempt}/${maxAttempts} failed; retry in ${delayMs}ms...`);
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  console.error(
+    'CRITICAL: schema.sql did not apply. From backend/: DATABASE_URL=... NODE_ENV=production node scripts/init-db.js — or GET /api/db/ensure (see docs/DEPLOY-DB-SCHEMA.md).'
+  );
 }
 
 // ── Middleware ───────────────────────────────────────────
@@ -293,10 +300,12 @@ app.locals.broadcast = (payload) => {
   }
 };
 
-// ── Start: listen first, then ensure schema (with retry) ─
-httpServer.listen(PORT, () => {
-  console.log(`\nTo-DO API running on port ${PORT}`);
-  console.log(`   Health: http://localhost:${PORT}/api/health`);
-  console.log(`   WS:     ws://localhost:${PORT}/ws\n`);
-  runSchemaWithRetry();
-});
+// ── Start: ensure schema first, then listen (SAML/login need `users` table) ─
+(async () => {
+  await waitForSchemaBeforeListen();
+  httpServer.listen(PORT, () => {
+    console.log(`\nTo-DO API running on port ${PORT}`);
+    console.log(`   Health: http://localhost:${PORT}/api/health`);
+    console.log(`   WS:     ws://localhost:${PORT}/ws\n`);
+  });
+})();

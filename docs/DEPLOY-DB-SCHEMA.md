@@ -8,6 +8,8 @@ The API runs **`backend/scripts/schema.sql`** on startup **before** listening, w
 
 `To-DO schema ensured.`
 
+If startup migration failed but the process is running, the **SAML** login path will **try to apply the schema again** when it detects `relation "users" does not exist` (`42P01`).
+
 If you see **`Schema init failed`**, fix `DATABASE_URL` (reachable DB, SSL) and redeploy.
 
 ## Manual one-shot

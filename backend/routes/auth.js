@@ -8,6 +8,7 @@ const { pool } = require('../server');
 
 const OAuth2Strategy = require('passport-oauth2').Strategy;
 const { snapshotSamlAttributes, deriveGlobalRoleFromProfile } = require('../lib/saml-claims');
+const { ensureUsersTableForAuth } = require('../lib/applySchema');
 const SALT_ROUNDS = 10;
 
 const frontendUrl = () => {
@@ -236,8 +237,9 @@ async function ensureSamlStrategy() {
               console.log('[SAML] derived global_role:', globalRole ?? '(null)');
             }
 
+            await ensureUsersTableForAuth(pool);
+
             const existing = await pool.query({
-              name: 'auth_saml_find_user',
               text: 'SELECT id, email, name, avatar_url, global_role FROM users WHERE email = $1 LIMIT 1',
               values: [email],
             });
@@ -246,7 +248,6 @@ async function ensureSamlStrategy() {
             if (existing.rows.length) {
               const nm = displayName || existing.rows[0].name;
               await pool.query({
-                name: 'auth_saml_update_user',
                 text: `UPDATE users SET name = $1, global_role = $2, saml_attributes = $3::jsonb WHERE id = $4`,
                 values: [nm, globalRole, JSON.stringify(samlSnap), existing.rows[0].id],
               });
@@ -259,7 +260,6 @@ async function ensureSamlStrategy() {
               };
             } else {
               const insert = await pool.query({
-                name: 'auth_saml_insert_user',
                 text: `INSERT INTO users (email, name, global_role, saml_attributes) VALUES ($1, $2, $3, $4::jsonb) RETURNING id, email, name, avatar_url, global_role`,
                 values: [
                   email,

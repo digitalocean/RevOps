@@ -40,10 +40,11 @@ module.exports.pool = pool;
 
 let schemaEnsured = false;
 
+const { applySchema } = require('./lib/applySchema');
+
 async function ensureSchema() {
   try {
-    const sql = fs.readFileSync(path.join(__dirname, 'scripts', 'schema.sql'), 'utf8');
-    await pool.query(sql);
+    await applySchema(pool);
     schemaEnsured = true;
     console.log('To-DO schema ensured.');
     return true;

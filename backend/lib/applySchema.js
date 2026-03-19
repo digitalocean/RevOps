@@ -1,19 +1,117 @@
 /**
  * Apply backend/scripts/schema.sql — shared by server startup and SAML login fallback.
+ *
+ * Optional: set SCHEMA_DATABASE_URL to an admin user (e.g. doadmin) when DATABASE_URL
+ * uses a limited user (e.g. db) that cannot CREATE in schema public. After applying SQL,
+ * we GRANT table/sequence access to the app user when the two URLs differ.
  */
 const fs = require('fs');
 const path = require('path');
+const { Pool } = require('pg');
 
 const SCHEMA_PATH = path.join(__dirname, '..', 'scripts', 'schema.sql');
 
+function stripSslModeFromUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  return url
+    .replace(/[?&]sslmode=[^&]+/gi, '')
+    .replace(/[?&]sslrootcert=[^&]+/gi, '')
+    .replace(/[?&]ssl=[^&]+/gi, '')
+    .replace(/\?&/, '?')
+    .replace(/\?$/, '');
+}
+
+function parseUserFromDatabaseUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  try {
+    const normalized = url.replace(/^postgresql:/i, 'http:').replace(/^postgres:/i, 'http:');
+    const u = new URL(normalized);
+    const user = u.username ? decodeURIComponent(u.username) : '';
+    return user || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Safe PostgreSQL identifier quoting for simple role names (doadmin, db, app_user). */
+function quoteIdent(name) {
+  if (!name || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
+    throw new Error(`[schema] Refusing unsafe PostgreSQL role name: ${name}`);
+  }
+  return `"${name.replace(/"/g, '""')}"`;
+}
+
 /**
- * @param {import('pg').Pool} pool
- * @returns {Promise<boolean>}
+ * @param {import('pg').Pool} adminPool pool connected as admin (ran CREATE TABLE)
+ * @param {string} adminRole e.g. doadmin
+ * @param {string} appRole e.g. db
  */
-async function applySchema(pool) {
+async function grantPrivilegesToAppUser(adminPool, adminRole, appRole) {
+  const a = quoteIdent(adminRole);
+  const u = quoteIdent(appRole);
+  await adminPool.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${u}`);
+  await adminPool.query(`GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${u}`);
+  await adminPool.query(
+    `ALTER DEFAULT PRIVILEGES FOR ROLE ${a} IN SCHEMA public GRANT ALL ON TABLES TO ${u}`
+  );
+  await adminPool.query(
+    `ALTER DEFAULT PRIVILEGES FOR ROLE ${a} IN SCHEMA public GRANT ALL ON SEQUENCES TO ${u}`
+  );
+}
+
+/**
+ * Pool used only for migrations when SCHEMA_DATABASE_URL is set.
+ * @param {import('pg').Pool} mainPool app runtime pool (DATABASE_URL)
+ */
+function createMigrationPool(mainPool) {
+  const schemaUrl = process.env.SCHEMA_DATABASE_URL;
+  if (!schemaUrl || !String(schemaUrl).trim()) {
+    return { pool: mainPool, end: async () => {} };
+  }
+  const dbUrl = schemaUrl;
+  const isLocalDb = /@(localhost|127\.0\.0\.1)(:\d+)?\//.test(dbUrl);
+  const connectionString = stripSslModeFromUrl(dbUrl);
+  const poolConfig = { connectionString };
+  if (!isLocalDb && dbUrl.trim()) {
+    poolConfig.ssl = { rejectUnauthorized: false };
+  }
+  const p = new Pool(poolConfig);
+  return {
+    pool: p,
+    end: () => p.end(),
+  };
+}
+
+/**
+ * @param {import('pg').Pool} mainPool runtime pool
+ */
+async function applySchema(mainPool) {
   const sql = fs.readFileSync(SCHEMA_PATH, 'utf8');
-  await pool.query(sql);
-  return true;
+  const { pool: migratePool, end } = createMigrationPool(mainPool);
+  const ownsSeparatePool = migratePool !== mainPool;
+
+  try {
+    await migratePool.query(sql);
+
+    const schemaUrl = process.env.SCHEMA_DATABASE_URL;
+    const appUrl = process.env.DATABASE_URL;
+    if (schemaUrl && appUrl && String(schemaUrl).trim()) {
+      const adminUser = parseUserFromDatabaseUrl(schemaUrl);
+      const appUser = parseUserFromDatabaseUrl(appUrl);
+      if (adminUser && appUser && adminUser !== appUser) {
+        console.warn(
+          `[schema] Applied DDL as "${adminUser}"; granting access to app user "${appUser}"`
+        );
+        await grantPrivilegesToAppUser(migratePool, adminUser, appUser);
+      }
+    }
+
+    return true;
+  } finally {
+    if (ownsSeparatePool) {
+      await end();
+    }
+  }
 }
 
 /**
@@ -34,7 +132,7 @@ async function ensureUsersTableForAuth(pool) {
         console.error('[schema] applySchema failed:', err.message);
         if (/permission denied.*public/i.test(String(err.message))) {
           console.error(
-            '[schema] Hint: DATABASE_URL user needs CREATE on schema public (use doadmin URI or GRANT … TO appuser). See docs/DEPLOY-DB-SCHEMA.md § permission denied'
+            '[schema] Hint: set SCHEMA_DATABASE_URL to the doadmin connection string (same DB as DATABASE_URL), or GRANT CREATE ON SCHEMA public. See docs/DEPLOY-DB-SCHEMA.md'
           );
         }
         throw err;

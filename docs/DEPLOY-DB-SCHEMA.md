@@ -65,3 +65,21 @@ For **`doadmin`**, you usually already have rights; if the app uses another role
 If the DB is the **small Dev Database** attached to the app, check **Users & Databases** in the DO UI and ensure the user in **`DATABASE_URL`** is the **owner** or has been granted DDL rights.
 
 After fixing permissions, redeploy the API or hit **`/api/db/ensure`** once.
+
+---
+
+## Code-side fix: `SCHEMA_DATABASE_URL` (no SQL console needed)
+
+If the **app** user (`db`) cannot `CREATE` in `public` but **`doadmin`** can, set **two** env vars on the **api** component:
+
+| Variable | Example |
+|----------|---------|
+| **`DATABASE_URL`** | `postgresql://db:PASSWORD@host:25060/db?sslmode=require` — same as today (limited user). |
+| **`SCHEMA_DATABASE_URL`** | `postgresql://doadmin:ADMIN_PASSWORD@host:25060/db?sslmode=require` — **same host, port, and database name** as `DATABASE_URL`, only user/password differ. Copy **doadmin** from **Databases → your cluster → Connection details**. |
+
+Redeploy. On startup (and on SAML if tables are missing), the API will:
+
+1. Run **`schema.sql`** using **`SCHEMA_DATABASE_URL`** (admin).
+2. **`GRANT`** table/sequence access to the **`DATABASE_URL`** user so normal requests still use `db`.
+
+You do **not** need the web SQL editor for this path. Remove **`SCHEMA_DATABASE_URL`** later only if you switch to a single admin URL for everything (not recommended for least privilege).

@@ -240,7 +240,7 @@ async function ensureSamlStrategy() {
             await ensureUsersTableForAuth(pool);
 
             const existing = await pool.query({
-              text: 'SELECT id, email, name, avatar_url, global_role FROM users WHERE email = $1 LIMIT 1',
+              text: 'SELECT id, email, name, avatar_url, global_role FROM public.users WHERE email = $1 LIMIT 1',
               values: [email],
             });
 
@@ -248,7 +248,7 @@ async function ensureSamlStrategy() {
             if (existing.rows.length) {
               const nm = displayName || existing.rows[0].name;
               await pool.query({
-                text: `UPDATE users SET name = $1, global_role = $2, saml_attributes = $3::jsonb WHERE id = $4`,
+                text: `UPDATE public.users SET name = $1, global_role = $2, saml_attributes = $3::jsonb WHERE id = $4`,
                 values: [nm, globalRole, JSON.stringify(samlSnap), existing.rows[0].id],
               });
               user = {
@@ -260,7 +260,7 @@ async function ensureSamlStrategy() {
               };
             } else {
               const insert = await pool.query({
-                text: `INSERT INTO users (email, name, global_role, saml_attributes) VALUES ($1, $2, $3, $4::jsonb) RETURNING id, email, name, avatar_url, global_role`,
+                text: `INSERT INTO public.users (email, name, global_role, saml_attributes) VALUES ($1, $2, $3, $4::jsonb) RETURNING id, email, name, avatar_url, global_role`,
                 values: [
                   email,
                   displayName || email.split('@')[0],

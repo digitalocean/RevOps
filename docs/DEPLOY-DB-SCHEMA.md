@@ -83,3 +83,7 @@ Redeploy. On startup (and on SAML if tables are missing), the API will:
 2. **`GRANT`** table/sequence access to the **`DATABASE_URL`** user so normal requests still use `db`.
 
 You do **not** need the web SQL editor for this path. Remove **`SCHEMA_DATABASE_URL`** later only if you switch to a single admin URL for everything (not recommended for least privilege).
+
+**Same database name:** `DATABASE_URL` and `SCHEMA_DATABASE_URL` must use the **same** path segment (e.g. both `…/db?` not one `…/defaultdb?` and one `…/db?`). If they differ, migrations run in one database while the app reads another — you’ll see “relation users does not exist” even after a successful migrate.
+
+**`search_path`:** The app queries `public.users` explicitly so a role whose default schema is not `public` still finds the table.

@@ -33,6 +33,21 @@ function parseUserFromDatabaseUrl(url) {
   }
 }
 
+/** Database name from path segment (e.g. ...com:25060/db? → "db"). */
+function parseDatabaseNameFromUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  try {
+    const normalized = url.replace(/^postgresql:/i, 'http:').replace(/^postgres:/i, 'http:');
+    const u = new URL(normalized);
+    let path = u.pathname || '';
+    if (path.startsWith('/')) path = path.slice(1);
+    const name = path.split('/')[0];
+    return name ? decodeURIComponent(name) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Safe PostgreSQL identifier quoting for simple role names (doadmin, db, app_user). */
 function quoteIdent(name) {
   if (!name || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) {
@@ -49,6 +64,7 @@ function quoteIdent(name) {
 async function grantPrivilegesToAppUser(adminPool, adminRole, appRole) {
   const a = quoteIdent(adminRole);
   const u = quoteIdent(appRole);
+  await adminPool.query(`GRANT USAGE ON SCHEMA public TO ${u}`);
   await adminPool.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${u}`);
   await adminPool.query(`GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${u}`);
   await adminPool.query(
@@ -86,6 +102,19 @@ function createMigrationPool(mainPool) {
  * @param {import('pg').Pool} mainPool runtime pool
  */
 async function applySchema(mainPool) {
+  const schemaUrl = process.env.SCHEMA_DATABASE_URL;
+  const appUrl = process.env.DATABASE_URL;
+  if (schemaUrl && appUrl && String(schemaUrl).trim() && String(appUrl).trim()) {
+    const dbSchema = parseDatabaseNameFromUrl(schemaUrl);
+    const dbApp = parseDatabaseNameFromUrl(appUrl);
+    if (dbSchema && dbApp && dbSchema !== dbApp) {
+      throw new Error(
+        `[schema] DATABASE_URL database "${dbApp}" !== SCHEMA_DATABASE_URL database "${dbSchema}". ` +
+          'Use the same database name in both URLs (e.g. both end with /db?sslmode=require).'
+      );
+    }
+  }
+
   const sql = fs.readFileSync(SCHEMA_PATH, 'utf8');
   const { pool: migratePool, end } = createMigrationPool(mainPool);
   const ownsSeparatePool = migratePool !== mainPool;
@@ -93,8 +122,6 @@ async function applySchema(mainPool) {
   try {
     await migratePool.query(sql);
 
-    const schemaUrl = process.env.SCHEMA_DATABASE_URL;
-    const appUrl = process.env.DATABASE_URL;
     if (schemaUrl && appUrl && String(schemaUrl).trim()) {
       const adminUser = parseUserFromDatabaseUrl(schemaUrl);
       const appUser = parseUserFromDatabaseUrl(appUrl);
@@ -120,7 +147,7 @@ async function applySchema(mainPool) {
  */
 async function ensureUsersTableForAuth(pool) {
   try {
-    await pool.query('SELECT 1 FROM users LIMIT 1');
+    await pool.query('SELECT 1 FROM public.users LIMIT 1');
     return;
   } catch (e) {
     if (e && e.code === '42P01') {
@@ -128,6 +155,8 @@ async function ensureUsersTableForAuth(pool) {
       try {
         await applySchema(pool);
         console.warn('[schema] schema.sql applied OK.');
+        await pool.query('SELECT 1 FROM public.users LIMIT 1');
+        console.warn('[schema] Verified app user can read public.users.');
       } catch (err) {
         console.error('[schema] applySchema failed:', err.message);
         if (/permission denied.*public/i.test(String(err.message))) {

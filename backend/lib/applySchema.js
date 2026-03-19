@@ -64,7 +64,9 @@ function quoteIdent(name) {
 async function grantPrivilegesToAppUser(adminPool, adminRole, appRole) {
   const a = quoteIdent(adminRole);
   const u = quoteIdent(appRole);
+  // connect-pg-simple creates table "session" at login — app user must CREATE in public
   await adminPool.query(`GRANT USAGE ON SCHEMA public TO ${u}`);
+  await adminPool.query(`GRANT CREATE ON SCHEMA public TO ${u}`);
   await adminPool.query(`GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${u}`);
   await adminPool.query(`GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${u}`);
   await adminPool.query(

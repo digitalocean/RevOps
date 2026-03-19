@@ -80,7 +80,9 @@ If the **app** user (`db`) cannot `CREATE` in `public` but **`doadmin`** can, se
 Redeploy. On startup (and on SAML if tables are missing), the API will:
 
 1. Run **`schema.sql`** using **`SCHEMA_DATABASE_URL`** (admin).
-2. **`GRANT`** table/sequence access to the **`DATABASE_URL`** user so normal requests still use `db`.
+2. **`GRANT`** **`USAGE` + `CREATE`** on **`public`**, plus table/sequence access, so user `db` can create **`connect-pg-simple`**’s **`session`** table at login — not only read app tables.
+
+If you still see **`permission denied for schema public`** during **`req.login`**, redeploy after pulling the latest **`applySchema`** grants (includes **`GRANT CREATE ON SCHEMA public`**).
 
 You do **not** need the web SQL editor for this path. Remove **`SCHEMA_DATABASE_URL`** later only if you switch to a single admin URL for everything (not recommended for least privilege).
 

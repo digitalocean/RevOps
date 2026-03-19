@@ -10,6 +10,7 @@ frontend/.env.production
 # Build output
 frontend/dist/
 frontend/build/
+frontend/dist/
 Helm/dist/
 
 # OS files

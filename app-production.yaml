@@ -99,6 +99,6 @@ static_sites:
       repo: digitalocean/RevOps
       branch: production
     output_dir: dist
-    source_dir: /Helm
+    source_dir: /frontend
     index_document: index.html
     catchall_document: index.html

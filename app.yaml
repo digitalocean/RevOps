@@ -3,7 +3,7 @@
 #
 # IMPORTANT: This app has TWO components:
 #   - api (Service) = backend
-#   - revops (Static Site) = frontend (Helm/Vite). Name must match the component DO created (e.g. "revops") to avoid duplicate "/" ingress rule.
+#   - revops (Static Site) = frontend (Vite). Name must match the component DO created (e.g. "revops") to avoid duplicate "/" ingress rule.
 
 name: meridian
 region: nyc
@@ -104,6 +104,6 @@ static_sites:
       repo: digitalocean/RevOps
       branch: helm-deploy
     output_dir: dist
-    source_dir: /Helm
+    source_dir: /frontend
     index_document: index.html
     catchall_document: index.html

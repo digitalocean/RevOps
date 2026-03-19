@@ -92,7 +92,7 @@ Ensure **`app.yaml`** (or the api env vars in DO) has:
 If the **new** DO app pulls from a **different** repo (e.g. another org or fork):
 
 - In the new app’s **api** and **web** components, set **Source** to that repo and branch.
-- Ensure that repo has the same **`app.yaml`** (with the new URL from Step 2) and the same **backend** and **Helm** layout (see `docs/DEPLOY-DIGITALOCEAN.md`).
+- Ensure that repo has the same **`app.yaml`** (with the new URL from Step 2) and the same **backend** and **frontend** layout (see `docs/DEPLOY-DIGITALOCEAN.md`).
 
 ---
 

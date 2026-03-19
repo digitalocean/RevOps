@@ -24,7 +24,7 @@ In your app: **Overview** or **Components** (wording varies).
 | Field | Value |
 |--------|--------|
 | **Name** | `web` (must match your ingress rule for `/` — see §4) |
-| **Source directory** | `Helm` |
+| **Source directory** | `frontend` (must match your repo — DigitalOcean error *Source directory not found* means this path is wrong) |
 | **Build command** | `npm install && npm run build` |
 | **Output directory** | `dist` |
 | **HTTP request routes** | Leave default or ensure the app routes `/` to this component (see §4) |

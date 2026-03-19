@@ -445,36 +445,14 @@ Here are features that would make this significantly more powerful:
 
 ---
 
-<<<<<<< Updated upstream
-*AgileOps — Built for DigitalOcean / Salesforce Engineering*  
-*Questions? Check the troubleshooting section above or open the browser console (F12) for errors.*
-=======
 ## 🗂 Structure
 
 ```
-agileops/
-├── Helm/src/app/           # React frontend
-│   ├── pages/Dashboard.tsx # Main page with all views
-│   ├── components/         # 50+ components
-│   ├── data/useMeridianData.ts
-│   └── hooks/
-├── backend/
-│   ├── server.js           # Express + WebSocket
-│   ├── routes/             # REST API
-│   └── scripts/schema.sql  # Auto-migrating DB schema
-├── setup.sh                # One-time setup
-└── start.sh                # Launch everything
-```
-
----
-
-## 🔒 Auth
-
-Session-based. Register at the login screen or via API:
-```bash
-curl -X POST http://localhost:4000/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Raj","email":"raj@example.com","password":"password123"}'
+agileops-full/
+├── frontend/               # React + Vite (DigitalOcean static site source)
+├── backend/                # Express API
+├── setup.sh
+└── start.sh
 ```
 
 ---
@@ -497,8 +475,13 @@ The repo also includes **`app.yaml`** (alternate / legacy) and **`app-new.yaml`*
 
 ### Repo layout expected by the spec
 
-- **API service**: `source_dir: /backend` — runs `node server.js` on port 8080.
-- **Web (static)**: `source_dir: /Helm` — runs `npm run build`, serves `dist/`.
+- **API service**: `source_dir: /backend` — Node API (`npm start` / `node src/index.js` per `package.json`).
+- **Web (static)**: `source_dir: /frontend` — runs `npm run build` (Vite → `dist/`).
 
-Push a branch that has `backend/` and `Helm/` at the repo root. In App Spec, set the **web** component’s build env `VITE_API_URL` to your app URL (same URL you open in the browser). After deploy, the UI will call that URL for `/api/*`.
->>>>>>> Stashed changes
+The **web** component **Source Directory** in DigitalOcean must match the folder name in GitHub (`frontend`, not `Helm`).  
+Set **`VITE_API_URL`** to your app’s public URL, then redeploy.
+
+---
+
+*AgileOps — Built for DigitalOcean / Salesforce Engineering*  
+*Questions? Check the troubleshooting section above or open the browser console (F12) for errors.*

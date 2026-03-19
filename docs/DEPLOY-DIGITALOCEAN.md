@@ -65,7 +65,7 @@ The frontend is defined as a **Static Site** named **`web`** in the spec (not �
 3. **Add the Static Site manually**  
    In the app: **Components** → **Add Component** → **Static Site**. Set:
    - **Source:** same GitHub repo and branch as the app.
-   - **Source Directory:** `Helm` (or `/Helm`).
+   - **Source Directory:** `frontend` (or `/frontend`) — must match the folder name in **your** repo.
    - **Build Command:** `npm install && npm run build`.
    - **Output Directory:** `dist`.
    - **Environment:** add `VITE_API_URL` = your app URL (e.g. `https://your-app.ondigitalocean.app`).
@@ -125,9 +125,9 @@ Same URL as above, **no** `/api` at the end. After changing this, **trigger a ne
 The spec expects:
 
 - **API:** `source_dir: /backend` (or `backend` at repo root).
-- **Web:** `source_dir: /Helm` (or `Helm` at repo root).
+- **Web:** `source_dir: /frontend` (Vite app at repo root).
 
-If your repo has a different layout, edit the `source_dir` values in `app.yaml` / `.do/app.yaml` to match (e.g. `source_dir: backend`, `source_dir: Helm`).
+If your repo uses another folder name (e.g. `Helm`), edit `source_dir` in the app spec to match.
 
 ---
 

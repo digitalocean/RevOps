@@ -2,6 +2,7 @@ import { Calendar, CheckCircle2, Circle, Clock } from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
 import type { Initiative } from '../data/mockData';
+import { formatLocalDate, formatLocalDateShort } from '../lib/dateFormat';
 
 interface Sprint {
   id: string;
@@ -92,7 +93,7 @@ export function MilestoneTimeline({ initiatives, sprints }: MilestoneTimelinePro
 
   const nextMilestone = allMilestones.find((m) => m.status === 'in-progress' || m.status === 'upcoming');
   const nextLabel = nextMilestone
-    ? `${nextMilestone.title} - ${nextMilestone.status === 'in-progress' ? 'Due' : 'Due'} ${nextMilestone.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    ? `${nextMilestone.title} - Due ${formatLocalDateShort(nextMilestone.date, new Date())}`
     : 'No upcoming milestones';
 
   return (
@@ -146,11 +147,7 @@ export function MilestoneTimeline({ initiatives, sprints }: MilestoneTimelinePro
                       <div className="flex items-center gap-2 text-sm text-gray-600">
                         <Calendar className="w-4 h-4" />
                         <span>
-                          {milestone.date.toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })}
+                          {formatLocalDate(milestone.date)}
                         </span>
                       </div>
                       <Badge variant="outline" className="text-xs">
@@ -173,7 +170,7 @@ export function MilestoneTimeline({ initiatives, sprints }: MilestoneTimelinePro
                 </div>
               </div>
               <Badge className="bg-purple-600 text-white">
-                {nextMilestone.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {formatLocalDateShort(nextMilestone.date, new Date())}
               </Badge>
             </div>
           )}

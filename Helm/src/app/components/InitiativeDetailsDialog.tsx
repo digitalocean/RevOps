@@ -11,6 +11,7 @@ import { Separator } from './ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from 'sonner';
 import type { Initiative, Status, Priority, Category } from '../data/mockData';
+import { formatLocalDate } from '../lib/dateFormat';
 
 const STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete'];
 const PRIORITY_OPTIONS: Priority[] = ['P0', 'P1', 'P2'];
@@ -185,7 +186,7 @@ export function InitiativeDetailsDialog({ initiative, crew = [], onClose, onSave
                       <Calendar className="w-4 h-4 text-gray-400" />
                       <span className="text-gray-900">
                         {initiative.endDate && !isNaN(initiative.endDate.getTime())
-                          ? initiative.endDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+                          ? formatLocalDate(initiative.endDate)
                           : 'No date set'}
                       </span>
                     </div>

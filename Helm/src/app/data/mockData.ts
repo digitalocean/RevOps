@@ -27,6 +27,8 @@ export interface Initiative {
   /** users.id of assignee when crew.user_id is set */
   assignee_user_id?: string | null;
   assignee_email?: string | null;
+  assignee_name?: string | null;
+  assignee_initials?: string | null;
   /** Custom field values: field_id -> value */
   field_values?: Record<string, string | number | boolean | null>;
   /** Present when aggregating across projects (e.g. My Tasks) */

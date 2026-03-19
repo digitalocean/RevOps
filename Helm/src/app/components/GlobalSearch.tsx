@@ -80,7 +80,7 @@ export function GlobalSearch({ open, onOpenChange, onSelectInitiative, initiativ
             {results.map((init, index) => {
               const dot = STATUS_DOT[init.status] || 'bg-gray-300';
               const isSelected = index === selectedIndex;
-              const dueStr = init.endDate && !isNaN(init.endDate.getTime()) ? init.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
+              const dueStr = init.endDate && !isNaN(init.endDate.getTime()) ? init.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : null;
               return (
                 <button key={init.id} onClick={() => handleSelect(init)} onMouseEnter={() => setSelectedIndex(index)}
                   className={`w-full text-left px-3 py-3 rounded-xl mb-0.5 flex items-center gap-3 transition-colors ${isSelected ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}>

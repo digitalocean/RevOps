@@ -232,7 +232,7 @@ export function BaseCampView({
                         </span>
                       </td>
                       <td className="py-2 px-3 font-medium text-gray-900">{e.crew_name || '—'}</td>
-                      <td className="py-2 px-3 text-gray-500">{new Date(e.created_at).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</td>
+                      <td className="py-2 px-3 text-gray-500">{new Date(e.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</td>
                       <td className="py-2 px-3 text-gray-700">{e.entity_name || e.entity_type || '—'}</td>
                       <td className="py-2 px-3 text-gray-600">{e.field_name}</td>
                       <td className="py-2 px-3">

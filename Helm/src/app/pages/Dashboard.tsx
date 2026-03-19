@@ -487,14 +487,11 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   useEffect(() => {
     const proj = selectedProject?.name;
     const view = { manifest: 'Trackers', summit_board: 'Board', expedition_map: 'Gantt', field_notes: 'Notes', observatory: 'Analytics', my_tasks: 'My Tasks', base_camp: 'Settings' }[currentView] || '';
-    document.title = proj ? `${proj} · ${view} — To-DO` : 'To-DO';
+    document.title = proj ? `${proj} · ${view} — Meridian` : 'Meridian';
   }, [selectedProject, currentView]);
 
   return (
     <div className="flex flex-col h-screen bg-[var(--bg-app)]">
-      {fromApi && !error && (
-        <div className="h-1 flex-shrink-0 bg-green-500" title="Connected to To-DO" />
-      )}
       <div className="flex flex-1 min-h-0">
         {/* Mobile sidebar overlay */}
         {sidebarOpen && (
@@ -578,7 +575,6 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           currentUser={currentUser}
           onLogin={handleLogin}
           onLogout={handleLogout}
-          connected={fromApi && !error}
           connectionError={error}
           onRetry={refresh}
           onOpenItem={(id) => { const init = initiatives.find(i => i.id === id); if (init) setDrawerInitiative(init); }}
@@ -597,7 +593,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 <div className="w-16 h-16 rounded-2xl bg-indigo-100 flex items-center justify-center mb-4">
                   <Sparkles className="w-8 h-8 text-indigo-500" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to To-DO</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome to Meridian</h2>
                 <p className="text-gray-500 mb-6 max-w-md">Create your first project to start tracking tasks, manage your team, and ship faster.</p>
                 <div className="flex gap-3">
                   <button onClick={() => setShowNewProject(true)}

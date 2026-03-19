@@ -1,5 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useLayoutEffect } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { motion } from 'motion/react';
+import { formatLocalMonthYear } from '../lib/dateFormat';
 import type { Initiative } from '../data/mockData';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
@@ -45,6 +47,8 @@ function getStatusGradient(status: string): string {
 }
 
 export function GanttChart({ initiatives, trackerSections = [], customFields = [] }: GanttChartProps) {
+  const [expandedGroupKeys, setExpandedGroupKeys] = useState<Set<string>>(() => new Set());
+
   const [groupBy, setGroupBy] = useState(() => {
     try {
       return localStorage.getItem(GANTT_GROUP_KEY) || 'none';
@@ -113,6 +117,29 @@ export function GanttChart({ initiatives, trackerSections = [], customFields = [
       .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
       .map(([label, items]) => ({ key: label, label, items }));
   }, [groupBy, validInitiatives, trackerSections]);
+
+  const groupedAccordionSig = grouped.map((g) => g.key).join('\0');
+  useLayoutEffect(() => {
+    if (groupBy === 'none') {
+      setExpandedGroupKeys(new Set(['_all']));
+      return;
+    }
+    const keys = grouped.map((g) => g.key);
+    if (keys.length === 0) {
+      setExpandedGroupKeys(new Set());
+      return;
+    }
+    setExpandedGroupKeys(new Set([keys[0]!]));
+  }, [groupBy, groupedAccordionSig]);
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroupKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   const { months, startDate, endDate } = useMemo(() => {
     if (validInitiatives.length === 0) {
@@ -204,21 +231,37 @@ export function GanttChart({ initiatives, trackerSections = [], customFields = [
                   className="flex-1 text-center py-3 bg-gradient-to-b from-gray-50 to-white text-xs font-bold text-gray-700 uppercase tracking-wider"
                   style={{ minWidth: `${100 / months.length}%` }}
                 >
-                  {month.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                  {formatLocalMonthYear(month)}
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="space-y-6">
-            {grouped.map((group) => (
-              <div key={group.key}>
-                {group.label !== '' && (
-                  <div className="text-xs font-bold text-indigo-700 uppercase tracking-wider mb-2 px-1 border-l-4 border-indigo-400 pl-2">
-                    {group.label}
-                  </div>
+          <div className="space-y-4">
+            {grouped.map((group) => {
+              const isGrouped = groupBy !== 'none';
+              const expanded = !isGrouped || expandedGroupKeys.has(group.key);
+              return (
+              <div key={group.key} className="border border-gray-100 rounded-xl overflow-hidden bg-gray-50/30">
+                {group.label !== '' && isGrouped && (
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(group.key)}
+                    className="w-full flex items-center gap-2 text-left text-xs font-bold text-indigo-800 uppercase tracking-wider px-3 py-2.5 bg-white border-b border-gray-100 hover:bg-indigo-50/50 transition-colors"
+                  >
+                    {expanded ? (
+                      <ChevronDown className="w-4 h-4 shrink-0 text-indigo-600" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 shrink-0 text-indigo-600" />
+                    )}
+                    <span className="border-l-4 border-indigo-400 pl-2 flex-1 truncate">{group.label}</span>
+                    <span className="text-[10px] font-semibold text-indigo-500 normal-case tracking-normal tabular-nums">
+                      {group.items.length} task{group.items.length === 1 ? '' : 's'}
+                    </span>
+                  </button>
                 )}
-                <div className="space-y-4">
+                {expanded && (
+                <div className="space-y-4 p-3 pt-4">
                   {group.items.map((initiative, itemIdx) => {
                     const position = getBarPosition(initiative);
                     const gradient = getStatusGradient(initiative.status);
@@ -288,8 +331,10 @@ export function GanttChart({ initiatives, trackerSections = [], customFields = [
                     );
                   })}
                 </div>
+                )}
               </div>
-            ))}
+            );
+            })}
           </div>
         </div>
       </div>

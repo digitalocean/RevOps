@@ -186,7 +186,7 @@ export function TeamWorkloadView({ initiatives, crew, currentUser, onUpdateItem,
                           <p className="text-sm text-gray-700 truncate">{task.name}</p>
                           {task.endDate && (
                             <p className={`text-xs mt-0.5 ${task.endDate < today ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-                              Due {task.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              Due {task.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                             </p>
                           )}
                         </div>

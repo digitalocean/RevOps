@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronRight, ChevronUp, Plus, Clock, X, GripVertical, Trash2, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronUp, Plus, Clock, X, GripVertical, Trash2, Pencil, Link as LinkIcon, ExternalLink } from 'lucide-react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -14,6 +14,8 @@ import { Checkbox } from './ui/checkbox';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { TaskDetailDrawer } from './TaskDetailDrawer';
+import { AssigneeLookup } from './AssigneeLookup';
+import { localDateInputToIso } from '../lib/dateFormat';
 import type { Initiative, Priority, Status, Category, TrackerSection as TrackerSectionType } from '../data/mockData';
 
 const DEFAULT_STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete'];
@@ -165,6 +167,7 @@ interface InitiativeRowEditableProps {
   priorityOptions?: StandardFieldOption[];
   statusOptions?: StandardFieldOption[];
   categoryOptions?: StandardFieldOption[];
+  onFocusChange?: (id: string) => void;
 }
 
 function colVisible(visibleColumns: Set<string> | undefined, colId: string): boolean {
@@ -220,12 +223,22 @@ function CustomFieldCell({
     if (!editing) setLocal(toLocal(value));
   }, [value, normalizedType, editing]);
 
+  const rawUrl = value != null && value !== '' ? String(value).trim() : '';
+  const hrefUrl =
+    rawUrl && /^https?:\/\//i.test(rawUrl)
+      ? rawUrl
+      : rawUrl
+        ? `https://${rawUrl}`
+        : '';
+
   const display =
     value === null || value === undefined
       ? '—'
       : normalizedType === 'date' && value
         ? (typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : String(value))
-        : String(value);
+        : normalizedType === 'url' && rawUrl
+          ? '' // rendered as link chip below
+          : String(value);
 
   const handleBlur = () => {
     setEditing(false);
@@ -298,6 +311,23 @@ function CustomFieldCell({
             type={inputType}
           />
         )
+      ) : normalizedType === 'url' ? (
+        hrefUrl ? (
+          <a
+            href={hrefUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium max-w-[120px]"
+            title={rawUrl}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <LinkIcon className="w-3.5 h-3.5 shrink-0" aria-hidden />
+            <span className="truncate">Link</span>
+            <ExternalLink className="w-3 h-3 shrink-0 opacity-60" aria-hidden />
+          </a>
+        ) : (
+          <span className="text-xs text-gray-400">—</span>
+        )
       ) : (
         <span className="text-xs text-gray-700">{display}</span>
       )}
@@ -325,6 +355,7 @@ function InitiativeRowEditable({
   priorityOptions,
   statusOptions,
   categoryOptions,
+  onFocusChange,
 }: InitiativeRowEditableProps) {
   const [title, setTitle] = useState(initiative.name);
   const catList: StandardFieldOption[] = (categoryOptions?.length ? categoryOptions : CATEGORIES.map((c) => ({ label: c }))).slice();
@@ -371,12 +402,12 @@ function InitiativeRowEditable({
   const handleDueDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const v = e.target.value || null;
     setSaving(true);
-    onUpdate(initiative.id, { due_date: v ? `${v}T00:00:00.000Z` : null }).finally(() => setSaving(false));
+    onUpdate(initiative.id, { due_date: v ? localDateInputToIso(v) : null }).finally(() => setSaving(false));
   };
 
-  const handleAssigneeChange = (assigneeId: string) => {
+  const handleAssigneeChange = (assigneeId: string | null) => {
     setSaving(true);
-    onUpdate(initiative.id, { assignee_id: assigneeId || null }).finally(() => setSaving(false));
+    onUpdate(initiative.id, { assignee_id: assigneeId }).finally(() => setSaving(false));
   };
 
   // Note: parent SortableInitiativeRow renders <tr>, drag column, and checkbox column. We render only data columns to match header order.
@@ -425,21 +456,13 @@ function InitiativeRowEditable({
       </td>
       )}
       {colVisible(visibleColumns, 'owner') && (
-      <td className="py-2 px-4 align-middle min-w-[120px]">
-        <Select
-          value={initiative.assignee_id ?? 'unassigned'}
-          onValueChange={(v) => handleAssigneeChange(v === 'unassigned' ? '' : v)}
-        >
-          <SelectTrigger className="h-8 text-xs border-gray-200 bg-white">
-            <SelectValue placeholder="Owner" />
-          </SelectTrigger>
-          <SelectContent className="z-[110]">
-            <SelectItem value="unassigned" className="text-xs">— Unassigned</SelectItem>
-            {crew.map((c) => (
-              <SelectItem key={c.id} value={c.id} className="text-xs">{c.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <td className="py-2 px-4 align-middle min-w-[140px] max-w-[220px]" onClick={(e) => e.stopPropagation()}>
+        <AssigneeLookup
+          value={initiative.assignee_id ?? null}
+          onChange={handleAssigneeChange}
+          crew={crew}
+          compact
+        />
       </td>
       )}
       {colVisible(visibleColumns, 'status') && (
@@ -706,7 +729,7 @@ export function TrackerSection({
   const allSelected = filteredInitiatives.length > 0 && filteredInitiatives.every((i) => selectedIds.includes(i.id));
   const someSelected = filteredInitiatives.some((i) => selectedIds.includes(i.id)) && !allSelected;
 
-  const handleUpdate = async (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: Category }) => {
+  const handleUpdate = async (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null | undefined; due_date?: string | null; category?: Category }) => {
     if (onUpdateItem) await onUpdateItem(id, payload);
   };
 
@@ -912,6 +935,7 @@ export function TrackerSection({
                     priorityOptions={priorityOptions}
                     statusOptions={statusOptions}
                     categoryOptions={categoryOptions}
+                    onFocusChange={onFocusChange}
                   />
                 ))}
                 {showNewRow && (

@@ -20,9 +20,9 @@ interface WorkspaceHeaderProps {
   currentUser?: { name?: string; email?: string; initials?: string } | null;
   onLogin?: () => void;
   onLogout?: () => void;
-  /** When true, show "Connected to To-DO" on the left */
+  /** @deprecated No longer shown; kept for API compatibility */
   connected?: boolean;
-  /** When set, show error message on the left instead of connected */
+  /** When set, show error message on the left */
   connectionError?: string | null;
   onRetry?: () => void;
   onOpenItem?: (itemId: string) => void;
@@ -38,7 +38,7 @@ export function WorkspaceHeader({
   currentUser = null,
   onLogin,
   onLogout,
-  connected = false,
+  connected: _connected = false,
   connectionError = null,
   onRetry,
   onOpenItem,
@@ -58,16 +58,14 @@ export function WorkspaceHeader({
               <Menu className="w-5 h-5" />
             </button>
           )}
-          <span className="text-sm font-bold text-gray-900 shrink-0">To-DO</span>
+          <span className="text-sm font-bold text-gray-900 shrink-0">Meridian</span>
           {connectionError ? (
             <span className="text-xs text-amber-700 truncate flex items-center gap-2">
-              To-DO API: {connectionError}
+              {connectionError}
               {onRetry && (
                 <button type="button" onClick={onRetry} className="underline hover:no-underline shrink-0">Retry</button>
               )}
             </span>
-          ) : connected ? (
-            <span className="text-xs text-gray-500 truncate">Connected to To-DO — showing tasks from your workspace.</span>
           ) : null}
         </div>
 
@@ -133,7 +131,7 @@ export function WorkspaceHeader({
             <Sparkles className="w-4 h-4" />
           </Button>
           <span className="text-xs text-gray-600 px-2 py-1 border border-gray-200 rounded-md">
-            {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+            {new Date().toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })}
           </span>
           {currentUser ? (
             <div className="flex items-center gap-2 pl-1">

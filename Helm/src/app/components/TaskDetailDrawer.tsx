@@ -3,6 +3,8 @@ import { X, Send, Paperclip, Trash2, ExternalLink, Calendar, User, Tag, Flag,
          ChevronDown, MessageSquare, Link2, FileText, Image, CheckCircle2, Clock,
          AtSign, MoreHorizontal, Edit2, Check, AlignLeft } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { AssigneeLookup } from './AssigneeLookup';
+import { formatLocalDate, localDateInputToIso } from '../lib/dateFormat';
 import { Progress } from './ui/progress';
 import { toast } from 'sonner';
 import { get, post, del, patch } from '../api/meridian';
@@ -18,7 +20,7 @@ function apiPath(p: string) { return p.startsWith('/') ? p : `/${p}`; }
 
 function formatDate(d: Date | null | undefined) {
   if (!d || isNaN(d.getTime())) return null;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return formatLocalDate(d);
 }
 
 function timeAgo(dateStr: string) {
@@ -456,28 +458,14 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
               <div className="w-full lg:w-64 p-5 space-y-5 bg-gray-50/50 flex-shrink-0">
                 {/* Assignee */}
                 <MetaField label="Owner" icon={<User className="w-3.5 h-3.5" />}>
-                  <Select value={assigneeId ?? 'unassigned'} onValueChange={v => {
-                    const id = v === 'unassigned' ? null : v;
-                    setAssigneeId(id);
-                    save({ assignee_id: id });
-                  }}>
-                    <SelectTrigger className="h-8 text-xs border-gray-200 bg-white w-full">
-                      <SelectValue placeholder="Unassigned" />
-                    </SelectTrigger>
-                    <SelectContent className="z-[200]">
-                      <SelectItem value="unassigned" className="text-xs">— Unassigned</SelectItem>
-                      {crew.map(c => (
-                        <SelectItem key={c.id} value={c.id} className="text-xs">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-5 h-5 rounded-full ${avatarColor(c.name)} flex items-center justify-center text-white text-[10px] font-bold`}>
-                              {(c.initials || c.name.slice(0,2)).toUpperCase()}
-                            </div>
-                            {c.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <AssigneeLookup
+                    value={assigneeId}
+                    crew={crew}
+                    onChange={(id) => {
+                      setAssigneeId(id);
+                      save({ assignee_id: id });
+                    }}
+                  />
                 </MetaField>
 
                 {/* Category */}
@@ -497,7 +485,7 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
                   <input
                     type="date"
                     value={dueDate}
-                    onChange={e => { setDueDate(e.target.value); save({ due_date: e.target.value ? `${e.target.value}T00:00:00.000Z` : null }); }}
+                    onChange={e => { setDueDate(e.target.value); save({ due_date: e.target.value ? localDateInputToIso(e.target.value) : null }); }}
                     className="w-full h-8 text-xs border border-gray-200 rounded-md px-2 bg-white text-gray-700 focus:border-indigo-400 focus:outline-none"
                   />
                 </MetaField>

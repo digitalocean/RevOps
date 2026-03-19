@@ -33,6 +33,38 @@ const PRIORITY_MAP: Record<string, Priority> = {
 
 const CATEGORY_OPTIONS = ['Engineering', 'Design', 'Sales', 'Product', 'Operations'] as const;
 
+/** Crew rows from API may omit names; merge assignees referenced on items so Owner lookup always works. */
+function mergeCrewWithItemAssignees(
+  crewRows: { id: string; name?: string; initials?: string; role?: string }[],
+  items: Initiative[]
+): { id: string; name: string; initials: string; role: string }[] {
+  const normalize = (r: { id: string; name?: string; initials?: string; role?: string }) => ({
+    id: String(r.id),
+    name: String(r.name ?? 'Unknown'),
+    initials: String(r.initials ?? (r.name?.slice(0, 2) ?? '??')).slice(0, 8),
+    role: String(r.role ?? 'Member'),
+  });
+  const byId = new Map<string, { id: string; name: string; initials: string; role: string }>();
+  for (const r of crewRows) {
+    if (r?.id) byId.set(String(r.id), normalize(r));
+  }
+  for (const i of items) {
+    if (i.assignee_id && !byId.has(i.assignee_id)) {
+      const name = i.assignee_name || i.assignee_email || i.owner || 'Assignee';
+      const initials = (i.assignee_initials || name.slice(0, 2)).toUpperCase();
+      byId.set(i.assignee_id, {
+        id: i.assignee_id,
+        name,
+        initials,
+        role: 'Member',
+      });
+    }
+  }
+  return Array.from(byId.values()).sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  );
+}
+
 function mapItemToInitiative(item: {
   id: string;
   title: string;
@@ -65,6 +97,8 @@ function mapItemToInitiative(item: {
     priority,
     isBigRock: (item.points ?? 0) >= 5,
     owner: item.assignee_name || item.assignee_initials || '—',
+    assignee_name: item.assignee_name ?? null,
+    assignee_initials: item.assignee_initials ?? null,
     status,
     questions: '',
     description: item.description || '',
@@ -168,15 +202,13 @@ export function useMeridianData(): MeridianDataResult {
     setLoading(true);
     setError(null);
     try {
-      const [projRes, crewRes, stdRes] = await Promise.all([
+      const [projRes, stdRes] = await Promise.all([
         get<Project[]>(apiPath('api/projects')).catch(() => []),
-        get<{ id: string; name: string; initials: string; role: string }[]>(apiPath('api/crew')).catch(() => []),
         get<{ id: string; field_key: string; name: string; field_type: string; options_json?: unknown[] }[]>(apiPath('api/standard-fields')).catch(() => []),
       ]);
       setStandardFields(Array.isArray(stdRes) ? stdRes : []);
       const projList = Array.isArray(projRes) ? projRes : [];
       setProjects(projList);
-      setCrew(Array.isArray(crewRes) ? crewRes : []);
       const pid = overrideProjectId ?? selectedProjectId ?? (projList[0]?.id ?? null);
       if (projList.length && !selectedProjectId && overrideProjectId === undefined) setSelectedProjectId(projList[0].id);
       if (!pid) {
@@ -188,11 +220,19 @@ export function useMeridianData(): MeridianDataResult {
         setFromApi(true);
         return;
       }
-      const [sprintsRes, itemsRes, trackersRes, cfRes] = await Promise.all([
+      const projectForCrew = projList.find((p) => p.id === pid);
+      const wid = projectForCrew?.workspace_id;
+      const crewPath =
+        wid != null && String(wid).length > 0
+          ? `${apiPath('api/crew')}?workspace_id=${encodeURIComponent(String(wid))}`
+          : apiPath('api/crew');
+
+      const [sprintsRes, itemsRes, trackersRes, cfRes, crewRes] = await Promise.all([
         get<Sprint[]>(`${apiPath('api/sprints')}?project_id=${pid}`).catch(() => []),
         get<unknown[]>(`${apiPath('api/items')}?project_id=${pid}`).catch(() => []),
         get<{ id: string; name: string; sort_order?: number }[]>(`${apiPath('api/trackers')}?project_id=${pid}`).catch(() => []),
         get<{ id: string; name: string; field_type: string; target: string }[]>(apiPath(`api/custom-fields?project_id=${pid}`)).catch(() => []),
+        get<{ id: string; name?: string; initials?: string; role?: string }[]>(crewPath).catch(() => []),
       ]);
       setSprints(Array.isArray(sprintsRes) ? sprintsRes : []);
       setCustomFields(Array.isArray(cfRes) ? cfRes : []);
@@ -218,6 +258,8 @@ export function useMeridianData(): MeridianDataResult {
         })
       );
       setInitiatives(mapped);
+      const crewList = Array.isArray(crewRes) ? crewRes : [];
+      setCrew(mergeCrewWithItemAssignees(crewList, mapped));
       const trackers = Array.isArray(trackersRes) ? trackersRes : [];
       const uncategorized = mapped.filter((init) => !init.tracker_id);
       const parseTrackerColumns = (c: unknown): string[] | undefined => {

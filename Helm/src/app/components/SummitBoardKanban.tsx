@@ -33,7 +33,7 @@ function KanbanCard({ init, crew, isDrag, onClick }: {
 }) {
   const owner = init.assignee_id ? crew.find(c => c.id === init.assignee_id) : null;
   const dueStr = init.endDate && !isNaN(init.endDate.getTime())
-    ? init.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : null;
+    ? init.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : null;
   const isOverdue = init.endDate && init.endDate < new Date() && init.status !== 'Complete';
 
   return (

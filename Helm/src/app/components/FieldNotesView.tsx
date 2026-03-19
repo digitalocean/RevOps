@@ -4,6 +4,7 @@ import { Textarea } from './ui/textarea';
 import { get, post, getApiBaseUrl } from '../api/meridian';
 import { toast } from 'sonner';
 import { Mic, Send, FileText, Loader2 } from 'lucide-react';
+import { formatLocalDateTime } from '../lib/dateFormat';
 
 interface Note {
   id: string;
@@ -208,7 +209,7 @@ export function FieldNotesView({ projectId, onRefresh }: FieldNotesViewProps) {
                   <div className="flex-1 min-w-0">
                     <p className="text-gray-900 whitespace-pre-wrap">{note.content}</p>
                     <p className="text-xs text-gray-400 mt-1">
-                      {note.created_at ? new Date(note.created_at).toLocaleString() : ''}
+                      {note.created_at ? formatLocalDateTime(note.created_at) : ''}
                       {note.entry_type === 'ai' || note.voice_url ? ' · Voice' : ''}
                     </p>
                   </div>

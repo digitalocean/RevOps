@@ -160,7 +160,7 @@ export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdate
             const isOverdue = init.endDate && init.endDate < today && init.status !== 'Complete';
             const isDueToday = init.endDate && init.endDate >= today && init.endDate < tomorrow;
             const dueStr = init.endDate && !isNaN(init.endDate.getTime())
-              ? init.endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: init.endDate.getFullYear() !== today.getFullYear() ? 'numeric' : undefined })
+              ? init.endDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(init.endDate.getFullYear() !== today.getFullYear() ? { year: 'numeric' as const } : {}) })
               : null;
 
             return (

@@ -65,7 +65,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50/30 p-4">
         <div className="w-full max-w-md text-center">
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">To-DO</h1>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Meridian</h1>
           <p className="text-gray-500 mt-4">SSO is not configured. Contact your administrator.</p>
         </div>
       </div>
@@ -76,7 +76,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 via-white to-blue-50/30 p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">To-DO</h1>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Meridian</h1>
           <p className="text-gray-500 mt-1">Sign in to continue</p>
         </div>
         <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">

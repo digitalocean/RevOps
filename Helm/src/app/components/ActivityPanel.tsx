@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { X, Clock, CheckCircle2, AlertTriangle, UserCheck, Trash2, Edit3, RefreshCw } from 'lucide-react';
 import { Button } from './ui/button';
 import { get } from '../api/meridian';
+import { formatLocalDate } from '../lib/dateFormat';
 
 interface ActivityPanelProps {
   onClose: () => void;
@@ -45,7 +46,7 @@ function formatTime(iso: string): string {
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
   if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`;
-  return d.toLocaleDateString();
+  return formatLocalDate(d);
 }
 
 function getMessage(row: ActivityItem): React.ReactNode {

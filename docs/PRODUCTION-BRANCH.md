@@ -29,7 +29,7 @@ git push -u origin production
 
 Before deploying:
 
-1. Open **`app-production.yaml`** and replace **`YOUR_GITHUB_ORG/YOUR_REPO`** with your real GitHub repository (same value in **both** the `api` and `web` `github.repo` fields).
+1. **`app-production.yaml`** uses **`digitalocean/RevOps`** — change both `github.repo` values if you use a fork.
 2. Commit and push to **`production`**.
 
 ---

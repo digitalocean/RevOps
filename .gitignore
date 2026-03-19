@@ -10,6 +10,7 @@ frontend/.env.production
 # Build output
 frontend/dist/
 frontend/build/
+Helm/dist/
 
 # OS files
 .DS_Store

@@ -1,7 +1,7 @@
 # DigitalOcean App Platform — PRODUCTION (todoapp-jzfe4)
 #
 # Branch: production — deploy from this branch only for production.
-# Before first deploy: replace YOUR_GITHUB_ORG/YOUR_REPO with your GitHub org/repo (same for api + web).
+# Repo is set to digitalocean/RevOps — change if you fork.
 # Secrets: set SESSION_SECRET, OKTA_*, SAML_IDP_METADATA_URL, DATABASE_URL in DO dashboard if not using ${db.DATABASE_URL}.
 #
 # Production URL: https://todoapp-jzfe4.ondigitalocean.app
@@ -75,7 +75,7 @@ services:
         scope: RUN_TIME
     github:
       deploy_on_push: true
-      repo: YOUR_GITHUB_ORG/YOUR_REPO
+      repo: digitalocean/RevOps
       branch: production
     http_port: 8080
     instance_count: 1
@@ -96,7 +96,7 @@ static_sites:
         scope: BUILD_TIME
     github:
       deploy_on_push: true
-      repo: YOUR_GITHUB_ORG/YOUR_REPO
+      repo: digitalocean/RevOps
       branch: production
     output_dir: dist
     source_dir: /Helm

@@ -445,5 +445,60 @@ Here are features that would make this significantly more powerful:
 
 ---
 
+<<<<<<< Updated upstream
 *AgileOps — Built for DigitalOcean / Salesforce Engineering*  
 *Questions? Check the troubleshooting section above or open the browser console (F12) for errors.*
+=======
+## 🗂 Structure
+
+```
+agileops/
+├── Helm/src/app/           # React frontend
+│   ├── pages/Dashboard.tsx # Main page with all views
+│   ├── components/         # 50+ components
+│   ├── data/useMeridianData.ts
+│   └── hooks/
+├── backend/
+│   ├── server.js           # Express + WebSocket
+│   ├── routes/             # REST API
+│   └── scripts/schema.sql  # Auto-migrating DB schema
+├── setup.sh                # One-time setup
+└── start.sh                # Launch everything
+```
+
+---
+
+## 🔒 Auth
+
+Session-based. Register at the login screen or via API:
+```bash
+curl -X POST http://localhost:4000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Raj","email":"raj@example.com","password":"password123"}'
+```
+
+---
+
+## 🚀 Deploy (DigitalOcean App Platform)
+
+**Production (todoapp-jzfe4):** use Git branch **`production`** and **`app-production.yaml`**.  
+Setup: **[docs/PRODUCTION-BRANCH.md](docs/PRODUCTION-BRANCH.md)** · URLs & Okta: **[docs/PRODUCTION-URLS.md](docs/PRODUCTION-URLS.md)**.
+
+The repo also includes **`app.yaml`** (alternate / legacy) and **`app-new.yaml`** (template for new apps).  
+**Full step-by-step (ingress, env vars, Activity panel):** **[docs/DEPLOY-DIGITALOCEAN.md](docs/DEPLOY-DIGITALOCEAN.md)**.
+
+### Required environment variables
+
+| Variable | Service | Description |
+|----------|---------|-------------|
+| `DATABASE_URL` | api | Provided by the linked database (e.g. `db.DATABASE_URL`) |
+| `SESSION_SECRET` | api | **Required in production.** Use a long random string so session cookies are signed. |
+| `VITE_API_URL` | web (build) | Set to your app’s public URL (e.g. `https://your-app-xxxx.ondigitalocean.app`) so the frontend can call the API. |
+
+### Repo layout expected by the spec
+
+- **API service**: `source_dir: /backend` — runs `node server.js` on port 8080.
+- **Web (static)**: `source_dir: /Helm` — runs `npm run build`, serves `dist/`.
+
+Push a branch that has `backend/` and `Helm/` at the repo root. In App Spec, set the **web** component’s build env `VITE_API_URL` to your app URL (same URL you open in the browser). After deploy, the UI will call that URL for `/api/*`.
+>>>>>>> Stashed changes

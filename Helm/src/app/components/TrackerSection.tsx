@@ -8,7 +8,18 @@ import {
   useMemo,
 } from 'react';
 import type { CSSProperties } from 'react';
-import { ChevronDown, ChevronRight, ChevronUp, Plus, Clock, X, GripVertical, Trash2, Pencil } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Plus,
+  Clock,
+  X,
+  GripVertical,
+  Trash2,
+  Pencil,
+  ChevronsLeftRight,
+} from 'lucide-react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -1073,6 +1084,64 @@ export function TrackerSection({
     [colWidths, setColWidth, cellStyle]
   );
 
+  /** Sum of column widths so the table can grow wider than the viewport (enables horizontal scroll). */
+  const tableMinWidthPx = useMemo(() => {
+    const gw = (key: string) =>
+      colWidths[key] ??
+      TRACKER_COL_DEFAULTS[key as keyof typeof TRACKER_COL_DEFAULTS] ??
+      (key.startsWith('cf:') || key.startsWith('std:') ? 168 : 120);
+    let sum = 32 + 40; // drag handle + checkbox (w-8 + w-10)
+    for (const id of COL_KEYS) {
+      if (!colVisible(visibleColumns, id)) continue;
+      sum += gw(id);
+    }
+    for (const f of extraStandardFields) {
+      if (!colVisible(visibleColumns, f.field_key)) continue;
+      sum += gw(STD_COL_KEY(f.field_key));
+    }
+    for (const f of customFields.filter(isTaskField)) {
+      if (!colVisible(visibleColumns, f.id)) continue;
+      sum += gw(CF_COL_KEY(f.id));
+    }
+    sum += 76; // Actions column
+    return sum;
+  }, [visibleColumns, extraStandardFields, customFields, colWidths]);
+
+  const trackerScrollRef = useRef<HTMLDivElement>(null);
+  const [tableHScroll, setTableHScroll] = useState({ overflow: false, left: false, right: false });
+
+  const updateTableScrollHint = useCallback(() => {
+    const el = trackerScrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    const maxScroll = scrollWidth - clientWidth;
+    if (maxScroll <= 6) {
+      setTableHScroll({ overflow: false, left: false, right: false });
+      return;
+    }
+    setTableHScroll({
+      overflow: true,
+      left: scrollLeft > 6,
+      right: scrollLeft < maxScroll - 6,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isExpanded) return;
+    const el = trackerScrollRef.current;
+    if (!el) return;
+    updateTableScrollHint();
+    el.addEventListener('scroll', updateTableScrollHint, { passive: true });
+    const ro = new ResizeObserver(() => updateTableScrollHint());
+    ro.observe(el);
+    const table = el.querySelector('table');
+    if (table) ro.observe(table);
+    return () => {
+      el.removeEventListener('scroll', updateTableScrollHint);
+      ro.disconnect();
+    };
+  }, [isExpanded, updateTableScrollHint, tableMinWidthPx]);
+
   if (viewMode === 'gantt') return null;
 
   const filteredInitiatives = section.initiatives.filter((initiative) => {
@@ -1267,9 +1336,38 @@ export function TrackerSection({
         </div>
 
         {isExpanded && (
-          <div className="overflow-x-auto">
+          <div className="relative bg-white">
+            {tableHScroll.overflow && tableHScroll.left && (
+              <div
+                className="pointer-events-none absolute left-0 top-0 bottom-0 z-[35] w-9 bg-gradient-to-r from-white via-white/90 to-transparent"
+                aria-hidden
+              />
+            )}
+            {tableHScroll.overflow && tableHScroll.right && (
+              <div
+                className="pointer-events-none absolute top-0 bottom-0 z-[35] w-12 bg-gradient-to-l from-white via-white/90 to-transparent"
+                style={{ right: 76 }}
+                aria-hidden
+              />
+            )}
+            <div
+              ref={trackerScrollRef}
+              role="region"
+              aria-label="Task table. Scroll horizontally when there are many columns."
+              className={cn(
+                'overflow-x-auto overflow-y-visible',
+                '[scrollbar-width:thin]',
+                '[&::-webkit-scrollbar]:h-2.5',
+                '[&::-webkit-scrollbar-thumb]:rounded-full',
+                '[&::-webkit-scrollbar-thumb]:bg-gray-300',
+                '[&::-webkit-scrollbar-track]:bg-gray-100/80'
+              )}
+            >
             <TrackerColWidthsContext.Provider value={colCtx}>
-            <table className="w-full table-fixed border-collapse">
+            <table
+              className="table-fixed border-collapse"
+              style={{ width: `max(100%, ${tableMinWidthPx}px)` }}
+            >
               <thead className="bg-white border-b border-gray-200">
                 <tr>
                   <th className="py-2 px-2 w-8 max-w-8" />
@@ -1372,6 +1470,13 @@ export function TrackerSection({
               </DndContext>
             </table>
             </TrackerColWidthsContext.Provider>
+            </div>
+            {tableHScroll.overflow && (
+              <div className="flex items-center justify-center gap-2 border-t border-indigo-100 bg-indigo-50/90 px-2 py-1.5 text-[11px] font-medium text-indigo-800">
+                <ChevronsLeftRight className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                <span>More columns off-screen — scroll sideways (or swipe on trackpad) to see them.</span>
+              </div>
+            )}
           </div>
         )}
 

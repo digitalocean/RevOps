@@ -10,7 +10,8 @@ Schema is in **`backend/scripts/schema.sql`**. It runs **automatically on API st
 | Table | Purpose |
 |-------|---------|
 | **workspaces** | Top-level container; has `name`, `slug`. |
-| **crew** | Team members; optional `workspace_id`. |
+| **crew** | Team members; optional `workspace_id`. Has `first_name`, `last_name` (with `name` as display) for invites and owner picker. |
+| **users** | Auth users; `first_name`, `last_name` (with `full_name`) for display and SSO profiles. |
 | **projects** | Campaigns; `workspace_id` (nullable). |
 | **board_columns** | Kanban columns per project. |
 | **sprints** | Expeditions; `project_id`. |

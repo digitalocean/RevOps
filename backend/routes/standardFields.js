@@ -80,11 +80,12 @@ router.post('/', async (req, res) => {
     if (!name || !String(name).trim()) return res.status(400).json({ error: 'name required' });
     const key = (field_key || String(name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'field').slice(0, 80);
     const opts = options_json != null ? (Array.isArray(options_json) ? options_json : []) : [];
+    // Explicit ::text casts: same $1 in SELECT + NOT EXISTS made Postgres infer conflicting types (42P08).
     const { rows } = await pool.query({
       name: 'standard_fields_insert',
       text: `INSERT INTO standard_fields (field_key, name, field_type, options_json, sort_order)
-             SELECT $1, $2, $3, $4::jsonb, COALESCE((SELECT MAX(sort_order)+1 FROM standard_fields), 0)
-             WHERE NOT EXISTS (SELECT 1 FROM standard_fields WHERE field_key = $1)
+             SELECT $1::text, $2::text, $3::text, $4::jsonb, COALESCE((SELECT MAX(sort_order)+1 FROM standard_fields), 0)
+             WHERE NOT EXISTS (SELECT 1 FROM standard_fields WHERE field_key = $1::text)
              RETURNING *`,
       values: [key, String(name).trim(), field_type, JSON.stringify(opts)],
     });

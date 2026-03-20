@@ -72,7 +72,14 @@ interface Attachment {
   uploader_name: string;
 }
 
-interface CrewMember { id: string; name: string; initials?: string; }
+interface CrewMember {
+  id: string;
+  name: string;
+  initials?: string;
+  email?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+}
 
 interface TaskDetailDrawerProps {
   initiative: Initiative;
@@ -472,6 +479,7 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
                             (initiative.owner && initiative.owner !== '—' ? initiative.owner : null))
                         : null
                     }
+                    fallbackEmail={initiative.assignee_email ?? null}
                     onChange={(id) => {
                       setAssigneeId(id);
                       save({ assignee_id: id });

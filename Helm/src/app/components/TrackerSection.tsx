@@ -44,6 +44,9 @@ interface CrewMember {
   name: string;
   initials?: string;
   role?: string;
+  email?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
 }
 
 interface CustomFieldDef {
@@ -621,6 +624,7 @@ function InitiativeRowEditable({
                   (initiative.owner && initiative.owner !== '—' ? initiative.owner : null))
               : null
           }
+          fallbackEmail={initiative.assignee_email ?? null}
         />
       </td>
       )}

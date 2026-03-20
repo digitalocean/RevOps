@@ -167,7 +167,7 @@ router.patch('/:id', async (req, res) => {
     if (!allowedWorkspaceIds.some(id => String(id) === String(crewRow.rows[0].workspace_id))) {
       return res.status(404).json({ error: 'Not found' });
     }
-    const allowed = ['name', 'email', 'color', 'role', 'status', 'active'];
+    const allowed = ['name', 'email', 'color', 'role', 'status', 'active', 'first_name', 'last_name', 'initials'];
     const fields = Object.keys(req.body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No fields' });
     const sets = fields.map((f, i) => `${f}=$${i + 2}`).join(',');

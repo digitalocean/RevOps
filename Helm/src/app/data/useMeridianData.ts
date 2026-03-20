@@ -33,18 +33,47 @@ const PRIORITY_MAP: Record<string, Priority> = {
 
 const CATEGORY_OPTIONS = ['Engineering', 'Design', 'Sales', 'Product', 'Operations'] as const;
 
+export type CrewMemberRow = {
+  id: string;
+  name: string;
+  initials: string;
+  role: string;
+  email?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+};
+
 /** Crew rows from API may omit names; merge assignees referenced on items so Owner lookup always works. */
 function mergeCrewWithItemAssignees(
-  crewRows: { id: string; name?: string; initials?: string; role?: string }[],
+  crewRows: {
+    id: string;
+    name?: string;
+    initials?: string;
+    role?: string;
+    email?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+  }[],
   items: Initiative[]
-): { id: string; name: string; initials: string; role: string }[] {
-  const normalize = (r: { id: string; name?: string; initials?: string; role?: string }) => ({
+): CrewMemberRow[] {
+  const normalize = (r: {
+    id: string;
+    name?: string;
+    initials?: string;
+    role?: string;
+    email?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+  }): CrewMemberRow => ({
     id: String(r.id),
     name: String(r.name ?? 'Unknown'),
     initials: String(r.initials ?? (r.name?.slice(0, 2) ?? '??')).slice(0, 8),
     role: String(r.role ?? 'Member'),
+    email: r.email ?? null,
+    first_name: r.first_name ?? null,
+    last_name: r.last_name ?? null,
   });
-  const byId = new Map<string, { id: string; name: string; initials: string; role: string }>();
+  const byId = new Map<string, CrewMemberRow>();
   for (const r of crewRows) {
     if (r?.id) byId.set(String(r.id), normalize(r));
   }
@@ -57,6 +86,9 @@ function mergeCrewWithItemAssignees(
         name,
         initials,
         role: 'Member',
+        email: i.assignee_email ?? null,
+        first_name: null,
+        last_name: null,
       });
     }
   }
@@ -163,7 +195,7 @@ export interface MeridianDataResult {
   deleteSection: (trackerId: string) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
   sprints: Sprint[];
-  crew: { id: string; name: string; initials: string; role: string }[];
+  crew: CrewMemberRow[];
   customFields: { id: string; name: string; field_type: string; target: string; applies_to?: string; options_json?: unknown[] }[];
   standardFields: { id: string; field_key: string; name: string; field_type: string; options_json?: unknown[] }[];
   myTasksInitiatives: Initiative[];
@@ -181,7 +213,7 @@ export function useMeridianData(): MeridianDataResult {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [initiatives, setInitiatives] = useState<Initiative[]>(mockInitiatives);
   const [sections, setSections] = useState<TrackerSection[]>(mockTrackerSections);
-  const [crew, setCrew] = useState<{ id: string; name: string; initials: string; role: string }[]>([]);
+  const [crew, setCrew] = useState<CrewMemberRow[]>([]);
   const [customFields, setCustomFields] = useState<{ id: string; name: string; field_type: string; target: string; applies_to?: string; options_json?: unknown[] }[]>([]);
   const [myTasksInitiatives, setMyTasksInitiatives] = useState<Initiative[]>([]);
   const [myTasksLoading, setMyTasksLoading] = useState(false);

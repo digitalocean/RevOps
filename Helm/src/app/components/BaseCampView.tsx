@@ -50,12 +50,14 @@ function isTaskField(f: CustomFieldDef) {
 }
 
 interface ProjectMember {
-  id: string;
-  crew_id: string;
+  id: string | null;
+  crew_id: string | null;
   role: string;
   name: string;
   email?: string;
   initials?: string;
+  first_name?: string | null;
+  last_name?: string | null;
   is_creator?: boolean;
 }
 
@@ -149,8 +151,8 @@ export function BaseCampView({
           <p className="text-xs text-gray-500">No other members yet.</p>
         ) : (
           <ul className="space-y-1.5 overflow-y-auto">
-            {members.map((m) => (
-              <li key={m.id} className="flex items-center gap-2 text-sm">
+            {members.map((m, idx) => (
+              <li key={m.id ?? `creator-${m.email ?? idx}`} className="flex items-center gap-2 text-sm">
                 {m.initials ? (
                   <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-medium flex-shrink-0">
                     {m.initials}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Check, Search } from 'lucide-react';
+import { Check, Search, User } from 'lucide-react';
 import { cn } from './ui/utils';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import {
@@ -10,8 +10,16 @@ import {
   CommandItem,
   CommandList,
 } from './ui/command';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
-export type AssigneeLookupMember = { id: string; name: string; initials?: string };
+export type AssigneeLookupMember = {
+  id: string;
+  name: string;
+  initials?: string;
+  email?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+};
 
 interface AssigneeLookupProps {
   value: string | null | undefined;
@@ -19,9 +27,26 @@ interface AssigneeLookupProps {
   crew: AssigneeLookupMember[];
   /** When value is set but that id is missing from crew (stale list), show this label */
   fallbackLabel?: string | null;
+  /** Email for tooltip when assignee not in crew list */
+  fallbackEmail?: string | null;
   className?: string;
   disabled?: boolean;
   compact?: boolean;
+}
+
+function twoCharLabel(m: AssigneeLookupMember | undefined, fallbackName: string): string {
+  const raw = (m?.initials || '').trim();
+  if (raw.length >= 2) return raw.slice(0, 2).toUpperCase();
+  const fn = (m?.first_name || '').trim();
+  const ln = (m?.last_name || '').trim();
+  if (fn && ln) return (fn[0] + ln[0]).toUpperCase();
+  const n = (m?.name || fallbackName || '').trim();
+  if (n) {
+    const parts = n.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return n.slice(0, 2).toUpperCase();
+  }
+  return '??';
 }
 
 export function AssigneeLookup({
@@ -29,6 +54,7 @@ export function AssigneeLookup({
   onChange,
   crew,
   fallbackLabel,
+  fallbackEmail,
   className,
   disabled,
   compact,
@@ -47,19 +73,27 @@ export function AssigneeLookup({
     (value && fallbackLabel?.trim() ? fallbackLabel.trim() : '') ||
     '— Unassigned';
 
+  const tooltipEmail = member?.email?.trim() || fallbackEmail?.trim() || '';
+
+  const avatarLetters = twoCharLabel(
+    member,
+    (value && fallbackLabel?.trim() ? fallbackLabel.trim() : '') || ''
+  );
+
   /** Include current assignee in the list if API list is missing that id */
   const listMembers = useMemo(() => {
     if (value && !sorted.some((c) => c.id === value) && fallbackLabel?.trim()) {
       const extra: AssigneeLookupMember = {
         id: value,
         name: fallbackLabel.trim(),
+        email: fallbackEmail ?? undefined,
       };
       return [...sorted, extra].sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
       );
     }
     return sorted;
-  }, [sorted, value, fallbackLabel]);
+  }, [sorted, value, fallbackLabel, fallbackEmail]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -81,7 +115,38 @@ export function AssigneeLookup({
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         >
-          <span className="truncate min-w-0 flex-1 text-left">{label}</span>
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+            {value ? (
+              <>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-semibold uppercase text-indigo-800"
+                      tabIndex={-1}
+                    >
+                      {avatarLetters}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs border-0 bg-gray-900 text-gray-50">
+                    {tooltipEmail ? (
+                      <>
+                        <p className="text-xs font-medium">{label}</p>
+                        <p className="text-[11px] text-gray-300 break-all">{tooltipEmail}</p>
+                      </>
+                    ) : (
+                      <p className="text-xs">{label}</p>
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+                <User className="h-3.5 w-3.5 shrink-0 text-indigo-600" aria-hidden />
+                <span className="truncate">{label}</span>
+              </>
+            ) : (
+              <>
+                <span className="truncate text-gray-500">— Unassigned</span>
+              </>
+            )}
+          </span>
           <Search className="h-3.5 w-3.5 shrink-0 text-gray-500 pointer-events-none" aria-hidden />
         </button>
       </PopoverTrigger>
@@ -130,7 +195,15 @@ export function AssigneeLookup({
                       value === c.id ? 'opacity-100' : 'opacity-0'
                     )}
                   />
-                  <span className="truncate">{c.name}</span>
+                  <span className="mr-2 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[9px] font-semibold text-indigo-800">
+                    {twoCharLabel(c, c.name)}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                  {c.email ? (
+                    <span className="max-w-[90px] truncate text-[10px] text-gray-400" title={c.email}>
+                      {c.email}
+                    </span>
+                  ) : null}
                 </CommandItem>
               ))}
             </CommandGroup>

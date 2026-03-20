@@ -74,6 +74,7 @@ interface BaseCampViewProps {
   /** Reorder columns (new ordered list of all column ids). */
   onReorderColumns?: (orderedIds: string[]) => void;
   onOpenCustomFields: () => void;
+  /** Opens share / manage access dialog (same as Share). */
   onOpenShare?: () => void;
   onDeleteProject?: (projectId: string) => void | Promise<void>;
 }
@@ -135,16 +136,28 @@ export function BaseCampView({
     <div className="flex flex-1 min-h-0">
       {/* Sidebar: Shared with */}
       <aside className="w-56 flex-shrink-0 border-r border-gray-200 bg-gray-50/60 p-4 flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-1 flex-wrap">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5" />
             Shared with
           </h3>
           {onOpenShare && (
-            <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1" onClick={onOpenShare} title="Share project">
-              <UserPlus className="w-3.5 h-3.5" />
-              Share
-            </Button>
+            <div className="flex items-center gap-0.5">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs gap-1"
+                onClick={onOpenShare}
+                title="Manage people and access"
+              >
+                Edit
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs gap-1" onClick={onOpenShare} title="Share project">
+                <UserPlus className="w-3.5 h-3.5" />
+                Share
+              </Button>
+            </div>
           )}
         </div>
         {members.length === 0 ? (
@@ -168,7 +181,7 @@ export function BaseCampView({
                 {m.is_creator ? (
                   <span className="text-[10px] text-indigo-600 flex-shrink-0">Admin</span>
                 ) : (
-                  <span className="text-[10px] text-gray-500 flex-shrink-0 capitalize">{(m.role === 'owner' || m.role === 'admin') ? 'Admin' : m.role === 'moderator' ? 'Moderator' : m.role === 'editor' ? 'Edit' : 'View'}</span>
+                  <span className="text-[10px] text-gray-500 flex-shrink-0 capitalize">{(m.role === 'owner' || m.role === 'admin') ? 'Admin' : m.role === 'moderator' ? 'Moderator' : m.role === 'editor' ? 'Editor' : 'View'}</span>
                 )}
               </li>
             ))}

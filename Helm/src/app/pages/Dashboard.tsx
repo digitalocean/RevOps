@@ -816,7 +816,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     crew={crew}
                     currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
                     customFields={customFields}
-                    visibleColumns={section.columns?.length ? new Set(section.columns) : visibleColumns}
+                    // Always use project column prefs so new standard/custom fields from Base Camp appear on every tracker.
+                    visibleColumns={visibleColumns}
                     onDeleteSection={deleteSection}
                     onRenameSection={async (trackerId, newName) => { await updateSection(trackerId, { name: newName }); refreshActivity(); }}
                     sectionTitleOverride={section.id === 'uncategorized' ? uncategorizedDisplayNames[selectedProjectId ?? ''] : undefined}

@@ -34,6 +34,15 @@ interface AssigneeLookupProps {
   compact?: boolean;
 }
 
+/** Prefer crew first_name; else first word of display name (smaller Owner cell). */
+function shortFirstName(m: AssigneeLookupMember | undefined, fallbackFull: string): string {
+  const fn = (m?.first_name || '').trim();
+  if (fn) return fn;
+  const full = (m?.name || fallbackFull || '').trim();
+  if (!full) return '—';
+  return full.split(/\s+/)[0] || full;
+}
+
 function twoCharLabel(m: AssigneeLookupMember | undefined, fallbackName: string): string {
   const raw = (m?.initials || '').trim();
   if (raw.length >= 2) return raw.slice(0, 2).toUpperCase();
@@ -74,6 +83,10 @@ export function AssigneeLookup({
     '— Unassigned';
 
   const tooltipEmail = member?.email?.trim() || fallbackEmail?.trim() || '';
+  const shortLabel = shortFirstName(
+    member,
+    (value && fallbackLabel?.trim() ? fallbackLabel.trim() : '') || ''
+  );
 
   const avatarLetters = twoCharLabel(
     member,
@@ -128,18 +141,14 @@ export function AssigneeLookup({
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-xs border-0 bg-gray-900 text-gray-50">
+                    <p className="text-xs font-medium">{label}</p>
                     {tooltipEmail ? (
-                      <>
-                        <p className="text-xs font-medium">{label}</p>
-                        <p className="text-[11px] text-gray-300 break-all">{tooltipEmail}</p>
-                      </>
-                    ) : (
-                      <p className="text-xs">{label}</p>
-                    )}
+                      <p className="text-[11px] text-gray-300 break-all">{tooltipEmail}</p>
+                    ) : null}
                   </TooltipContent>
                 </Tooltip>
                 <User className="h-3.5 w-3.5 shrink-0 text-indigo-600" aria-hidden />
-                <span className="truncate">{label}</span>
+                <span className="truncate text-xs font-medium text-gray-900">{shortLabel}</span>
               </>
             ) : (
               <>
@@ -199,11 +208,12 @@ export function AssigneeLookup({
                     {twoCharLabel(c, c.name)}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                  {c.email ? (
-                    <span className="max-w-[90px] truncate text-[10px] text-gray-400" title={c.email}>
-                      {c.email}
-                    </span>
-                  ) : null}
+                  <span
+                    className="max-w-[72px] shrink-0 truncate text-[10px] font-medium text-gray-500"
+                    title={shortFirstName(c, c.name)}
+                  >
+                    {shortFirstName(c, c.name)}
+                  </span>
                 </CommandItem>
               ))}
             </CommandGroup>

@@ -828,35 +828,46 @@ function InitiativeRowEditable({
           onSave={onUpdateFieldValue}
         />
       ))}
-      <td className="py-2 px-4 align-top w-24 min-w-[96px]" onClick={(e) => e.stopPropagation()}>
-        <div className="flex flex-wrap items-center gap-1">
+      <td
+        className={cn(
+          'sticky right-0 z-20 py-2 px-1.5 align-middle w-[76px] min-w-[76px] max-w-[76px] border-l border-gray-200',
+          'bg-white shadow-[-8px_0_20px_-6px_rgba(15,23,42,0.1)]',
+          'group-hover/row:bg-gray-50/95',
+          isSelected && 'bg-blue-50 group-hover/row:bg-blue-50',
+          isFocused && !isSelected && 'bg-indigo-50/60 group-hover/row:bg-indigo-50/70'
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-col items-center justify-center gap-1">
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-8 px-2 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 gap-1"
+            className="h-8 w-8 p-0 text-gray-600 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg"
+            title="Edit task"
+            aria-label="Edit task"
             onClick={(e) => {
               e.stopPropagation();
               onOpenDetails(initiative);
             }}
           >
-            <Pencil className="w-3.5 h-3.5" />
-            Edit
+            <Pencil className="w-4 h-4" />
           </Button>
           {onDelete && (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="h-8 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 gap-1"
+              className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg"
+              title="Delete task"
+              aria-label="Delete task"
               onClick={() => {
                 if (window.confirm(`Delete "${initiative.name}"? This cannot be undone.`)) {
                   onDelete(initiative.id);
                 }
               }}
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              Delete
+              <Trash2 className="w-4 h-4" />
             </Button>
           )}
         </div>
@@ -932,7 +943,7 @@ function SortableInitiativeRow(props: Omit<InitiativeRowEditableProps, 'dragHand
       ref={setNodeRef}
       style={style}
       data-item-id={props.initiative.id}
-      className={`border-b border-gray-100 hover:bg-gray-50/50 cursor-pointer transition-colors ${props.isSelected ? 'bg-blue-50' : ''} ${props.isFocused ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/30' : ''} ${isDragging ? 'opacity-40 bg-indigo-50' : ''}`}
+      className={`group/row border-b border-gray-100 hover:bg-gray-50/50 cursor-pointer transition-colors ${props.isSelected ? 'bg-blue-50' : ''} ${props.isFocused ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/30' : ''} ${isDragging ? 'opacity-40 bg-indigo-50' : ''}`}
       onClick={(e) => {
         const el = e.target as HTMLElement;
         if (el.closest('button, a, input, textarea, select, [role="combobox"]')) return;
@@ -1287,7 +1298,15 @@ export function TrackerSection({
                   {customFields?.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).map((f) => (
                     <ResizableTh key={f.id} colKey={CF_COL_KEY(f.id)} label={f.name} ctx={colCtx} />
                   ))}
-                  <th className="py-2 px-4 w-24 min-w-[96px] max-w-[96px] text-left text-xs font-semibold text-gray-600 uppercase align-top">Actions</th>
+                  <th
+                    className={cn(
+                      'sticky right-0 z-30 py-2 px-2 w-[76px] min-w-[76px] max-w-[76px] text-center text-[10px] font-semibold text-gray-500 uppercase tracking-wide align-middle',
+                      'border-l border-gray-200 bg-white shadow-[-8px_0_20px_-6px_rgba(15,23,42,0.12)]'
+                    )}
+                    title="Edit and delete — stays visible when you scroll sideways"
+                  >
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

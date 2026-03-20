@@ -1,7 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Send, Paperclip, Trash2, ExternalLink, Calendar, User, Tag, Flag,
-         ChevronDown, MessageSquare, Link2, FileText, Image, CheckCircle2, Clock,
-         AtSign, MoreHorizontal, Edit2, Check, AlignLeft, Hash, Layers } from 'lucide-react';
+import {
+  X,
+  Send,
+  Paperclip,
+  Trash2,
+  ExternalLink,
+  Flag,
+  ChevronDown,
+  MessageSquare,
+  Clock,
+} from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { AssigneeLookup } from './AssigneeLookup';
 import { formatLocalDate, localDateInputToIso } from '../lib/dateFormat';
@@ -239,16 +247,12 @@ function TaskFieldTextBlurArea({
   );
 }
 
-function DrawerFieldCard({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
+/** Compact row for extra task fields (dense, scannable). */
+function DrawerFieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-gray-100/90 bg-white p-4 shadow-sm transition-all hover:border-indigo-100/90 hover:shadow-md">
-      <div className="mb-2.5 flex items-center gap-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-50 to-violet-50 text-indigo-600 ring-1 ring-indigo-100/80 [&_svg]:h-3.5 [&_svg]:w-3.5">
-          {icon}
-        </span>
-        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</span>
-      </div>
-      <div className="min-w-0">{children}</div>
+    <div className="flex flex-col gap-1.5 py-2.5 sm:flex-row sm:items-center sm:gap-4 sm:py-2">
+      <span className="shrink-0 text-xs font-medium text-gray-500 sm:w-36">{label}</span>
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }
@@ -554,14 +558,14 @@ export function TaskDetailDrawer({
     >
       <DialogContent
         className={cn(
-          '!flex !flex-col max-w-5xl w-[min(100vw-1rem,56rem)] max-h-[92vh] p-0 gap-0 overflow-hidden',
-          'border-0 ring-1 ring-black/[0.06] sm:max-w-5xl z-[200] shadow-[0_25px_80px_-12px_rgba(15,23,42,0.25)] rounded-2xl',
+          '!flex !flex-col w-[min(100vw-1rem,40rem)] max-w-[40rem] max-h-[90vh] p-0 gap-0 overflow-hidden',
+          'border border-gray-200/80 z-[200] shadow-xl rounded-xl sm:rounded-xl',
           '[&>button]:hidden'
         )}
       >
-      <div className="flex flex-col min-h-0 max-h-[92vh] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-white via-white to-slate-50/40">
-        {/* Header */}
-        <div className="flex-shrink-0 border-b border-indigo-100/40 bg-gradient-to-br from-slate-50/90 via-white to-indigo-50/30 px-6 py-5">
+      <div className="flex flex-col min-h-0 max-h-[90vh] w-full overflow-hidden rounded-xl bg-white">
+        {/* Header — compact */}
+        <div className="flex-shrink-0 border-b border-gray-200 bg-white px-4 py-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               {editingTitle ? (
@@ -571,18 +575,18 @@ export function TaskDetailDrawer({
                   onChange={e => setTitle(e.target.value)}
                   onBlur={handleTitleSave}
                   onKeyDown={e => e.key === 'Enter' && handleTitleSave()}
-                  className="w-full text-xl font-semibold text-gray-900 border-b-2 border-indigo-500 outline-none bg-transparent pb-1"
+                  className="w-full text-base font-semibold text-gray-900 border-b border-indigo-500 outline-none bg-transparent pb-0.5"
                 />
               ) : (
                 <h2
                   onClick={() => onSave && setEditingTitle(true)}
-                  className={`text-xl font-semibold text-gray-900 truncate ${onSave ? 'cursor-text hover:text-indigo-600 transition-colors' : ''}`}
-                  title="Click to edit"
+                  className={`text-base font-semibold text-gray-900 leading-snug ${onSave ? 'cursor-text hover:text-indigo-600' : ''}`}
+                  title="Click to edit title"
                 >
                   {title}
                 </h2>
               )}
-              <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                 {/* Status pill */}
                 <Select value={status} onValueChange={v => { setStatus(v); save({ status: v }); }}>
                   <SelectTrigger className={`h-7 text-xs border rounded-full px-2.5 gap-1.5 ${stStyles.bg} ${stStyles.text} ${stStyles.border} w-auto`}>
@@ -623,26 +627,27 @@ export function TaskDetailDrawer({
               </div>
             </div>
 
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <div className="flex items-center gap-0.5 flex-shrink-0">
               {onDelete && (
                 <button
+                  type="button"
                   onClick={() => { if (confirm('Delete this task permanently?')) { setDeleting(true); onDelete(initiative.id).then(handleClose).finally(() => setDeleting(false)); } }}
                   disabled={deleting}
-                  className="p-2 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                  className="rounded-md px-2 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50"
                   title="Delete task"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  Delete
                 </button>
               )}
-              <button onClick={handleClose} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+              <button type="button" onClick={handleClose} className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700" aria-label="Close">
                 <X className="w-4 h-4" />
               </button>
             </div>
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="flex-shrink-0 border-b border-gray-100/80 bg-slate-50/60 px-4 py-2 sm:px-6 overflow-x-auto">
+        {/* Tabs — underline, space-efficient */}
+        <div className="flex-shrink-0 border-b border-gray-200 bg-gray-50/50 px-3 overflow-x-auto">
           <div className="flex gap-1 min-w-max">
             {(['overview', 'comments', 'attachments', 'time', 'deps'] as const).map((tab) => (
               <button
@@ -650,10 +655,10 @@ export function TaskDetailDrawer({
                 type="button"
                 onClick={() => setActiveTab(tab)}
                 className={cn(
-                  'px-4 py-2 text-sm font-medium rounded-full transition-all whitespace-nowrap',
+                  'relative px-3 py-2.5 text-xs font-medium transition-colors whitespace-nowrap',
                   activeTab === tab
-                    ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-gray-200/90'
-                    : 'text-gray-500 hover:text-gray-800 hover:bg-white/70'
+                    ? 'text-indigo-700 after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-indigo-600'
+                    : 'text-gray-500 hover:text-gray-800'
                 )}
               >
                 {tab === 'comments' ? `Comments${comments.length ? ` (${comments.length})` : ''}` :
@@ -670,83 +675,138 @@ export function TaskDetailDrawer({
         <div className="flex-1 overflow-y-auto">
           {/* ── OVERVIEW TAB ── */}
           {activeTab === 'overview' && (
-            <div className="flex flex-col lg:flex-row min-h-full">
-              {/* Main */}
-              <div className="flex-1 p-6 space-y-6 border-r border-gray-100/80 lg:border-r">
-                {/* Description */}
-                <div className="rounded-2xl border border-gray-100/90 bg-white/80 p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-                      <AlignLeft className="w-3.5 h-3.5" /> Description
-                    </span>
-                    {onSave && !editingDesc && (
-                      <button onClick={() => setEditingDesc(true)} className="text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1">
-                        <Edit2 className="w-3 h-3" /> Edit
-                      </button>
+            <div className="min-h-full p-4 space-y-5">
+              {/* Key fields — single dense block */}
+              <div className="rounded-lg border border-gray-200 bg-gray-50/40 p-3">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Details</p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <span className="text-[11px] text-gray-500">Owner</span>
+                    <AssigneeLookup
+                      value={assigneeId}
+                      crew={crew}
+                      fallbackLabel={
+                        assigneeId
+                          ? (initiative.assignee_name ||
+                              initiative.assignee_email ||
+                              (initiative.owner && initiative.owner !== '—' ? initiative.owner : null))
+                          : null
+                      }
+                      fallbackEmail={initiative.assignee_email ?? null}
+                      onChange={(id) => {
+                        setAssigneeId(id);
+                        save({ assignee_id: id });
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[11px] text-gray-500">Category</span>
+                    <Select value={category} onValueChange={(v) => { setCategory(v as Category); save({ category: v as Category }); }}>
+                      <SelectTrigger className="h-8 w-full text-xs border-gray-200 bg-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="z-[220]">
+                        {categoryList.map((c) => (
+                          <SelectItem key={c.label} value={c.label} className="text-xs">{c.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[11px] text-gray-500">Due date</span>
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => {
+                        setDueDate(e.target.value);
+                        save({ due_date: e.target.value ? localDateInputToIso(e.target.value) : null });
+                      }}
+                      className="h-8 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-800 focus:border-indigo-400 focus:outline-none"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-gray-500">Progress</span>
+                      <span className="text-xs font-semibold tabular-nums text-gray-800">{progress}%</span>
+                    </div>
+                    <Progress value={progress} className="h-1.5 rounded-full" />
+                    {onSave && (
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        value={progress}
+                        onChange={(e) => setProgress(Number(e.target.value))}
+                        onMouseUp={() => save({ progress })}
+                        onTouchEnd={() => save({ progress })}
+                        className="mt-1 w-full accent-indigo-600"
+                      />
                     )}
                   </div>
-                  {editingDesc ? (
-                    <div className="space-y-2">
-                      <textarea
-                        autoFocus
-                        value={description}
-                        onChange={e => setDescription(e.target.value)}
-                        className="w-full min-h-[120px] text-sm text-gray-700 border border-indigo-300 rounded-xl p-3 outline-none focus:ring-2 focus:ring-indigo-100 resize-none"
-                        placeholder="Add a description..."
-                      />
-                      <div className="flex gap-2">
-                        <button onClick={handleDescSave} className="text-xs bg-indigo-600 text-white rounded-lg px-3 py-1.5 hover:bg-indigo-700 flex items-center gap-1">
-                          <Check className="w-3 h-3" /> Save
-                        </button>
-                        <button onClick={() => { setEditingDesc(false); setDescription(initiative.description || ''); }} className="text-xs text-gray-500 hover:text-gray-700 rounded-lg px-3 py-1.5 border border-gray-200">
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <p
-                      onClick={() => onSave && setEditingDesc(true)}
-                      className={`text-sm text-gray-600 leading-relaxed whitespace-pre-wrap break-words ${onSave ? 'cursor-text hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors' : ''} ${!description ? 'text-gray-400 italic' : ''}`}
-                    >
-                      {description || 'No description yet. Click to add one.'}
-                    </p>
+                </div>
+                <p className="mt-2 text-[10px] text-gray-400">
+                  ID <span className="font-mono">{initiative.id.slice(0, 8)}…</span>
+                  {dueDate ? ` · Due ${formatDate(new Date(dueDate))}` : ''}
+                </p>
+              </div>
+
+              {/* Description */}
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Description</span>
+                  {onSave && !editingDesc && (
+                    <button type="button" onClick={() => setEditingDesc(true)} className="text-[11px] text-indigo-600 hover:underline">
+                      Edit
+                    </button>
                   )}
                 </div>
-
-                {/* Progress */}
-                <div className="rounded-2xl border border-gray-100/90 bg-white/80 p-5 shadow-sm">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Progress</span>
-                    <span className="text-sm font-bold text-indigo-700 tabular-nums">{progress}%</span>
-                  </div>
-                  <Progress value={progress} className="h-2.5 mb-3 rounded-full" />
-                  {onSave && (
-                    <input
-                      type="range" min={0} max={100} value={progress}
-                      onChange={e => setProgress(Number(e.target.value))}
-                      onMouseUp={() => save({ progress })}
-                      onTouchEnd={() => save({ progress })}
-                      className="w-full accent-indigo-600 h-2"
+                {editingDesc ? (
+                  <div className="space-y-2">
+                    <textarea
+                      autoFocus
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      className="w-full min-h-[100px] resize-y rounded-md border border-gray-200 p-2.5 text-sm text-gray-800 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-100"
+                      placeholder="Add details…"
                     />
-                  )}
-                </div>
-
-                {/* Task-level fields (same as tracker columns: topic, standard extras, custom) */}
-                {(onSave || onUpdateFieldValue) &&
-                  (onSave || standardExtraFields.length > 0 || taskCustomFields.length > 0) && (
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md shadow-indigo-600/20">
-                        <Layers className="h-4 w-4" />
-                      </span>
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-900">Fields on this task</h3>
-                        <p className="text-xs text-gray-500">Topic, custom columns, and extra standard fields from your tracker</p>
-                      </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={handleDescSave} className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700">
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setEditingDesc(false); setDescription(initiative.description || ''); }}
+                        className="rounded-md border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  </div>
+                ) : (
+                  <p
+                    onClick={() => onSave && setEditingDesc(true)}
+                    className={cn(
+                      'text-sm leading-relaxed text-gray-700 whitespace-pre-wrap break-words',
+                      onSave && 'cursor-text rounded-md p-2 -mx-2 hover:bg-gray-50',
+                      !description && 'text-gray-400 italic'
+                    )}
+                  >
+                    {description || 'No description — click to add.'}
+                  </p>
+                )}
+              </div>
+
+              {/* Topic + tracker columns */}
+              {(onSave || onUpdateFieldValue) &&
+                (onSave || standardExtraFields.length > 0 || taskCustomFields.length > 0) && (
+                  <div className="rounded-lg border border-gray-200 divide-y divide-gray-100">
+                    <div className="bg-gray-50/50 px-3 py-2">
+                      <p className="text-xs font-semibold text-gray-700">More fields</p>
+                      <p className="text-[11px] text-gray-500">Same columns as your task table (topic, custom &amp; extra fields)</p>
+                    </div>
+                    <div className="px-3 py-1">
                       {onSave && (
-                        <DrawerFieldCard label="Topic" icon={<Hash className="h-3.5 w-3.5" />}>
+                        <DrawerFieldRow label="Topic">
                           <Input
                             value={topicDraft}
                             onChange={(e) => setTopicDraft(e.target.value)}
@@ -755,13 +815,13 @@ export function TaskDetailDrawer({
                               const prev = String(initiative.field_values?.topic ?? '').trim();
                               if (next !== prev) save({ topic: next || null });
                             }}
-                            placeholder="Topic or paste a link"
-                            className="h-9 text-sm rounded-lg border-gray-200"
+                            placeholder="Topic or link"
+                            className="h-8 text-sm"
                           />
-                        </DrawerFieldCard>
+                        </DrawerFieldRow>
                       )}
                       {standardExtraFields.map((f) => (
-                        <DrawerFieldCard key={f.field_key} label={f.name} icon={<FileText className="h-3.5 w-3.5" />}>
+                        <DrawerFieldRow key={f.field_key} label={f.name}>
                           {onSave ? (
                             <TaskFieldValueEditor
                               fieldType={f.field_type || 'text'}
@@ -771,12 +831,12 @@ export function TaskDetailDrawer({
                               onCommit={(v) => save({ custom_vals: { [f.field_key]: v } })}
                             />
                           ) : (
-                            <p className="text-sm text-gray-500">—</p>
+                            <span className="text-sm text-gray-400">—</span>
                           )}
-                        </DrawerFieldCard>
+                        </DrawerFieldRow>
                       ))}
                       {taskCustomFields.map((f) => (
-                        <DrawerFieldCard key={f.id} label={f.name} icon={<Layers className="h-3.5 w-3.5" />}>
+                        <DrawerFieldRow key={f.id} label={f.name}>
                           {onUpdateFieldValue ? (
                             <TaskFieldValueEditor
                               fieldType={f.field_type}
@@ -786,78 +846,17 @@ export function TaskDetailDrawer({
                               onCommit={(v) => onUpdateFieldValue(initiative.id, f.id, v)}
                             />
                           ) : (
-                            <p className="text-sm text-gray-500">—</p>
+                            <span className="text-sm text-gray-400">—</span>
                           )}
-                        </DrawerFieldCard>
+                        </DrawerFieldRow>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Quick links paste area */}
-                <div className="rounded-2xl border border-gray-100/90 bg-white/80 p-5 shadow-sm">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1.5 mb-3">
-                    <Link2 className="w-3.5 h-3.5" /> Links
-                  </span>
-                  <LinkPasteArea itemId={initiative.id} attachments={attachments} setAttachments={setAttachments} />
-                </div>
-              </div>
-
-              {/* Sidebar metadata */}
-              <div className="w-full lg:w-72 p-5 space-y-3 bg-gradient-to-b from-slate-50/80 to-gray-50/40 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-gray-100/80">
-                {/* Assignee */}
-                <MetaField label="Owner" icon={<User className="w-3.5 h-3.5" />}>
-                  <AssigneeLookup
-                    value={assigneeId}
-                    crew={crew}
-                    fallbackLabel={
-                      assigneeId
-                        ? (initiative.assignee_name ||
-                            initiative.assignee_email ||
-                            (initiative.owner && initiative.owner !== '—' ? initiative.owner : null))
-                        : null
-                    }
-                    fallbackEmail={initiative.assignee_email ?? null}
-                    onChange={(id) => {
-                      setAssigneeId(id);
-                      save({ assignee_id: id });
-                    }}
-                  />
-                </MetaField>
-
-                {/* Category */}
-                <MetaField label="Category" icon={<Tag className="w-3.5 h-3.5" />}>
-                  <Select value={category} onValueChange={v => { setCategory(v as Category); save({ category: v as Category }); }}>
-                    <SelectTrigger className="h-8 text-xs border-gray-200 bg-white w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="z-[200]">
-                      {categoryList.map((c) => <SelectItem key={c.label} value={c.label} className="text-xs">{c.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </MetaField>
-
-                {/* Due date */}
-                <MetaField label="Due Date" icon={<Calendar className="w-3.5 h-3.5" />}>
-                  <input
-                    type="date"
-                    value={dueDate}
-                    onChange={e => { setDueDate(e.target.value); save({ due_date: e.target.value ? localDateInputToIso(e.target.value) : null }); }}
-                    className="w-full h-8 text-xs border border-gray-200 rounded-md px-2 bg-white text-gray-700 focus:border-indigo-400 focus:outline-none"
-                  />
-                </MetaField>
-
-                {/* Created */}
-                <div className="pt-3 border-t border-gray-200">
-                  <p className="text-[11px] text-gray-400">
-                    ID: <span className="font-mono">{initiative.id.slice(0,8)}…</span>
-                  </p>
-                  {dueDate && (
-                    <p className="text-[11px] text-gray-400 mt-0.5">
-                      Due: {formatDate(new Date(dueDate))}
-                    </p>
-                  )}
-                </div>
+              <div>
+                <span className="mb-2 block text-[11px] font-semibold uppercase tracking-wide text-gray-400">Links &amp; files</span>
+                <LinkPasteArea itemId={initiative.id} attachments={attachments} setAttachments={setAttachments} />
               </div>
             </div>
           )}
@@ -865,7 +864,7 @@ export function TaskDetailDrawer({
           {/* ── COMMENTS TAB ── */}
           {activeTab === 'comments' && (
             <div className="flex flex-col h-full">
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {comments.length === 0 && (
                   <div className="text-center py-12">
                     <MessageSquare className="w-10 h-10 text-gray-200 mx-auto mb-3" />
@@ -905,7 +904,7 @@ export function TaskDetailDrawer({
               </div>
 
               {/* Comment input */}
-              <div className="flex-shrink-0 border-t border-gray-100 p-4">
+              <div className="flex-shrink-0 border-t border-gray-200 p-3">
                 <div className="relative">
                   {showMentions && filteredCrew.length > 0 && (
                     <div className="absolute bottom-full mb-1 left-0 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
@@ -1159,21 +1158,6 @@ export function TaskDetailDrawer({
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
       </DialogContent>
     </Dialog>
-  );
-}
-
-// ── Metadata field wrapper ─────────────────────────────────────
-function MetaField({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-gray-100/90 bg-white p-3.5 shadow-sm transition-all hover:border-indigo-100/80 hover:shadow-md">
-      <div className="mb-2 flex items-center gap-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 [&_svg]:h-3.5 [&_svg]:w-3.5">
-          {icon}
-        </span>
-        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</span>
-      </div>
-      <div className="min-w-0">{children}</div>
-    </div>
   );
 }
 

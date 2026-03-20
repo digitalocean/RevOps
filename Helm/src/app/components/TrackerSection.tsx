@@ -200,6 +200,7 @@ type TrackerColCtxValue = {
 
 const TrackerColWidthsContext = createContext<TrackerColCtxValue | null>(null);
 
+/** Full-height resize strip with grip icon (spreadsheet-style), not a floating pill. */
 function ResizableTh({
   colKey,
   label,
@@ -239,25 +240,28 @@ function ResizableTh({
   return (
     <th
       style={{ width: w, minWidth: w }}
-      className={cn('relative py-2 px-4 text-left align-top select-none', className)}
+      className={cn('py-2 pl-4 pr-0 text-left align-top select-none', className)}
     >
-      <div className="pr-2 text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-normal break-words">
-        {label}
+      <div className="flex min-w-0 items-stretch gap-0">
+        <div className="min-w-0 flex-1 pr-2 text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-normal break-words">
+          {label}
+        </div>
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize column"
+          title="Drag to resize column"
+          onMouseDown={onMouseDown}
+          className={cn(
+            'flex w-6 shrink-0 cursor-col-resize items-center justify-center self-stretch border-l-2 border-gray-400 bg-gray-100',
+            'text-gray-600 shadow-[inset_1px_0_0_rgba(255,255,255,0.6)]',
+            'hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-700',
+            'active:border-indigo-600 active:bg-indigo-100'
+          )}
+        >
+          <GripVertical className="h-4 w-4 pointer-events-none opacity-90" strokeWidth={2.25} aria-hidden />
+        </div>
       </div>
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-label="Resize column"
-        title="Drag to resize column"
-        className={cn(
-          'absolute right-0 top-0.5 bottom-0.5 z-10 w-3 cursor-col-resize rounded-sm',
-          'border-l-[3px] border-gray-500 bg-gray-100/90',
-          'shadow-sm ring-1 ring-inset ring-gray-300/80',
-          'hover:border-indigo-600 hover:bg-indigo-50 hover:ring-indigo-300',
-          'active:border-indigo-700 active:bg-indigo-100'
-        )}
-        onMouseDown={onMouseDown}
-      />
     </th>
   );
 }

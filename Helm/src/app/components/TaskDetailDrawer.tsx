@@ -433,14 +433,43 @@ export function TaskDetailDrawer({
     setTimeout(() => onClose(), 200);
   };
 
-  // Load comments, attachments, time logs, deps
-  useEffect(() => {
-    get<Comment[]>(apiPath(`api/items/${initiative.id}/comments`)).then(setComments).catch(() => {});
-    get<Attachment[]>(apiPath(`api/items/${initiative.id}/attachments`)).then(setAttachments).catch(() => {});
-    get<{ logs: typeof timeLogs; totalMinutes: number }>(apiPath(`api/items/${initiative.id}/time-logs`))
-      .then(d => { setTimeLogs(d.logs || []); setTotalMinutes(d.totalMinutes || 0); }).catch(() => {});
-    get<typeof deps>(apiPath(`api/items/${initiative.id}/dependencies`)).then(setDeps).catch(() => {});
+  function normalizeCommentsPayload(raw: unknown): Comment[] {
+    if (Array.isArray(raw)) return raw as Comment[];
+    if (raw && typeof raw === 'object' && Array.isArray((raw as { comments?: unknown }).comments)) {
+      return (raw as { comments: Comment[] }).comments;
+    }
+    return [];
+  }
+
+  const loadComments = useCallback(async () => {
+    try {
+      const raw = await get<unknown>(apiPath(`api/items/${initiative.id}/comments`));
+      setComments(normalizeCommentsPayload(raw));
+    } catch (e) {
+      console.error('load comments', e);
+      toast.error(e instanceof Error ? e.message : 'Failed to load comments');
+      setComments([]);
+    }
   }, [initiative.id]);
+
+  // Load attachments, time logs, deps; comments loaded below + when opening Comments tab
+  useEffect(() => {
+    loadComments();
+    get<Attachment[]>(apiPath(`api/items/${initiative.id}/attachments`))
+      .then((rows) => setAttachments(Array.isArray(rows) ? rows : []))
+      .catch(() => setAttachments([]));
+    get<{ logs: typeof timeLogs; totalMinutes: number }>(apiPath(`api/items/${initiative.id}/time-logs`))
+      .then((d) => {
+        setTimeLogs(d.logs || []);
+        setTotalMinutes(d.totalMinutes || 0);
+      })
+      .catch(() => {});
+    get<typeof deps>(apiPath(`api/items/${initiative.id}/dependencies`)).then(setDeps).catch(() => {});
+  }, [initiative.id, loadComments]);
+
+  useEffect(() => {
+    if (activeTab === 'comments') void loadComments();
+  }, [activeTab, loadComments]);
 
   useEffect(() => {
     setTopicDraft(String(initiative.field_values?.topic ?? ''));
@@ -795,6 +824,30 @@ export function TaskDetailDrawer({
                   </p>
                 )}
               </div>
+
+              {/* Discussion preview (thread comments) */}
+              {comments.length > 0 && (
+                <div className="rounded-lg border border-gray-200 bg-white p-3">
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                      Discussion
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('comments')}
+                      className="text-[11px] font-medium text-indigo-600 hover:underline"
+                    >
+                      View all ({comments.length})
+                    </button>
+                  </div>
+                  <p className="line-clamp-3 text-sm text-gray-700 whitespace-pre-wrap break-words">
+                    {comments[comments.length - 1]?.body ?? ''}
+                  </p>
+                  <p className="mt-1 text-[10px] text-gray-400">
+                    Latest from {comments[comments.length - 1]?.author_name || 'User'}
+                  </p>
+                </div>
+              )}
 
               {/* Topic + tracker columns */}
               {(onSave || onUpdateFieldValue) &&

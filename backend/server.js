@@ -185,7 +185,9 @@ app.use('/auth', authRoutes);
 // ── Routes ───────────────────────────────────────────────
 // Mount with /api prefix (local dev, or when platform does not trim path)
 app.use('/api/workspaces',   require('./routes/workspaces'));
-app.use('/api/items',        require('./routes/items'));
+const itemsRouter = require('./routes/items');
+require('./routes/comments').mountItemChildRoutes(itemsRouter);
+app.use('/api/items',        itemsRouter);
 app.use('/api/sprints',      require('./routes/sprints'));
 app.use('/api/projects',     require('./routes/projects'));
 app.use('/api/crew',         require('./routes/crew'));
@@ -208,7 +210,7 @@ app.use('/api',              require('./routes/savedViews'));  // GET/POST /api/
 
 // Mount without /api prefix (DigitalOcean App Platform trims /api before forwarding to the service)
 const workspaces = require('./routes/workspaces');
-const items = require('./routes/items');
+const items = itemsRouter;
 const sprints = require('./routes/sprints');
 const projects = require('./routes/projects');
 const crew = require('./routes/crew');

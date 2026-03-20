@@ -152,7 +152,8 @@ function mapItemToInitiative(item: {
         item.custom_vals && typeof item.custom_vals === 'object' && !Array.isArray(item.custom_vals)
           ? (item.custom_vals as Record<string, string | number | boolean | null>)
           : {};
-      const merged = { ...fromCv, ...fromFv };
+      // custom_vals must win over field_values (same as API Object.assign(field_values, custom_vals))
+      const merged = { ...fromFv, ...fromCv };
       return Object.keys(merged).length > 0 ? merged : undefined;
     })(),
     project_id: item.project_id ?? null,

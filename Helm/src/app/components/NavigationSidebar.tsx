@@ -83,8 +83,7 @@ export function NavigationSidebar({
       {/* Logo */}
       <div className="px-4 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2">
-          <Anchor className="w-4 h-4 text-blue-600 shrink-0" />
-          <h2 className="text-sm font-bold text-gray-900">Meridian</h2>
+          <Anchor className="w-4 h-4 text-blue-600 shrink-0" aria-hidden />
           <button
             className="ml-auto md:hidden p-1 text-gray-400 hover:text-gray-600"
             onClick={() => setMobileOpen(false)}

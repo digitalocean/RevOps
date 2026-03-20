@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Check, ChevronsUpDown } from 'lucide-react';
+import { Check, Search } from 'lucide-react';
 import { cn } from './ui/utils';
 import { Button } from './ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
@@ -42,33 +42,37 @@ export function AssigneeLookup({
   const selected = value ? sorted.find((c) => c.id === value) : undefined;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>
         <Button
           type="button"
           variant="outline"
           role="combobox"
           aria-expanded={open}
+          aria-label="Search assignee"
           disabled={disabled}
           className={cn(
-            'justify-between font-normal text-gray-900 border-gray-200 bg-white hover:bg-gray-50',
-            compact ? 'h-8 text-xs px-2 min-w-[100px] max-w-[200px]' : 'h-8 text-xs w-full',
+            'justify-between gap-1 font-normal text-gray-900 border-gray-200 bg-white hover:bg-gray-50',
+            compact ? 'h-8 text-xs px-2 min-w-[100px] max-w-[220px]' : 'h-8 text-xs w-full',
             className
           )}
           onClick={(e) => e.stopPropagation()}
         >
-          <span className="truncate">
+          <span className="truncate min-w-0 flex-1 text-left">
             {selected ? selected.name : '— Unassigned'}
           </span>
-          <ChevronsUpDown className="ml-1 h-3.5 w-3.5 shrink-0 opacity-50" />
+          <Search className="h-3.5 w-3.5 shrink-0 text-gray-500" aria-hidden />
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[260px] p-0 z-[130]"
+        className="w-[280px] p-0 z-[10050] shadow-lg border-gray-200"
         align="start"
+        side="bottom"
+        sideOffset={4}
+        collisionPadding={12}
         onClick={(e) => e.stopPropagation()}
       >
-        <Command>
+        <Command className="rounded-md border-0">
           <CommandInput placeholder="Search people…" className="h-9 text-xs" />
           <CommandList>
             <CommandEmpty className="text-xs py-3">No one matches.</CommandEmpty>

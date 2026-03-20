@@ -456,7 +456,7 @@ function InitiativeRowEditable({
       </td>
       )}
       {colVisible(visibleColumns, 'owner') && (
-      <td className="py-2 px-4 align-middle min-w-[140px] max-w-[220px]" onClick={(e) => e.stopPropagation()}>
+      <td className="py-2 px-4 align-middle min-w-[140px] max-w-[220px] overflow-visible relative z-0" onClick={(e) => e.stopPropagation()}>
         <AssigneeLookup
           value={initiative.assignee_id ?? null}
           onChange={handleAssigneeChange}

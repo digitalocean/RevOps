@@ -47,7 +47,7 @@ export function WorkspaceHeader({
   return (
     <div className="bg-white border-b border-gray-200">
       <div className="flex items-center justify-between gap-4 px-4 py-3 min-h-[56px]">
-        {/* Left: mobile hamburger + app name + connection status */}
+        {/* Left: mobile hamburger + connection status */}
         <div className="flex items-center gap-3 min-w-0">
           {onToggleMobileSidebar && (
             <button
@@ -58,7 +58,6 @@ export function WorkspaceHeader({
               <Menu className="w-5 h-5" />
             </button>
           )}
-          <span className="text-sm font-bold text-gray-900 shrink-0">Meridian</span>
           {connectionError ? (
             <span className="text-xs text-amber-700 truncate flex items-center gap-2">
               {connectionError}

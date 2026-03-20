@@ -1,6 +1,72 @@
 const router = require('express').Router();
 const { pool } = require('../server');
-const { getAccessibleWorkspaceIds, requireUser } = require('../lib/access');
+const { getAccessibleWorkspaceIds, getAccessibleProjectIds, requireUser } = require('../lib/access');
+
+/**
+ * Ensure project creator can be chosen as assignee: they need a crew row with a real id.
+ * Merges creator's crew (by user_id anywhere, or new row in project workspace) into the list.
+ */
+async function mergeProjectCreatorIntoCrewRows(pool, userId, rows, projectId, workspaceId) {
+  const allowedProjectIds = await getAccessibleProjectIds(pool, userId);
+  if (!allowedProjectIds.some((id) => String(id) === String(projectId))) return rows;
+  const proj = await pool.query({
+    name: 'crew_proj_workspace_creator',
+    text: 'SELECT workspace_id, created_by FROM projects WHERE id = $1',
+    values: [projectId],
+  });
+  if (!proj.rows.length) return rows;
+  const wid = proj.rows[0].workspace_id;
+  const createdBy = proj.rows[0].created_by;
+  if (!createdBy) return rows;
+  if (workspaceId != null && String(workspaceId) !== String(wid)) return rows;
+
+  const byId = new Map(rows.map((r) => [String(r.id), r]));
+
+  const existingForUser = await pool.query({
+    name: 'crew_by_user_id',
+    text: 'SELECT * FROM crew WHERE user_id = $1 AND (active = true OR active IS NULL) ORDER BY created_at ASC LIMIT 1',
+    values: [createdBy],
+  });
+  if (existingForUser.rows.length) {
+    const c = existingForUser.rows[0];
+    if (!byId.has(String(c.id))) {
+      rows.push(c);
+      byId.set(String(c.id), c);
+    }
+    return rows;
+  }
+
+  const u = await pool.query({
+    name: 'crew_creator_user',
+    text: 'SELECT id, full_name, email FROM users WHERE id = $1',
+    values: [createdBy],
+  });
+  if (!u.rows.length) return rows;
+  let email = String(u.rows[0].email || '').toLowerCase().trim();
+  if (!email) email = `user-${String(createdBy).replace(/-/g, '')}@profiles.internal`;
+  const name = String(u.rows[0].full_name || email.split('@')[0] || 'Project owner').slice(0, 120);
+  const initials = name.replace(/[^a-zA-Z]/g, '').slice(0, 2).toUpperCase() || email.slice(0, 2).toUpperCase() || 'PO';
+
+  try {
+    const ins = await pool.query({
+      name: 'crew_insert_creator',
+      text: `INSERT INTO crew (workspace_id, user_id, name, email, initials, role)
+             VALUES ($1, $2, $3, $4, $5, 'Member') RETURNING *`,
+      values: [wid, createdBy, name, email, initials],
+    });
+    if (ins.rows[0] && !byId.has(String(ins.rows[0].id))) rows.push(ins.rows[0]);
+  } catch (e) {
+    if (e.code === '23505') {
+      const ex = await pool.query({
+        name: 'crew_by_email_after_dup',
+        text: 'SELECT * FROM crew WHERE LOWER(email) = $1 AND (active = true OR active IS NULL) LIMIT 1',
+        values: [email],
+      });
+      if (ex.rows[0] && !byId.has(String(ex.rows[0].id))) rows.push(ex.rows[0]);
+    } else throw e;
+  }
+  return rows;
+}
 
 router.get('/', async (req, res) => {
   try {
@@ -8,7 +74,20 @@ router.get('/', async (req, res) => {
     if (!userId) return;
     const allowedWorkspaceIds = await getAccessibleWorkspaceIds(pool, userId);
     if (allowedWorkspaceIds.length === 0) return res.json([]);
-    const { workspace_id } = req.query;
+    let { workspace_id, project_id } = req.query;
+
+    if (project_id && (!workspace_id || String(workspace_id).length === 0)) {
+      const allowedProjectIds = await getAccessibleProjectIds(pool, userId);
+      if (allowedProjectIds.some((id) => String(id) === String(project_id))) {
+        const pr = await pool.query({
+          name: 'crew_infer_workspace',
+          text: 'SELECT workspace_id FROM projects WHERE id = $1',
+          values: [project_id],
+        });
+        if (pr.rows[0]?.workspace_id) workspace_id = pr.rows[0].workspace_id;
+      }
+    }
+
     let q = 'SELECT * FROM crew WHERE active = true AND workspace_id = ANY($1)';
     const params = [allowedWorkspaceIds];
     if (workspace_id) {
@@ -18,7 +97,14 @@ router.get('/', async (req, res) => {
     }
     q += ' ORDER BY name';
     const { rows } = await pool.query({ name: 'crew_list', text: q, values: params });
-    res.json(rows);
+    let out = rows.slice();
+
+    if (project_id) {
+      out = await mergeProjectCreatorIntoCrewRows(pool, userId, out, project_id, workspace_id || null);
+      out.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }));
+    }
+
+    res.json(out);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

@@ -222,10 +222,12 @@ export function useMeridianData(): MeridianDataResult {
       }
       const projectForCrew = projList.find((p) => p.id === pid);
       const wid = projectForCrew?.workspace_id;
-      const crewPath =
-        wid != null && String(wid).length > 0
-          ? `${apiPath('api/crew')}?workspace_id=${encodeURIComponent(String(wid))}`
-          : apiPath('api/crew');
+      const crewQs = new URLSearchParams();
+      crewQs.set('project_id', String(pid));
+      if (wid != null && String(wid).length > 0) {
+        crewQs.set('workspace_id', String(wid));
+      }
+      const crewPath = `${apiPath('api/crew')}?${crewQs.toString()}`;
 
       const [sprintsRes, itemsRes, trackersRes, cfRes, crewRes] = await Promise.all([
         get<Sprint[]>(`${apiPath('api/sprints')}?project_id=${pid}`).catch(() => []),

@@ -461,6 +461,13 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
                   <AssigneeLookup
                     value={assigneeId}
                     crew={crew}
+                    fallbackLabel={
+                      assigneeId
+                        ? (initiative.assignee_name ||
+                            initiative.assignee_email ||
+                            (initiative.owner && initiative.owner !== '—' ? initiative.owner : null))
+                        : null
+                    }
                     onChange={(id) => {
                       setAssigneeId(id);
                       save({ assignee_id: id });

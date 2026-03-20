@@ -456,12 +456,23 @@ function InitiativeRowEditable({
       </td>
       )}
       {colVisible(visibleColumns, 'owner') && (
-      <td className="py-2 px-4 align-middle min-w-[140px] max-w-[220px] overflow-visible relative z-0" onClick={(e) => e.stopPropagation()}>
+      <td
+        className="py-2 px-4 align-middle min-w-[140px] max-w-[220px] overflow-visible relative z-20"
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <AssigneeLookup
           value={initiative.assignee_id ?? null}
           onChange={handleAssigneeChange}
           crew={crew}
           compact
+          fallbackLabel={
+            initiative.assignee_id
+              ? (initiative.assignee_name ||
+                  initiative.assignee_email ||
+                  (initiative.owner && initiative.owner !== '—' ? initiative.owner : null))
+              : null
+          }
         />
       </td>
       )}
@@ -648,7 +659,11 @@ function SortableInitiativeRow(props: Omit<InitiativeRowEditableProps, 'dragHand
       style={style}
       data-item-id={props.initiative.id}
       className={`border-b border-gray-100 hover:bg-gray-50/50 cursor-pointer transition-colors ${props.isSelected ? 'bg-blue-50' : ''} ${props.isFocused ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/30' : ''} ${isDragging ? 'opacity-40 bg-indigo-50' : ''}`}
-      onClick={() => props.onFocus?.(props.initiative.id)}
+      onClick={(e) => {
+        const el = e.target as HTMLElement;
+        if (el.closest('button, a, input, textarea, select, [role="combobox"]')) return;
+        props.onFocus?.(props.initiative.id);
+      }}
       onDoubleClick={() => props.onOpenDetails(props.initiative)}
     >
       <td className="py-2 px-2 w-8 align-middle">

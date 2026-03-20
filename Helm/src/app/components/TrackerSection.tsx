@@ -79,7 +79,21 @@ interface TrackerSectionProps {
   onAddItem?: () => void;
   onCreateItem?: (projectId: string, payload: { title: string; description?: string }, trackerId?: string | null) => Promise<unknown>;
   onCreateSubItem?: (parentId: string) => void;
-  onUpdateItem?: (id: string, payload: { title?: string; description?: string; status?: Status; priority?: Priority; assignee_id?: string | null; due_date?: string | null; category?: string | null; progress?: number }) => Promise<unknown>;
+  onUpdateItem?: (
+    id: string,
+    payload: {
+      title?: string;
+      description?: string;
+      status?: Status;
+      priority?: Priority;
+      assignee_id?: string | null;
+      due_date?: string | null;
+      category?: string | null;
+      progress?: number;
+      topic?: string | null;
+      custom_vals?: Record<string, string | number | boolean | null>;
+    }
+  ) => Promise<unknown>;
   onDeleteItem?: (id: string) => Promise<void>;
   onDeleteSection?: (trackerId: string) => Promise<void>;
   onRenameSection?: (trackerId: string, newName: string) => Promise<void>;
@@ -96,6 +110,8 @@ interface TrackerSectionProps {
   priorityOptions?: StandardFieldOption[];
   statusOptions?: StandardFieldOption[];
   categoryOptions?: StandardFieldOption[];
+  /** Global standard fields from API — built-in keys get fixed columns; any other key (e.g. comments) renders here. */
+  standardFields?: { id: string; field_key?: string; name: string; field_type?: string; options_json?: unknown[]; sort_order?: number }[];
   /** Override title for this section (e.g. custom name for uncategorized "Tasks"). */
   sectionTitleOverride?: string;
   /** When set for uncategorized section, allows renaming the display name (stored in UI only). */
@@ -147,6 +163,21 @@ function getCategoryColor(category: Category): string {
 
 const COL_KEYS = ['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate', 'topic'] as const;
 
+/** Standard fields that already have dedicated table columns (field_key in standard_fields API). */
+const BUILT_IN_STANDARD_FIELD_KEYS = new Set<string>([
+  'name',
+  'category',
+  'priority',
+  'owner',
+  'status',
+  'progress',
+  'dueDate',
+  'topic',
+]);
+
+/** Resize key for extra standard fields (e.g. Comments) stored in items.custom_vals. */
+export const STD_COL_KEY = (fieldKey: string) => `std:${fieldKey}`;
+
 const TRACKER_COL_DEFAULTS: Record<string, number> = {
   name: 220,
   category: 128,
@@ -182,7 +213,7 @@ function ResizableTh({
   const w =
     ctx.widths[colKey] ??
     TRACKER_COL_DEFAULTS[colKey] ??
-    (colKey.startsWith('cf:') ? 168 : 120);
+    (colKey.startsWith('cf:') || colKey.startsWith('std:') ? 168 : 120);
   const dragStart = useRef({ x: 0, w: 0 });
 
   const onMouseDown = (e: React.MouseEvent) => {
@@ -283,7 +314,22 @@ interface InitiativeRowEditableProps {
   visibleColumns?: Set<string>;
   onUpdateFieldValue?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
   onAddSubItem?: (parentId: string) => void;
-  onUpdate: (id: string, payload: { title?: string; status?: string; priority?: string; assignee_id?: string | null; due_date?: string | null; category?: Category; progress?: number; topic?: string | null }) => Promise<unknown>;
+  onUpdate: (
+    id: string,
+    payload: {
+      title?: string;
+      status?: string;
+      priority?: string;
+      assignee_id?: string | null;
+      due_date?: string | null;
+      category?: Category;
+      progress?: number;
+      topic?: string | null;
+      custom_vals?: Record<string, string | number | boolean | null>;
+    }
+  ) => Promise<unknown>;
+  /** Extra standard fields (not name/category/…/topic) — values live in items.custom_vals[field_key]. */
+  standardExtraFields?: { id: string; field_key: string; name: string; field_type?: string; options_json?: unknown[] }[];
   onDelete?: (id: string) => Promise<void>;
   onItemCompleted?: () => void;
   dragHandleProps?: Record<string, unknown>;
@@ -317,6 +363,7 @@ function CustomFieldCell({
   optionsJson,
   value,
   onSave,
+  colKeyForWidth,
 }: {
   taskId: string;
   fieldId: string;
@@ -324,9 +371,11 @@ function CustomFieldCell({
   optionsJson?: unknown[];
   value: string | number | boolean | null | undefined;
   onSave?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
+  /** When set (e.g. std:comments), used for column width instead of cf:&lt;fieldId&gt; */
+  colKeyForWidth?: string;
 }) {
   const colCtx = useContext(TrackerColWidthsContext);
-  const colW = colCtx?.cellStyle(CF_COL_KEY(fieldId));
+  const colW = colCtx?.cellStyle(colKeyForWidth ?? CF_COL_KEY(fieldId));
   const normalizedType = (fieldType || 'text').toLowerCase();
   const selectOpts = normalizeFieldOptions(optionsJson);
   const [editing, setEditing] = useState(false);
@@ -501,6 +550,7 @@ function InitiativeRowEditable({
   statusOptions,
   categoryOptions,
   onFocusChange,
+  standardExtraFields = [],
 }: InitiativeRowEditableProps) {
   const colCtx = useContext(TrackerColWidthsContext);
   const [title, setTitle] = useState(initiative.name);
@@ -698,6 +748,24 @@ function InitiativeRowEditable({
         />
       </td>
       )}
+      {standardExtraFields
+        .filter((f) => colVisible(visibleColumns, f.field_key))
+        .map((f) => (
+          <CustomFieldCell
+            key={f.id}
+            taskId={initiative.id}
+            fieldId={f.id}
+            colKeyForWidth={STD_COL_KEY(f.field_key)}
+            fieldType={f.field_type || 'text'}
+            optionsJson={f.options_json as unknown[] | undefined}
+            value={
+              (initiative.field_values?.[f.field_key] as string | number | boolean | null | undefined) ?? null
+            }
+            onSave={async (taskId, _fieldId, value) => {
+              await onUpdate(taskId, { custom_vals: { [f.field_key]: value } });
+            }}
+          />
+        ))}
       {customFields.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).map((field) => (
         <CustomFieldCell
           key={field.id}
@@ -866,7 +934,24 @@ export function TrackerSection({
   categoryOptions,
   sectionTitleOverride,
   onUncategorizedNameChange,
+  standardFields = [],
 }: TrackerSectionProps) {
+  const extraStandardFields = useMemo(() => {
+    return standardFields
+      .filter((f) => {
+        const k = f.field_key;
+        return typeof k === 'string' && k.length > 0 && !BUILT_IN_STANDARD_FIELD_KEYS.has(k);
+      })
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)) as {
+        id: string;
+        field_key: string;
+        name: string;
+        field_type?: string;
+        options_json?: unknown[];
+        sort_order?: number;
+      }[];
+  }, [standardFields]);
+
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedInitiative, setSelectedInitiative] = useState<Initiative | null>(null);
   const [showNewRow, setShowNewRow] = useState(false);
@@ -914,7 +999,7 @@ export function TrackerSection({
       const w =
         colWidths[key] ??
         TRACKER_COL_DEFAULTS[key] ??
-        (key.startsWith('cf:') ? 168 : undefined);
+        (key.startsWith('cf:') || key.startsWith('std:') ? 168 : undefined);
       if (w == null) return undefined;
       return { width: w, minWidth: w, maxWidth: w };
     },
@@ -952,7 +1037,20 @@ export function TrackerSection({
   const allSelected = filteredInitiatives.length > 0 && filteredInitiatives.every((i) => selectedIds.includes(i.id));
   const someSelected = filteredInitiatives.some((i) => selectedIds.includes(i.id)) && !allSelected;
 
-  const handleUpdate = async (id: string, payload: { title?: string; status?: Status; priority?: Priority; assignee_id?: string | null | undefined; due_date?: string | null; category?: Category }) => {
+  const handleUpdate = async (
+    id: string,
+    payload: {
+      title?: string;
+      status?: Status;
+      priority?: Priority;
+      assignee_id?: string | null | undefined;
+      due_date?: string | null;
+      category?: Category;
+      progress?: number;
+      topic?: string | null;
+      custom_vals?: Record<string, string | number | boolean | null>;
+    }
+  ) => {
     if (onUpdateItem) await onUpdateItem(id, payload);
   };
 
@@ -1130,6 +1228,11 @@ export function TrackerSection({
                   {colVisible(visibleColumns, 'progress') && <ResizableTh colKey="progress" label="Progress" ctx={colCtx} />}
                   {colVisible(visibleColumns, 'dueDate') && <ResizableTh colKey="dueDate" label="Due Date" ctx={colCtx} />}
                   {colVisible(visibleColumns, 'topic') && <ResizableTh colKey="topic" label="Topic" ctx={colCtx} />}
+                  {extraStandardFields
+                    .filter((f) => colVisible(visibleColumns, f.field_key))
+                    .map((f) => (
+                      <ResizableTh key={f.id} colKey={STD_COL_KEY(f.field_key)} label={f.name} ctx={colCtx} />
+                    ))}
                   {customFields?.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).map((f) => (
                     <ResizableTh key={f.id} colKey={CF_COL_KEY(f.id)} label={f.name} ctx={colCtx} />
                   ))}
@@ -1160,6 +1263,7 @@ export function TrackerSection({
                     statusOptions={statusOptions}
                     categoryOptions={categoryOptions}
                     onFocusChange={onFocusChange}
+                    standardExtraFields={extraStandardFields}
                   />
                 ))}
                 {showNewRow && (
@@ -1171,12 +1275,24 @@ export function TrackerSection({
                     onCancel={() => setShowNewRow(false)}
                     crew={crew}
                     customFieldCount={customFields.filter(isTaskField).length}
-                    visibleColumnCount={COL_KEYS.filter((id) => colVisible(visibleColumns, id)).length + customFields.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).length}
+                    visibleColumnCount={
+                      COL_KEYS.filter((id) => colVisible(visibleColumns, id)).length +
+                      extraStandardFields.filter((f) => colVisible(visibleColumns, f.field_key)).length +
+                      customFields.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).length
+                    }
                   />
                 )}
                 {sortedInitiatives.length === 0 && !showNewRow && (
                   <tr>
-                    <td colSpan={3 + COL_KEYS.filter((id) => colVisible(visibleColumns, id)).length + (customFields?.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).length ?? 0)} className="py-8 px-4 text-center text-sm text-gray-500 italic">
+                    <td
+                      colSpan={
+                        3 +
+                        COL_KEYS.filter((id) => colVisible(visibleColumns, id)).length +
+                        extraStandardFields.filter((f) => colVisible(visibleColumns, f.field_key)).length +
+                        (customFields?.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).length ?? 0)
+                      }
+                      className="py-8 px-4 text-center text-sm text-gray-500 italic"
+                    >
                       No items yet — click <strong>Add task</strong> below to start.
                     </td>
                   </tr>

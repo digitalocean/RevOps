@@ -816,6 +816,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     crew={crew}
                     currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
                     customFields={customFields}
+                    standardFields={standardFields}
                     // Always use project column prefs so new standard/custom fields from Base Camp appear on every tracker.
                     visibleColumns={visibleColumns}
                     onDeleteSection={deleteSection}

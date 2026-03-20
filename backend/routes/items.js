@@ -131,10 +131,20 @@ router.patch('/:id', async (req, res) => {
     if (!ok) return res.status(404).json({ error: 'Not found' });
     const allowed = ['type','title','description','status','column_id','priority','points','progress','assignee_id','due_date','labels','custom_vals','sort_order','parent_id','tracker_id','category','repeat_interval','repeat_ends_on','is_milestone','start_date','topic'];
     let body = { ...req.body };
+    const curVals = (existing.custom_vals && typeof existing.custom_vals === 'object') ? existing.custom_vals : {};
+    let mergedCustom = { ...curVals };
     if (body.topic !== undefined) {
-      const curVals = (existing.custom_vals && typeof existing.custom_vals === 'object') ? existing.custom_vals : {};
-      body.custom_vals = { ...curVals, topic: body.topic };
+      mergedCustom.topic = body.topic;
       delete body.topic;
+    }
+    if (body.custom_vals !== undefined && typeof body.custom_vals === 'object') {
+      mergedCustom = { ...mergedCustom, ...body.custom_vals };
+      delete body.custom_vals;
+    }
+    const hasCustomValsPatch =
+      req.body.custom_vals !== undefined && req.body.custom_vals !== null && typeof req.body.custom_vals === 'object';
+    if (req.body.topic !== undefined || hasCustomValsPatch) {
+      body.custom_vals = mergedCustom;
     }
     const fields = Object.keys(body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No valid fields' });

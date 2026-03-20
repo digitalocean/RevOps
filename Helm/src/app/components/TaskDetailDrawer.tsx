@@ -6,6 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { AssigneeLookup } from './AssigneeLookup';
 import { formatLocalDate, localDateInputToIso } from '../lib/dateFormat';
 import { Progress } from './ui/progress';
+import { Dialog, DialogContent } from './ui/dialog';
+import { cn } from './ui/utils';
 import { toast } from 'sonner';
 import { get, post, del, patch } from '../api/meridian';
 import type { Initiative, Status, Priority, Category } from '../data/mockData';
@@ -141,13 +143,14 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
   const [showMentions, setShowMentions] = useState(false);
   const commentRef = useRef<HTMLTextAreaElement>(null);
 
-  // Slide-in animation
-  const [visible, setVisible] = useState(false);
-  useEffect(() => { requestAnimationFrame(() => setVisible(true)); }, []);
+  const [dialogOpen, setDialogOpen] = useState(true);
+  const closingRef = useRef(false);
 
   const handleClose = () => {
-    setVisible(false);
-    setTimeout(onClose, 300);
+    if (closingRef.current) return;
+    closingRef.current = true;
+    setDialogOpen(false);
+    setTimeout(() => onClose(), 200);
   };
 
   // Load comments, attachments, time logs, deps
@@ -263,19 +266,20 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
   const stStyles = statusStyles(status);
 
   return (
-    <>
-      {/* Overlay */}
-      <div
-        className={`fixed inset-0 bg-black/20 z-40 transition-opacity duration-300 ${visible ? 'opacity-100' : 'opacity-0'}`}
-        onClick={handleClose}
-      />
-
-      {/* Drawer */}
-      <div
-        className={`fixed right-0 top-0 h-full w-full max-w-2xl z-50 bg-white shadow-2xl flex flex-col
-                    transition-transform duration-300 ease-out
-                    ${visible ? 'translate-x-0' : 'translate-x-full'}`}
+    <Dialog
+      open={dialogOpen}
+      onOpenChange={(open) => {
+        if (!open) handleClose();
+      }}
+    >
+      <DialogContent
+        className={cn(
+          '!flex !flex-col max-w-5xl w-[min(100vw-1rem,56rem)] max-h-[92vh] p-0 gap-0 overflow-hidden',
+          'border border-gray-200 sm:max-w-5xl z-[200] shadow-2xl rounded-2xl',
+          '[&>button]:hidden'
+        )}
       >
+      <div className="flex flex-col min-h-0 max-h-[92vh] w-full overflow-hidden bg-white rounded-2xl">
         {/* Header */}
         <div className="flex-shrink-0 border-b border-gray-100 px-6 py-4">
           <div className="flex items-start justify-between gap-3">
@@ -420,7 +424,7 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
                   ) : (
                     <p
                       onClick={() => onSave && setEditingDesc(true)}
-                      className={`text-sm text-gray-600 leading-relaxed ${onSave ? 'cursor-text hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors' : ''} ${!description ? 'text-gray-400 italic' : ''}`}
+                      className={`text-sm text-gray-600 leading-relaxed whitespace-pre-wrap break-words ${onSave ? 'cursor-text hover:bg-gray-50 rounded-lg p-2 -m-2 transition-colors' : ''} ${!description ? 'text-gray-400 italic' : ''}`}
                     >
                       {description || 'No description yet. Click to add one.'}
                     </p>
@@ -540,11 +544,13 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
                           </button>
                         )}
                       </div>
-                      <div className="text-sm text-gray-700 bg-gray-50 rounded-xl rounded-tl-sm p-3 leading-relaxed">
+                      <div className="text-sm text-gray-700 bg-gray-50 rounded-xl rounded-tl-sm p-3 leading-relaxed whitespace-pre-wrap break-words">
                         {c.body.split(/(@\w+)/g).map((part, i) =>
                           part.startsWith('@') ? (
                             <span key={i} className="text-indigo-600 font-medium bg-indigo-50 rounded px-1">{part}</span>
-                          ) : part
+                          ) : (
+                            <span key={i}>{part}</span>
+                          )
                         )}
                       </div>
                     </div>
@@ -804,9 +810,9 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
         </div>
       </div>
 
-      {/* Hidden file input */}
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
-    </>
+      </DialogContent>
+    </Dialog>
   );
 }
 

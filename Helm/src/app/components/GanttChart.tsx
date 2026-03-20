@@ -124,13 +124,18 @@ export function GanttChart({ initiatives, trackerSections = [], customFields = [
       setExpandedGroupKeys(new Set(['_all']));
       return;
     }
-    const keys = grouped.map((g) => g.key);
-    if (keys.length === 0) {
-      setExpandedGroupKeys(new Set());
-      return;
-    }
-    setExpandedGroupKeys(new Set([keys[0]!]));
+    // Grouped mode: start with all accordions collapsed
+    setExpandedGroupKeys(new Set());
   }, [groupBy, groupedAccordionSig]);
+
+  const allGroupKeys = useMemo(() => grouped.map((g) => g.key), [grouped]);
+  const expandAllGroups = () => setExpandedGroupKeys(new Set(allGroupKeys));
+  const collapseAllGroups = () => setExpandedGroupKeys(new Set());
+
+  const selectedGroupOptionLabel = useMemo(
+    () => groupOptions.find((o) => o.id === groupBy)?.label ?? 'Tasks',
+    [groupOptions, groupBy]
+  );
 
   const toggleGroup = (key: string) => {
     setExpandedGroupKeys((prev) => {
@@ -212,9 +217,32 @@ export function GanttChart({ initiatives, trackerSections = [], customFields = [
               ))}
             </SelectContent>
           </Select>
-          <div className="px-3 py-1.5 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200/50 text-sm font-semibold text-gray-700">
-            {validInitiatives.length} tasks
+          <div className="px-3 py-1.5 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200/50 text-sm font-semibold text-gray-700 max-w-[min(100%,280px)]">
+            <span className="text-gray-600 font-medium">{selectedGroupOptionLabel}</span>
+            <span className="text-gray-400 mx-1.5">·</span>
+            <span className="tabular-nums">{validInitiatives.length}</span>
+            <span className="text-gray-600 font-normal ml-1">
+              {validInitiatives.length === 1 ? 'task' : 'tasks'}
+            </span>
           </div>
+          {groupBy !== 'none' && grouped.length > 0 && (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={expandAllGroups}
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50/80 hover:bg-indigo-100 transition-colors"
+              >
+                Expand all
+              </button>
+              <button
+                type="button"
+                onClick={collapseAllGroups}
+                className="text-xs font-semibold text-gray-600 hover:text-gray-900 px-2.5 py-1.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors"
+              >
+                Collapse all
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -247,16 +275,19 @@ export function GanttChart({ initiatives, trackerSections = [], customFields = [
                   <button
                     type="button"
                     onClick={() => toggleGroup(group.key)}
-                    className="w-full flex items-center gap-2 text-left text-xs font-bold text-indigo-800 uppercase tracking-wider px-3 py-2.5 bg-white border-b border-gray-100 hover:bg-indigo-50/50 transition-colors"
+                    className="w-full flex items-center gap-2 text-left text-xs font-bold text-indigo-800 px-3 py-2.5 bg-white border-b border-gray-100 hover:bg-indigo-50/50 transition-colors"
                   >
                     {expanded ? (
                       <ChevronDown className="w-4 h-4 shrink-0 text-indigo-600" />
                     ) : (
                       <ChevronRight className="w-4 h-4 shrink-0 text-indigo-600" />
                     )}
-                    <span className="border-l-4 border-indigo-400 pl-2 flex-1 truncate">{group.label}</span>
-                    <span className="text-[10px] font-semibold text-indigo-500 normal-case tracking-normal tabular-nums">
-                      {group.items.length} task{group.items.length === 1 ? '' : 's'}
+                    <span className="border-l-4 border-indigo-400 pl-2 flex-1 min-w-0 text-left font-semibold text-indigo-900 normal-case tracking-normal break-words">
+                      {group.label}
+                      <span className="text-indigo-600 font-bold tabular-nums">
+                        {' '}
+                        — {group.items.length} {group.items.length === 1 ? 'task' : 'tasks'}
+                      </span>
                     </span>
                   </button>
                 )}

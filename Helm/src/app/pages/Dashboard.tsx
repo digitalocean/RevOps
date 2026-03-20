@@ -901,6 +901,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
 
       {(selectedInitiativeFromSearch || drawerInitiative) && (
         <TaskDetailDrawer
+          key={(drawerInitiative || selectedInitiativeFromSearch)!.id}
           initiative={(drawerInitiative || selectedInitiativeFromSearch)!}
           crew={crew}
           currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}

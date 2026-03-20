@@ -1,5 +1,14 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
-import { ChevronDown, ChevronRight, ChevronUp, Plus, Clock, X, GripVertical, Trash2, Pencil, Link as LinkIcon, ExternalLink } from 'lucide-react';
+import {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  createContext,
+  useContext,
+  useMemo,
+} from 'react';
+import type { CSSProperties } from 'react';
+import { ChevronDown, ChevronRight, ChevronUp, Plus, Clock, X, GripVertical, Trash2, Pencil } from 'lucide-react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
   type DragEndEvent,
@@ -7,14 +16,17 @@ import {
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { post } from '../api/meridian';
+import { cn } from './ui/utils';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Progress } from './ui/progress';
 import { Checkbox } from './ui/checkbox';
 import { Input } from './ui/input';
+import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { TaskDetailDrawer } from './TaskDetailDrawer';
 import { AssigneeLookup } from './AssigneeLookup';
+import { SmartLinkChip, parseLinkableUrl } from './SmartLinkChip';
 import { localDateInputToIso } from '../lib/dateFormat';
 import type { Initiative, Priority, Status, Category, TrackerSection as TrackerSectionType } from '../data/mockData';
 
@@ -132,17 +144,126 @@ function getCategoryColor(category: Category): string {
 
 const COL_KEYS = ['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate', 'topic'] as const;
 
+const TRACKER_COL_DEFAULTS: Record<string, number> = {
+  name: 220,
+  category: 128,
+  priority: 92,
+  owner: 172,
+  status: 140,
+  progress: 124,
+  dueDate: 120,
+  topic: 180,
+};
+
+export const CF_COL_KEY = (fieldId: string) => `cf:${fieldId}`;
+
+type TrackerColCtxValue = {
+  widths: Record<string, number>;
+  setColWidth: (key: string, width: number) => void;
+  cellStyle: (key: string) => CSSProperties | undefined;
+};
+
+const TrackerColWidthsContext = createContext<TrackerColCtxValue | null>(null);
+
+function ResizableTh({
+  colKey,
+  label,
+  ctx,
+  className,
+}: {
+  colKey: string;
+  label: React.ReactNode;
+  ctx: TrackerColCtxValue;
+  className?: string;
+}) {
+  const w =
+    ctx.widths[colKey] ??
+    TRACKER_COL_DEFAULTS[colKey] ??
+    (colKey.startsWith('cf:') ? 168 : 120);
+  const dragStart = useRef({ x: 0, w: 0 });
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragStart.current = { x: e.clientX, w };
+    const onMove = (ev: MouseEvent) => {
+      const next = Math.min(
+        560,
+        Math.max(64, dragStart.current.w + (ev.clientX - dragStart.current.x))
+      );
+      ctx.setColWidth(colKey, next);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  return (
+    <th
+      style={{ width: w, minWidth: w }}
+      className={cn('relative py-2 px-4 text-left align-top select-none', className)}
+    >
+      <div className="pr-2 text-xs font-semibold text-gray-600 uppercase tracking-wide whitespace-normal break-words">
+        {label}
+      </div>
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize column"
+        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 rounded-sm hover:bg-indigo-400/50 active:bg-indigo-500/70"
+        onMouseDown={onMouseDown}
+      />
+    </th>
+  );
+}
+
 function TopicCell({ value, onSave }: { value: string; onSave: (v: string) => void }) {
   const [local, setLocal] = useState(value);
+  const [editing, setEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => { setLocal(value); }, [value]);
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const trimmed = String(value).trim();
+  const linkParsed = parseLinkableUrl(trimmed, true);
+
+  if (linkParsed && !editing) {
+    return (
+      <div className="flex items-center gap-1.5 min-h-8 flex-wrap" onClick={(e) => e.stopPropagation()}>
+        <SmartLinkChip parsed={linkParsed} title={trimmed || value} />
+        <button
+          type="button"
+          className="text-[10px] text-gray-500 hover:text-gray-800 underline shrink-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditing(true);
+          }}
+        >
+          Edit
+        </button>
+      </div>
+    );
+  }
+
   return (
     <input
+      ref={inputRef}
       type="text"
       value={local}
       onChange={(e) => setLocal(e.target.value)}
-      onBlur={() => { const v = local.trim(); if (v !== value) onSave(v); }}
-      className="h-8 text-xs border border-gray-200 rounded-md px-2 bg-white text-gray-700 w-full max-w-[160px]"
-      placeholder="Topic"
+      onBlur={() => {
+        setEditing(false);
+        const v = local.trim();
+        if (v !== value) onSave(v);
+      }}
+      onFocus={() => setEditing(true)}
+      className="h-8 text-xs border border-gray-200 rounded-md px-2 bg-white text-gray-700 w-full max-w-[200px]"
+      placeholder="Topic or paste a link"
     />
   );
 }
@@ -201,6 +322,8 @@ function CustomFieldCell({
   value: string | number | boolean | null | undefined;
   onSave?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
 }) {
+  const colCtx = useContext(TrackerColWidthsContext);
+  const colW = colCtx?.cellStyle(CF_COL_KEY(fieldId));
   const normalizedType = (fieldType || 'text').toLowerCase();
   const selectOpts = normalizeFieldOptions(optionsJson);
   const [editing, setEditing] = useState(false);
@@ -223,22 +346,20 @@ function CustomFieldCell({
     if (!editing) setLocal(toLocal(value));
   }, [value, normalizedType, editing]);
 
-  const rawUrl = value != null && value !== '' ? String(value).trim() : '';
-  const hrefUrl =
-    rawUrl && /^https?:\/\//i.test(rawUrl)
-      ? rawUrl
-      : rawUrl
-        ? `https://${rawUrl}`
-        : '';
+  const strVal = value == null || value === undefined ? '' : String(value).trim();
+  const linkParsed =
+    normalizedType === 'url' || normalizedType === 'link'
+      ? parseLinkableUrl(strVal, true)
+      : normalizedType === 'text' || normalizedType === 'textarea'
+        ? parseLinkableUrl(strVal, false)
+        : null;
 
   const display =
     value === null || value === undefined
       ? '—'
       : normalizedType === 'date' && value
         ? (typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : String(value))
-        : normalizedType === 'url' && rawUrl
-          ? '' // rendered as link chip below
-          : String(value);
+        : String(value);
 
   const handleBlur = () => {
     setEditing(false);
@@ -268,7 +389,11 @@ function CustomFieldCell({
   if ((normalizedType === 'select' || normalizedType === 'multi_select') && selectOpts.length > 0 && onSave) {
     const v = value == null || value === '' ? '__empty' : String(value);
     return (
-      <td className="py-2 px-4 align-middle min-w-[100px]" onClick={(e) => e.stopPropagation()}>
+      <td
+        className="py-2 px-4 align-top min-w-[80px] border-gray-50"
+        style={colW}
+        onClick={(e) => e.stopPropagation()}
+      >
         <Select
           value={v}
           onValueChange={(nv) => onSave(taskId, fieldId, nv === '__empty' ? null : nv)}
@@ -287,8 +412,18 @@ function CustomFieldCell({
     );
   }
 
+  const useMultiline =
+    normalizedType === 'text' ||
+    normalizedType === 'textarea' ||
+    normalizedType === 'url' ||
+    normalizedType === 'link';
+
   return (
-    <td className="py-2 px-4 align-middle min-w-[100px]" onClick={() => onSave && setEditing(true)}>
+    <td
+      className="py-2 px-4 align-top min-w-[80px] border-gray-50"
+      style={colW}
+      onClick={() => onSave && setEditing(true)}
+    >
       {editing && onSave ? (
         normalizedType === 'date' ? (
           <input
@@ -299,6 +434,18 @@ function CustomFieldCell({
             onKeyDown={(e) => e.key === 'Enter' && handleBlur()}
             className="h-8 text-xs border border-gray-200 rounded-md px-2 bg-white w-full max-w-[140px]"
             autoFocus
+          />
+        ) : useMultiline ? (
+          <Textarea
+            value={local}
+            onChange={(e) => setLocal(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleBlur();
+            }}
+            rows={3}
+            autoFocus
+            className="min-h-[2.5rem] max-h-48 text-xs border-gray-200 rounded-md resize-y whitespace-pre-wrap break-words"
           />
         ) : (
           <Input
@@ -311,25 +458,20 @@ function CustomFieldCell({
             type={inputType}
           />
         )
-      ) : normalizedType === 'url' ? (
-        hrefUrl ? (
-          <a
-            href={hrefUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium max-w-[120px]"
-            title={rawUrl}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <LinkIcon className="w-3.5 h-3.5 shrink-0" aria-hidden />
-            <span className="truncate">Link</span>
-            <ExternalLink className="w-3 h-3 shrink-0 opacity-60" aria-hidden />
-          </a>
-        ) : (
-          <span className="text-xs text-gray-400">—</span>
-        )
+      ) : linkParsed ? (
+        <SmartLinkChip
+          parsed={linkParsed}
+          title={strVal || String(value ?? '')}
+          className="max-w-full"
+        />
+      ) : (normalizedType === 'url' || normalizedType === 'link') && strVal ? (
+        <span className="text-xs text-amber-700 break-words" title={strVal}>
+          Add https://… or www.…
+        </span>
       ) : (
-        <span className="text-xs text-gray-700">{display}</span>
+        <span className="text-xs text-gray-700 whitespace-pre-wrap break-words">
+          {display === '' ? '—' : display}
+        </span>
       )}
     </td>
   );
@@ -357,6 +499,7 @@ function InitiativeRowEditable({
   categoryOptions,
   onFocusChange,
 }: InitiativeRowEditableProps) {
+  const colCtx = useContext(TrackerColWidthsContext);
   const [title, setTitle] = useState(initiative.name);
   const catList: StandardFieldOption[] = (categoryOptions?.length ? categoryOptions : CATEGORIES.map((c) => ({ label: c }))).slice();
   if (initiative.category && !catList.some((o) => o.label === initiative.category)) {
@@ -414,18 +557,22 @@ function InitiativeRowEditable({
   return (
     <>
       {colVisible(visibleColumns, 'name') && (
-      <td className="py-2 px-4 align-middle min-w-[180px]">
-        <Input
+      <td
+        className="py-2 px-4 align-top border-gray-50"
+        style={colCtx?.cellStyle('name')}
+      >
+        <Textarea
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={handleTitleBlur}
-          className="h-8 text-sm font-medium border-gray-200 bg-white"
+          rows={2}
           placeholder="Title"
+          className="min-h-[2.5rem] max-h-40 text-sm font-medium border-gray-200 bg-white resize-y whitespace-pre-wrap break-words leading-snug"
         />
       </td>
       )}
       {colVisible(visibleColumns, 'category') && (
-      <td className="py-2 px-4 align-middle min-w-[120px]">
+      <td className="py-2 px-4 align-top border-gray-50" style={colCtx?.cellStyle('category')}>
         <Select value={initiative.category} onValueChange={(v) => { setSaving(true); onUpdate(initiative.id, { category: v as Category }).finally(() => setSaving(false)); }}>
           <SelectTrigger className={`h-8 text-xs border-gray-200 bg-white ${getCategoryColor(initiative.category)}`}>
             <SelectValue />
@@ -439,7 +586,7 @@ function InitiativeRowEditable({
       </td>
       )}
       {colVisible(visibleColumns, 'priority') && (
-      <td className="py-2 px-4 align-middle w-24">
+      <td className="py-2 px-4 align-top border-gray-50" style={colCtx?.cellStyle('priority')}>
         <Select value={initiative.priority} onValueChange={(v) => handlePriorityChange(v)}>
           <SelectTrigger
             className={`h-8 text-xs border-gray-200 ${getPriorityColor(initiative.priority, priorityOptions)}`}
@@ -457,7 +604,8 @@ function InitiativeRowEditable({
       )}
       {colVisible(visibleColumns, 'owner') && (
       <td
-        className="py-2 px-4 align-middle min-w-[140px] max-w-[220px] overflow-visible relative z-20"
+        className="py-2 px-4 align-top overflow-visible relative z-20 border-gray-50"
+        style={colCtx?.cellStyle('owner')}
         onClick={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
@@ -477,7 +625,7 @@ function InitiativeRowEditable({
       </td>
       )}
       {colVisible(visibleColumns, 'status') && (
-      <td className="py-2 px-4 align-middle w-40">
+      <td className="py-2 px-4 align-top border-gray-50" style={colCtx?.cellStyle('status')}>
         <Select value={initiative.status} onValueChange={(v) => handleStatusChange(v)}>
           <SelectTrigger
             className={`h-8 text-xs border rounded-full px-3 ${getStatusColor(initiative.status, statusOptions)}`}
@@ -509,7 +657,7 @@ function InitiativeRowEditable({
       </td>
       )}
       {colVisible(visibleColumns, 'progress') && (
-      <td className="py-2 px-4 align-middle">
+      <td className="py-2 px-4 align-top border-gray-50" style={colCtx?.cellStyle('progress')}>
         <div className="flex items-center gap-2 group">
           <Progress value={initiative.progress} className="w-16 h-1.5 cursor-pointer" />
           <input
@@ -529,7 +677,7 @@ function InitiativeRowEditable({
       </td>
       )}
       {colVisible(visibleColumns, 'dueDate') && (
-      <td className="py-2 px-4 align-middle">
+      <td className="py-2 px-4 align-top border-gray-50" style={colCtx?.cellStyle('dueDate')}>
         <input
           type="date"
           value={dueDateStr}
@@ -539,7 +687,7 @@ function InitiativeRowEditable({
       </td>
       )}
       {colVisible(visibleColumns, 'topic') && (
-      <td className="py-2 px-4 align-middle">
+      <td className="py-2 px-4 align-top border-gray-50" style={colCtx?.cellStyle('topic')}>
         <TopicCell
           value={String(initiative.field_values?.topic ?? '')}
           onSave={(v) => onUpdate(initiative.id, { topic: v || null })}
@@ -557,14 +705,17 @@ function InitiativeRowEditable({
           onSave={onUpdateFieldValue}
         />
       ))}
-      <td className="py-2 px-4 align-middle w-24" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-1">
+      <td className="py-2 px-4 align-top w-24 min-w-[96px]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex flex-wrap items-center gap-1">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             className="h-8 px-2 text-xs text-gray-600 hover:text-gray-900 hover:bg-gray-100 gap-1"
-            onClick={() => onFocusChange?.(initiative.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDetails(initiative);
+            }}
           >
             <Pencil className="w-3.5 h-3.5" />
             Edit
@@ -717,6 +868,59 @@ export function TrackerSection({
   const [showNewRow, setShowNewRow] = useState(false);
   const [editingSectionName, setEditingSectionName] = useState<string | null>(null);
   const displayTitle = sectionTitleOverride ?? section.title;
+
+  const colWidthsStorageKey = `tracker-col-widths-${projectId ?? 'default'}`;
+  const [colWidths, setColWidthsState] = useState<Record<string, number>>(() => {
+    try {
+      const raw = localStorage.getItem(colWidthsStorageKey);
+      if (raw) return { ...TRACKER_COL_DEFAULTS, ...JSON.parse(raw) };
+    } catch {
+      /* ignore */
+    }
+    return { ...TRACKER_COL_DEFAULTS };
+  });
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(colWidthsStorageKey);
+      if (raw) setColWidthsState({ ...TRACKER_COL_DEFAULTS, ...JSON.parse(raw) });
+      else setColWidthsState({ ...TRACKER_COL_DEFAULTS });
+    } catch {
+      setColWidthsState({ ...TRACKER_COL_DEFAULTS });
+    }
+  }, [colWidthsStorageKey]);
+
+  const setColWidth = useCallback(
+    (key: string, width: number) => {
+      setColWidthsState((prev) => {
+        const next = { ...prev, [key]: width };
+        try {
+          localStorage.setItem(colWidthsStorageKey, JSON.stringify(next));
+        } catch {
+          /* ignore */
+        }
+        return next;
+      });
+    },
+    [colWidthsStorageKey]
+  );
+
+  const cellStyle = useCallback(
+    (key: string): CSSProperties | undefined => {
+      const w =
+        colWidths[key] ??
+        TRACKER_COL_DEFAULTS[key] ??
+        (key.startsWith('cf:') ? 168 : undefined);
+      if (w == null) return undefined;
+      return { width: w, minWidth: w, maxWidth: w };
+    },
+    [colWidths]
+  );
+
+  const colCtx = useMemo<TrackerColCtxValue>(
+    () => ({ widths: colWidths, setColWidth, cellStyle }),
+    [colWidths, setColWidth, cellStyle]
+  );
 
   if (viewMode === 'gantt') return null;
 
@@ -900,11 +1104,12 @@ export function TrackerSection({
 
         {isExpanded && (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <TrackerColWidthsContext.Provider value={colCtx}>
+            <table className="w-full table-fixed border-collapse">
               <thead className="bg-white border-b border-gray-200">
                 <tr>
-                  <th className="py-2 px-2 w-8" />
-                  <th className="py-2 px-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-10">
+                  <th className="py-2 px-2 w-8 max-w-8" />
+                  <th className="py-2 px-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-10 max-w-10">
                     <Checkbox
                       checked={allSelected}
                       ref={(el) => {
@@ -913,18 +1118,18 @@ export function TrackerSection({
                       onCheckedChange={handleSelectAll}
                     />
                   </th>
-                  {colVisible(visibleColumns, 'name') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Initiative</th>}
-                  {colVisible(visibleColumns, 'category') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Category</th>}
-                  {colVisible(visibleColumns, 'priority') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Priority</th>}
-                  {colVisible(visibleColumns, 'owner') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Owner</th>}
-                  {colVisible(visibleColumns, 'status') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>}
-                  {colVisible(visibleColumns, 'progress') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Progress</th>}
-                  {colVisible(visibleColumns, 'dueDate') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Due Date</th>}
-                  {colVisible(visibleColumns, 'topic') && <th className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">Topic</th>}
+                  {colVisible(visibleColumns, 'name') && <ResizableTh colKey="name" label="Initiative" ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'category') && <ResizableTh colKey="category" label="Category" ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'priority') && <ResizableTh colKey="priority" label="Priority" ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'owner') && <ResizableTh colKey="owner" label="Owner" ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'status') && <ResizableTh colKey="status" label="Status" ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'progress') && <ResizableTh colKey="progress" label="Progress" ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'dueDate') && <ResizableTh colKey="dueDate" label="Due Date" ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'topic') && <ResizableTh colKey="topic" label="Topic" ctx={colCtx} />}
                   {customFields?.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).map((f) => (
-                    <th key={f.id} className="py-2 px-4 text-left text-xs font-semibold text-gray-600 uppercase">{f.name}</th>
+                    <ResizableTh key={f.id} colKey={CF_COL_KEY(f.id)} label={f.name} ctx={colCtx} />
                   ))}
-                  <th className="py-2 px-4 w-24 text-left text-xs font-semibold text-gray-600 uppercase">Actions</th>
+                  <th className="py-2 px-4 w-24 min-w-[96px] max-w-[96px] text-left text-xs font-semibold text-gray-600 uppercase align-top">Actions</th>
                 </tr>
               </thead>
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -976,6 +1181,7 @@ export function TrackerSection({
               </SortableContext>
               </DndContext>
             </table>
+            </TrackerColWidthsContext.Provider>
           </div>
         )}
 
@@ -1001,6 +1207,7 @@ export function TrackerSection({
 
       {selectedInitiative && (
         <TaskDetailDrawer
+          key={selectedInitiative.id}
           initiative={selectedInitiative}
           crew={crew}
           currentUser={currentUser}
@@ -1009,6 +1216,7 @@ export function TrackerSection({
           onDelete={onDeleteItem ? async (id) => { await onDeleteItem(id); setSelectedInitiative(null); } : undefined}
           priorityOptions={priorityOptions}
           statusOptions={statusOptions}
+          categoryOptions={categoryOptions}
         />
       )}
     </>

@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Send, Paperclip, Trash2, ExternalLink, Calendar, User, Tag, Flag,
          ChevronDown, MessageSquare, Link2, FileText, Image, CheckCircle2, Clock,
-         AtSign, MoreHorizontal, Edit2, Check, AlignLeft } from 'lucide-react';
+         AtSign, MoreHorizontal, Edit2, Check, AlignLeft, Hash, Layers } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { AssigneeLookup } from './AssigneeLookup';
 import { formatLocalDate, localDateInputToIso } from '../lib/dateFormat';
 import { Progress } from './ui/progress';
 import { Dialog, DialogContent } from './ui/dialog';
+import { Input } from './ui/input';
 import { cn } from './ui/utils';
 import { toast } from 'sonner';
 import { get, post, del, patch } from '../api/meridian';
@@ -17,6 +18,240 @@ const DEFAULT_PRIORITY_OPTIONS: Priority[] = ['P0', 'P1', 'P2'];
 const CATEGORIES: Category[] = ['Engineering', 'Design', 'Sales', 'Product', 'Operations'];
 
 export interface StandardFieldOption { label: string; color?: string; }
+
+export type TaskDrawerCustomFieldDef = {
+  id: string;
+  name: string;
+  field_type: string;
+  options_json?: unknown[];
+  target?: string;
+  applies_to?: string;
+};
+
+export type TaskDrawerStandardExtraDef = {
+  id: string;
+  field_key: string;
+  name: string;
+  field_type?: string;
+  options_json?: unknown[];
+};
+
+function isTaskLevelCustomField(f: TaskDrawerCustomFieldDef) {
+  return f.target === 'item' || f.applies_to === 'task' || !f.applies_to;
+}
+
+function normalizeDrawerFieldOptions(raw: unknown[] | undefined): { label: string; color?: string }[] {
+  if (!Array.isArray(raw)) return [];
+  const mapped = raw.map((o) =>
+    typeof o === 'string'
+      ? { label: o.trim() }
+      : { label: String((o as { label?: string }).label ?? '').trim(), color: (o as { color?: string }).color }
+  ).filter((o) => o.label.length > 0);
+  const seen = new Set<string>();
+  return mapped.filter((o) => {
+    if (seen.has(o.label)) return false;
+    seen.add(o.label);
+    return true;
+  });
+}
+
+function valueToDateInput(value: string | number | boolean | null | undefined): string {
+  if (value == null || value === '') return '';
+  const s = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  return s.slice(0, 10);
+}
+
+function TaskFieldValueEditor({
+  fieldType,
+  optionsJson,
+  value,
+  onCommit,
+  disabled,
+}: {
+  fieldType: string;
+  optionsJson?: unknown[];
+  value: string | number | boolean | null | undefined;
+  onCommit: (v: string | number | boolean | null) => void;
+  disabled?: boolean;
+}) {
+  const t = (fieldType || 'text').toLowerCase();
+  const opts = normalizeDrawerFieldOptions(optionsJson);
+
+  if ((t === 'select' || t === 'multi_select') && opts.length > 0) {
+    const v = value == null || value === '' ? '__empty' : String(value);
+    return (
+      <Select value={v} onValueChange={(nv) => onCommit(nv === '__empty' ? null : nv)} disabled={disabled}>
+        <SelectTrigger className="h-9 text-sm border-gray-200 bg-white w-full rounded-lg shadow-none">
+          <SelectValue placeholder="—" />
+        </SelectTrigger>
+        <SelectContent className="z-[220]">
+          <SelectItem value="__empty" className="text-sm">—</SelectItem>
+          {opts.map((o) => (
+            <SelectItem key={o.label} value={o.label} className="text-sm">{o.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  if (t === 'number') {
+    return <TaskFieldNumberBlurInput value={value} onCommit={onCommit} disabled={disabled} />;
+  }
+
+  if (t === 'boolean') {
+    const cur =
+      value === null || value === undefined
+        ? '__empty'
+        : value === true || value === 'true' || value === 1
+          ? 'true'
+          : 'false';
+    return (
+      <Select
+        value={cur}
+        onValueChange={(nv) => {
+          if (nv === '__empty') onCommit(null);
+          else onCommit(nv === 'true');
+        }}
+        disabled={disabled}
+      >
+        <SelectTrigger className="h-9 text-sm border-gray-200 bg-white w-full rounded-lg shadow-none">
+          <SelectValue placeholder="—" />
+        </SelectTrigger>
+        <SelectContent className="z-[220]">
+          <SelectItem value="__empty" className="text-sm">—</SelectItem>
+          <SelectItem value="true" className="text-sm">Yes</SelectItem>
+          <SelectItem value="false" className="text-sm">No</SelectItem>
+        </SelectContent>
+      </Select>
+    );
+  }
+
+  if (t === 'date') {
+    return (
+      <Input
+        type="date"
+        className="h-9 text-sm rounded-lg border-gray-200"
+        value={valueToDateInput(value)}
+        onChange={(e) => onCommit(e.target.value ? e.target.value : null)}
+        disabled={disabled}
+      />
+    );
+  }
+
+  if (t === 'textarea') {
+    return <TaskFieldTextBlurArea value={value} onCommit={onCommit} disabled={disabled} />;
+  }
+
+  return (
+    <TaskFieldTextBlurInput
+      type={t === 'url' || t === 'link' ? 'url' : 'text'}
+      value={value}
+      onCommit={onCommit}
+      disabled={disabled}
+      placeholder={t === 'url' || t === 'link' ? 'https://…' : undefined}
+    />
+  );
+}
+
+function TaskFieldNumberBlurInput({
+  value,
+  onCommit,
+  disabled,
+}: {
+  value: string | number | boolean | null | undefined;
+  onCommit: (v: string | number | boolean | null) => void;
+  disabled?: boolean;
+}) {
+  const [local, setLocal] = useState(() => (value == null || value === '' ? '' : String(value)));
+  useEffect(() => {
+    setLocal(value == null || value === '' ? '' : String(value));
+  }, [value]);
+  return (
+    <Input
+      type="number"
+      className="h-9 text-sm rounded-lg border-gray-200"
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => {
+        if (local === '') onCommit(null);
+        else {
+          const n = Number(local);
+          onCommit(Number.isNaN(n) ? null : n);
+        }
+      }}
+      disabled={disabled}
+    />
+  );
+}
+
+function TaskFieldTextBlurInput({
+  type,
+  value,
+  onCommit,
+  disabled,
+  placeholder,
+}: {
+  type: 'text' | 'url';
+  value: string | number | boolean | null | undefined;
+  onCommit: (v: string | number | boolean | null) => void;
+  disabled?: boolean;
+  placeholder?: string;
+}) {
+  const [local, setLocal] = useState(() => (value == null ? '' : String(value)));
+  useEffect(() => {
+    setLocal(value == null ? '' : String(value));
+  }, [value]);
+  return (
+    <Input
+      type={type}
+      className="h-9 text-sm rounded-lg border-gray-200"
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => onCommit(local.trim() || null)}
+      disabled={disabled}
+      placeholder={placeholder}
+    />
+  );
+}
+
+function TaskFieldTextBlurArea({
+  value,
+  onCommit,
+  disabled,
+}: {
+  value: string | number | boolean | null | undefined;
+  onCommit: (v: string | number | boolean | null) => void;
+  disabled?: boolean;
+}) {
+  const [local, setLocal] = useState(() => (value == null ? '' : String(value)));
+  useEffect(() => {
+    setLocal(value == null ? '' : String(value));
+  }, [value]);
+  return (
+    <textarea
+      className="w-full min-h-[88px] text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-800 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-300 resize-y"
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => onCommit(local.trim() || null)}
+      disabled={disabled}
+    />
+  );
+}
+
+function DrawerFieldCard({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-gray-100/90 bg-white p-4 shadow-sm transition-all hover:border-indigo-100/90 hover:shadow-md">
+      <div className="mb-2.5 flex items-center gap-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-50 to-violet-50 text-indigo-600 ring-1 ring-indigo-100/80 [&_svg]:h-3.5 [&_svg]:w-3.5">
+          {icon}
+        </span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</span>
+      </div>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
 
 function apiPath(p: string) { return p.startsWith('/') ? p : `/${p}`; }
 
@@ -81,22 +316,53 @@ interface CrewMember {
   last_name?: string | null;
 }
 
+export type TaskDetailSavePayload = {
+  title?: string;
+  description?: string;
+  status?: string;
+  priority?: string;
+  assignee_id?: string | null;
+  category?: Category;
+  due_date?: string | null;
+  progress?: number;
+  topic?: string | null;
+  custom_vals?: Record<string, string | number | boolean | null>;
+  repeat_interval?: string | null;
+  is_milestone?: boolean;
+};
+
 interface TaskDetailDrawerProps {
   initiative: Initiative;
   crew?: CrewMember[];
   currentUser?: { id: string; name: string } | null;
   onClose: () => void;
-  onSave?: (id: string, payload: {
-    title?: string; description?: string; status?: string; priority?: string;
-    assignee_id?: string | null; category?: Category; due_date?: string | null; progress?: number;
-  }) => Promise<void>;
+  onSave?: (id: string, payload: TaskDetailSavePayload) => Promise<void>;
   onDelete?: (id: string) => Promise<void>;
   priorityOptions?: StandardFieldOption[];
   statusOptions?: StandardFieldOption[];
   categoryOptions?: StandardFieldOption[];
+  /** Custom fields shown on task rows (same as tracker). */
+  customFields?: TaskDrawerCustomFieldDef[];
+  /** Standard fields stored in custom_vals (e.g. comments). */
+  standardExtraFields?: TaskDrawerStandardExtraDef[];
+  /** PATCH /api/tasks/:id/field-values for custom field columns. */
+  onUpdateFieldValue?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
 }
 
-export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, onSave, onDelete, priorityOptions, statusOptions, categoryOptions }: TaskDetailDrawerProps) {
+export function TaskDetailDrawer({
+  initiative,
+  crew = [],
+  currentUser,
+  onClose,
+  onSave,
+  onDelete,
+  priorityOptions,
+  statusOptions,
+  categoryOptions,
+  customFields = [],
+  standardExtraFields = [],
+  onUpdateFieldValue,
+}: TaskDetailDrawerProps) {
   // Editable fields
   const [title, setTitle] = useState(initiative.name);
   const [description, setDescription] = useState(initiative.description || '');
@@ -116,6 +382,9 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
   const dueDateStr = initiative.endDate && !isNaN(initiative.endDate.getTime())
     ? initiative.endDate.toISOString().slice(0, 10) : '';
   const [dueDate, setDueDate] = useState(dueDateStr);
+  const [topicDraft, setTopicDraft] = useState(() => String(initiative.field_values?.topic ?? ''));
+
+  const taskCustomFields = customFields.filter(isTaskLevelCustomField);
 
   // Edit states
   const [editingTitle, setEditingTitle] = useState(false);
@@ -169,7 +438,11 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
     get<typeof deps>(apiPath(`api/items/${initiative.id}/dependencies`)).then(setDeps).catch(() => {});
   }, [initiative.id]);
 
-  const save = useCallback(async (patch: Parameters<NonNullable<typeof onSave>>[1]) => {
+  useEffect(() => {
+    setTopicDraft(String(initiative.field_values?.topic ?? ''));
+  }, [initiative.id, initiative.field_values?.topic]);
+
+  const save = useCallback(async (patch: TaskDetailSavePayload) => {
     if (!onSave) return;
     setSaving(true);
     try { await onSave(initiative.id, patch); }
@@ -282,13 +555,13 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
       <DialogContent
         className={cn(
           '!flex !flex-col max-w-5xl w-[min(100vw-1rem,56rem)] max-h-[92vh] p-0 gap-0 overflow-hidden',
-          'border border-gray-200 sm:max-w-5xl z-[200] shadow-2xl rounded-2xl',
+          'border-0 ring-1 ring-black/[0.06] sm:max-w-5xl z-[200] shadow-[0_25px_80px_-12px_rgba(15,23,42,0.25)] rounded-2xl',
           '[&>button]:hidden'
         )}
       >
-      <div className="flex flex-col min-h-0 max-h-[92vh] w-full overflow-hidden bg-white rounded-2xl">
+      <div className="flex flex-col min-h-0 max-h-[92vh] w-full overflow-hidden rounded-2xl bg-gradient-to-b from-white via-white to-slate-50/40">
         {/* Header */}
-        <div className="flex-shrink-0 border-b border-gray-100 px-6 py-4">
+        <div className="flex-shrink-0 border-b border-indigo-100/40 bg-gradient-to-br from-slate-50/90 via-white to-indigo-50/30 px-6 py-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               {editingTitle ? (
@@ -369,17 +642,19 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
         </div>
 
         {/* Tabs */}
-        <div className="flex-shrink-0 border-b border-gray-100 px-6 overflow-x-auto">
-          <div className="flex gap-0 min-w-max">
-            {(['overview', 'comments', 'attachments', 'time', 'deps'] as const).map(tab => (
+        <div className="flex-shrink-0 border-b border-gray-100/80 bg-slate-50/60 px-4 py-2 sm:px-6 overflow-x-auto">
+          <div className="flex gap-1 min-w-max">
+            {(['overview', 'comments', 'attachments', 'time', 'deps'] as const).map((tab) => (
               <button
                 key={tab}
+                type="button"
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-3 text-sm font-medium capitalize border-b-2 transition-colors whitespace-nowrap ${
+                className={cn(
+                  'px-4 py-2 text-sm font-medium rounded-full transition-all whitespace-nowrap',
                   activeTab === tab
-                    ? 'border-indigo-600 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
+                    ? 'bg-white text-indigo-700 shadow-sm ring-1 ring-gray-200/90'
+                    : 'text-gray-500 hover:text-gray-800 hover:bg-white/70'
+                )}
               >
                 {tab === 'comments' ? `Comments${comments.length ? ` (${comments.length})` : ''}` :
                  tab === 'attachments' ? `Files${attachments.length ? ` (${attachments.length})` : ''}` :
@@ -397,9 +672,9 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
           {activeTab === 'overview' && (
             <div className="flex flex-col lg:flex-row min-h-full">
               {/* Main */}
-              <div className="flex-1 p-6 space-y-6 border-r border-gray-100">
+              <div className="flex-1 p-6 space-y-6 border-r border-gray-100/80 lg:border-r">
                 {/* Description */}
-                <div>
+                <div className="rounded-2xl border border-gray-100/90 bg-white/80 p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
                       <AlignLeft className="w-3.5 h-3.5" /> Description
@@ -439,25 +714,88 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
                 </div>
 
                 {/* Progress */}
-                <div>
+                <div className="rounded-2xl border border-gray-100/90 bg-white/80 p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">Progress</span>
-                    <span className="text-sm font-bold text-gray-900 tabular-nums">{progress}%</span>
+                    <span className="text-sm font-bold text-indigo-700 tabular-nums">{progress}%</span>
                   </div>
-                  <Progress value={progress} className="h-2 mb-2" />
+                  <Progress value={progress} className="h-2.5 mb-3 rounded-full" />
                   {onSave && (
                     <input
                       type="range" min={0} max={100} value={progress}
                       onChange={e => setProgress(Number(e.target.value))}
                       onMouseUp={() => save({ progress })}
                       onTouchEnd={() => save({ progress })}
-                      className="w-full accent-indigo-600"
+                      className="w-full accent-indigo-600 h-2"
                     />
                   )}
                 </div>
 
+                {/* Task-level fields (same as tracker columns: topic, standard extras, custom) */}
+                {(onSave || onUpdateFieldValue) &&
+                  (onSave || standardExtraFields.length > 0 || taskCustomFields.length > 0) && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-md shadow-indigo-600/20">
+                        <Layers className="h-4 w-4" />
+                      </span>
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900">Fields on this task</h3>
+                        <p className="text-xs text-gray-500">Topic, custom columns, and extra standard fields from your tracker</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {onSave && (
+                        <DrawerFieldCard label="Topic" icon={<Hash className="h-3.5 w-3.5" />}>
+                          <Input
+                            value={topicDraft}
+                            onChange={(e) => setTopicDraft(e.target.value)}
+                            onBlur={() => {
+                              const next = topicDraft.trim();
+                              const prev = String(initiative.field_values?.topic ?? '').trim();
+                              if (next !== prev) save({ topic: next || null });
+                            }}
+                            placeholder="Topic or paste a link"
+                            className="h-9 text-sm rounded-lg border-gray-200"
+                          />
+                        </DrawerFieldCard>
+                      )}
+                      {standardExtraFields.map((f) => (
+                        <DrawerFieldCard key={f.field_key} label={f.name} icon={<FileText className="h-3.5 w-3.5" />}>
+                          {onSave ? (
+                            <TaskFieldValueEditor
+                              fieldType={f.field_type || 'text'}
+                              optionsJson={f.options_json as unknown[] | undefined}
+                              value={initiative.field_values?.[f.field_key] as string | number | boolean | null | undefined}
+                              disabled={saving}
+                              onCommit={(v) => save({ custom_vals: { [f.field_key]: v } })}
+                            />
+                          ) : (
+                            <p className="text-sm text-gray-500">—</p>
+                          )}
+                        </DrawerFieldCard>
+                      ))}
+                      {taskCustomFields.map((f) => (
+                        <DrawerFieldCard key={f.id} label={f.name} icon={<Layers className="h-3.5 w-3.5" />}>
+                          {onUpdateFieldValue ? (
+                            <TaskFieldValueEditor
+                              fieldType={f.field_type}
+                              optionsJson={f.options_json}
+                              value={initiative.field_values?.[f.id] as string | number | boolean | null | undefined}
+                              disabled={saving}
+                              onCommit={(v) => onUpdateFieldValue(initiative.id, f.id, v)}
+                            />
+                          ) : (
+                            <p className="text-sm text-gray-500">—</p>
+                          )}
+                        </DrawerFieldCard>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Quick links paste area */}
-                <div>
+                <div className="rounded-2xl border border-gray-100/90 bg-white/80 p-5 shadow-sm">
                   <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 flex items-center gap-1.5 mb-3">
                     <Link2 className="w-3.5 h-3.5" /> Links
                   </span>
@@ -466,7 +804,7 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
               </div>
 
               {/* Sidebar metadata */}
-              <div className="w-full lg:w-64 p-5 space-y-5 bg-gray-50/50 flex-shrink-0">
+              <div className="w-full lg:w-72 p-5 space-y-3 bg-gradient-to-b from-slate-50/80 to-gray-50/40 flex-shrink-0 border-t lg:border-t-0 lg:border-l border-gray-100/80">
                 {/* Assignee */}
                 <MetaField label="Owner" icon={<User className="w-3.5 h-3.5" />}>
                   <AssigneeLookup
@@ -827,11 +1165,14 @@ export function TaskDetailDrawer({ initiative, crew = [], currentUser, onClose, 
 // ── Metadata field wrapper ─────────────────────────────────────
 function MetaField({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div>
-      <div className="flex items-center gap-1.5 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
-        {icon} {label}
+    <div className="rounded-xl border border-gray-100/90 bg-white p-3.5 shadow-sm transition-all hover:border-indigo-100/80 hover:shadow-md">
+      <div className="mb-2 flex items-center gap-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 [&_svg]:h-3.5 [&_svg]:w-3.5">
+          {icon}
+        </span>
+        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</span>
       </div>
-      {children}
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }

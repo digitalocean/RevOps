@@ -1388,6 +1388,9 @@ export function TrackerSection({
           priorityOptions={priorityOptions}
           statusOptions={statusOptions}
           categoryOptions={categoryOptions}
+          customFields={customFields}
+          standardExtraFields={extraStandardFields}
+          onUpdateFieldValue={onUpdateFieldValue}
         />
       )}
     </>

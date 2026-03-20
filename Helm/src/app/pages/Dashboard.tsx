@@ -170,6 +170,37 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     });
   }, [standardFields]);
 
+  const BUILT_IN_STANDARD_FIELD_KEYS = useMemo(
+    () => new Set(['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate', 'topic']),
+    []
+  );
+  const standardExtraFieldsForDrawer = useMemo(() => {
+    return (standardFields || [])
+      .filter((f: { field_key?: string }) => {
+        const k = f.field_key;
+        return typeof k === 'string' && k.length > 0 && !BUILT_IN_STANDARD_FIELD_KEYS.has(k);
+      })
+      .sort((a: { sort_order?: number }, b: { sort_order?: number }) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+  }, [standardFields, BUILT_IN_STANDARD_FIELD_KEYS]);
+
+  const handleTaskFieldValueUpdate = useCallback(
+    async (taskId: string, fieldId: string, value: string | number | boolean | null) => {
+      const payload: {
+        fieldId: string;
+        valueText?: string;
+        valueNumber?: number;
+        valueDate?: string;
+        valueBoolean?: boolean;
+      } = { fieldId };
+      if (typeof value === 'string') payload.valueText = value;
+      else if (typeof value === 'number') payload.valueNumber = value;
+      else if (typeof value === 'boolean') payload.valueBoolean = value;
+      await patch(`/api/tasks/${taskId}/field-values`, { values: [payload] });
+      refresh();
+    },
+    [refresh]
+  );
+
   const taskAssignedToCurrentUser = (i: Initiative, u: { id: string; email?: string }) => {
     if (i.assignee_user_id && i.assignee_user_id === u.id) return true;
     const ue = (u.email || '').toLowerCase().trim();
@@ -928,6 +959,9 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           priorityOptions={priorityOptions}
           statusOptions={statusOptions}
           categoryOptions={categoryOptions}
+          customFields={customFields}
+          standardExtraFields={standardExtraFieldsForDrawer}
+          onUpdateFieldValue={handleTaskFieldValueUpdate}
         />
       )}
 

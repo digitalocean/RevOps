@@ -155,9 +155,19 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const categoryOptions = useMemo(() => {
     const f = standardFields?.find((s: { field_key?: string }) => s.field_key === 'category');
     const opts = f?.options_json;
-    return Array.isArray(opts) && opts.length
-      ? opts.map((o: { label?: string; color?: string }) => ({ label: String(o?.label ?? ''), color: o?.color }))
-      : undefined;
+    if (!Array.isArray(opts) || opts.length === 0) return undefined;
+    const mapped = opts
+      .map((o: { label?: string; color?: string }) => ({
+        label: String(o?.label ?? '').trim(),
+        color: o?.color,
+      }))
+      .filter((o) => o.label.length > 0);
+    const seen = new Set<string>();
+    return mapped.filter((o) => {
+      if (seen.has(o.label)) return false;
+      seen.add(o.label);
+      return true;
+    });
   }, [standardFields]);
 
   const taskAssignedToCurrentUser = (i: Initiative, u: { id: string; email?: string }) => {

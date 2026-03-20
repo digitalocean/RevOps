@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { PieChart, Tag, Flag, CheckCircle2 } from 'lucide-react';
 import { Card } from './ui/card';
 import { Badge } from './ui/badge';
@@ -21,7 +22,14 @@ export function CategoryPriorityStatusMetrics({ initiatives }: CategoryPriorityS
     return acc;
   }, {});
 
-  const categories: Category[] = ['Engineering', 'Design', 'Sales', 'Product', 'Operations'];
+  const categoryKeys = useMemo(() => {
+    const defaults: Category[] = ['Engineering', 'Design', 'Sales', 'Product', 'Operations'];
+    const fromData = new Set<string>();
+    for (const i of initiatives) {
+      if (i.category) fromData.add(i.category);
+    }
+    return Array.from(new Set([...defaults, ...fromData])).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }, [initiatives]);
   const priorities: Priority[] = ['P0', 'P1', 'P2'];
   const statuses: Status[] = ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete'];
 
@@ -49,7 +57,7 @@ export function CategoryPriorityStatusMetrics({ initiatives }: CategoryPriorityS
               Category
             </h4>
             <div className="space-y-2">
-              {categories.map((cat) => (
+              {categoryKeys.map((cat) => (
                 <div key={cat} className="flex justify-between items-center text-sm">
                   <span className="text-gray-600">{cat}</span>
                   <Badge variant="secondary">{byCategory[cat] ?? 0}</Badge>

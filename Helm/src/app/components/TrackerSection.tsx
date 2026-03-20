@@ -158,6 +158,7 @@ function getCategoryColor(category: Category): string {
     case 'Sales': return 'bg-green-50 text-green-700 border-green-200';
     case 'Product': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
     case 'Operations': return 'bg-cyan-50 text-cyan-700 border-cyan-200';
+    default: return 'bg-gray-50 text-gray-700 border-gray-200';
   }
 }
 
@@ -247,7 +248,14 @@ function ResizableTh({
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize column"
-        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize z-10 rounded-sm hover:bg-indigo-400/50 active:bg-indigo-500/70"
+        title="Drag to resize column"
+        className={cn(
+          'absolute right-0 top-0.5 bottom-0.5 z-10 w-3 cursor-col-resize rounded-sm',
+          'border-l-[3px] border-gray-500 bg-gray-100/90',
+          'shadow-sm ring-1 ring-inset ring-gray-300/80',
+          'hover:border-indigo-600 hover:bg-indigo-50 hover:ring-indigo-300',
+          'active:border-indigo-700 active:bg-indigo-100'
+        )}
         onMouseDown={onMouseDown}
       />
     </th>
@@ -351,9 +359,17 @@ function isTaskField(f: CustomFieldDef) {
 
 function normalizeFieldOptions(raw: unknown[] | undefined): { label: string; color?: string }[] {
   if (!Array.isArray(raw)) return [];
-  return raw.map((o) =>
-    typeof o === 'string' ? { label: o } : { label: String((o as { label?: string }).label ?? ''), color: (o as { color?: string }).color }
-  ).filter((o) => o.label);
+  const mapped = raw.map((o) =>
+    typeof o === 'string'
+      ? { label: o.trim() }
+      : { label: String((o as { label?: string }).label ?? '').trim(), color: (o as { color?: string }).color }
+  ).filter((o) => o.label.length > 0);
+  const seen = new Set<string>();
+  return mapped.filter((o) => {
+    if (seen.has(o.label)) return false;
+    seen.add(o.label);
+    return true;
+  });
 }
 
 function CustomFieldCell({
@@ -625,7 +641,12 @@ function InitiativeRowEditable({
       </td>
       )}
       {colVisible(visibleColumns, 'category') && (
-      <td className="py-2 px-4 align-top border-gray-50" style={colCtx?.cellStyle('category')}>
+      <td
+        className="py-2 px-4 align-top border-gray-50"
+        style={colCtx?.cellStyle('category')}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <Select value={initiative.category} onValueChange={(v) => { setSaving(true); onUpdate(initiative.id, { category: v as Category }).finally(() => setSaving(false)); }}>
           <SelectTrigger className={`h-8 text-xs border-gray-200 bg-white ${getCategoryColor(initiative.category)}`}>
             <SelectValue />
@@ -639,7 +660,12 @@ function InitiativeRowEditable({
       </td>
       )}
       {colVisible(visibleColumns, 'priority') && (
-      <td className="py-2 px-4 align-top border-gray-50" style={colCtx?.cellStyle('priority')}>
+      <td
+        className="py-2 px-4 align-top border-gray-50"
+        style={colCtx?.cellStyle('priority')}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <Select value={initiative.priority} onValueChange={(v) => handlePriorityChange(v)}>
           <SelectTrigger
             className={`h-8 text-xs border-gray-200 ${getPriorityColor(initiative.priority, priorityOptions)}`}
@@ -679,7 +705,12 @@ function InitiativeRowEditable({
       </td>
       )}
       {colVisible(visibleColumns, 'status') && (
-      <td className="py-2 px-4 align-top border-gray-50" style={colCtx?.cellStyle('status')}>
+      <td
+        className="py-2 px-4 align-top border-gray-50"
+        style={colCtx?.cellStyle('status')}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <Select value={initiative.status} onValueChange={(v) => handleStatusChange(v)}>
           <SelectTrigger
             className={`h-8 text-xs border rounded-full px-3 ${getStatusColor(initiative.status, statusOptions)}`}

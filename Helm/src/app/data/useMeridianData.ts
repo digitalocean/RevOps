@@ -31,8 +31,6 @@ const PRIORITY_MAP: Record<string, Priority> = {
   low: 'P2',
 };
 
-const CATEGORY_OPTIONS = ['Engineering', 'Design', 'Sales', 'Product', 'Operations'] as const;
-
 export type CrewMemberRow = {
   id: string;
   name: string;
@@ -121,9 +119,11 @@ function mapItemToInitiative(item: {
   const status = (item.status && STATUS_MAP[item.status]) || 'Not Started';
   const priority = (item.priority && PRIORITY_MAP[item.priority]) || 'P1';
   const endDate = item.due_date ? new Date(item.due_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-  const category = item.category && CATEGORY_OPTIONS.includes(item.category as typeof CATEGORY_OPTIONS[number])
-    ? (item.category as Category)
-    : (CATEGORIES[Math.abs(item.title.length) % CATEGORIES.length]);
+  const rawCat = typeof item.category === 'string' ? item.category.trim() : '';
+  const category: Category =
+    rawCat.length > 0
+      ? rawCat
+      : CATEGORIES[Math.abs((item.title || '').length) % CATEGORIES.length];
   return {
     id: item.id,
     name: item.title,

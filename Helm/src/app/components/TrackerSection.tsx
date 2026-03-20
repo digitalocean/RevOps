@@ -200,7 +200,24 @@ type TrackerColCtxValue = {
 
 const TrackerColWidthsContext = createContext<TrackerColCtxValue | null>(null);
 
-/** Full-height resize strip with grip icon (spreadsheet-style), not a floating pill. */
+/** Classic 6-dot drag handle (2×3), muted like list reorder affordances. */
+function ColumnResizeGrabber() {
+  return (
+    <span
+      className="pointer-events-none grid grid-cols-2 gap-x-[3px] gap-y-[3px]"
+      aria-hidden
+    >
+      {Array.from({ length: 6 }, (_, i) => (
+        <span
+          key={i}
+          className="h-[3px] w-[3px] shrink-0 rounded-full bg-gray-300 group-hover:bg-gray-400 group-active:bg-indigo-400/90"
+        />
+      ))}
+    </span>
+  );
+}
+
+/** Full-height resize strip with dot grabber; light border so it stays subtle. */
 function ResizableTh({
   colKey,
   label,
@@ -253,13 +270,12 @@ function ResizableTh({
           title="Drag to resize column"
           onMouseDown={onMouseDown}
           className={cn(
-            'flex w-6 shrink-0 cursor-col-resize items-center justify-center self-stretch border-l-2 border-gray-400 bg-gray-100',
-            'text-gray-600 shadow-[inset_1px_0_0_rgba(255,255,255,0.6)]',
-            'hover:border-indigo-500 hover:bg-indigo-50 hover:text-indigo-700',
-            'active:border-indigo-600 active:bg-indigo-100'
+            'group flex w-5 shrink-0 cursor-col-resize items-center justify-center self-stretch border-l border-gray-200 bg-transparent',
+            'hover:border-indigo-200 hover:bg-indigo-50/60',
+            'active:border-indigo-300 active:bg-indigo-100/70'
           )}
         >
-          <GripVertical className="h-4 w-4 pointer-events-none opacity-90" strokeWidth={2.25} aria-hidden />
+          <ColumnResizeGrabber />
         </div>
       </div>
     </th>

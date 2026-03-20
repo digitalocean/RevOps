@@ -3,6 +3,32 @@ const { pool } = require('../server');
 const { getAccessibleWorkspaceIds, getAccessibleProjectIds, requireUser } = require('../lib/access');
 
 /**
+ * People in "Shared with" (project_members) may use a crew row from another workspace
+ * (global email match). They would be missing from workspace-scoped crew list — merge them in
+ * so Owner / assignee dropdowns match the share list.
+ */
+async function mergeProjectMembersCrewIntoRows(pool, userId, rows, projectId) {
+  const allowedProjectIds = await getAccessibleProjectIds(pool, userId);
+  if (!allowedProjectIds.some((id) => String(id) === String(projectId))) return rows;
+  const { rows: memberCrew } = await pool.query({
+    name: 'crew_from_project_members',
+    text: `SELECT c.* FROM project_members pm
+           INNER JOIN crew c ON c.id = pm.crew_id
+           WHERE pm.project_id = $1 AND (c.active = true OR c.active IS NULL)`,
+    values: [projectId],
+  });
+  if (!memberCrew.length) return rows;
+  const byId = new Map(rows.map((r) => [String(r.id), r]));
+  for (const c of memberCrew) {
+    if (c?.id && !byId.has(String(c.id))) {
+      byId.set(String(c.id), c);
+      rows.push(c);
+    }
+  }
+  return rows;
+}
+
+/**
  * Ensure project creator can be chosen as assignee: they need a crew row with a real id.
  * Merges creator's crew (by user_id anywhere, or new row in project workspace) into the list.
  */
@@ -101,6 +127,7 @@ router.get('/', async (req, res) => {
 
     if (project_id) {
       out = await mergeProjectCreatorIntoCrewRows(pool, userId, out, project_id, workspace_id || null);
+      out = await mergeProjectMembersCrewIntoRows(pool, userId, out, project_id);
       out.sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }));
     }
 

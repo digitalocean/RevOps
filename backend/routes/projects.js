@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { pool } = require('../server');
-const { getAccessibleWorkspaceIds, getAccessibleProjectIds, getOrCreateDefaultWorkspaceId, requireUser, canManageProject } = require('../lib/access');
+const { getAccessibleWorkspaceIds, getAccessibleProjectIds, getOrCreateDefaultWorkspaceId, requireUser, canManageProject, isProjectAdminRoleOnly } = require('../lib/access');
 
 async function logActivity(pool, projectId, userId, action, entityId, details = {}) {
   try {
@@ -124,6 +124,23 @@ router.patch('/:id', async (req, res) => {
     }
     res.json(updated);
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/** Current user's Share role on this project: `{ is_project_admin: boolean }` (role `admin` only). */
+router.get('/:id/access', async (req, res) => {
+  try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const projectId = req.params.id;
+    const allowedProjectIds = await getAccessibleProjectIds(pool, userId);
+    if (!allowedProjectIds.some((id) => String(id) === String(projectId))) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    const is_project_admin = await isProjectAdminRoleOnly(pool, userId, projectId);
+    res.json({ is_project_admin });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 router.get('/:id/members', async (req, res) => {

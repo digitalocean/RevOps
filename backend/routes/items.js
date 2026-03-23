@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { pool } = require('../server');
-const { getAccessibleProjectIds, requireUser, canManageProject } = require('../lib/access');
+const { getAccessibleProjectIds, requireUser, isProjectAdminRoleOnly } = require('../lib/access');
 
 async function canAccessProject(pool, userId, projectId) {
   const ids = await getAccessibleProjectIds(pool, userId);
@@ -88,8 +88,8 @@ router.post('/', async (req, res) => {
     const customValsObj = custom_vals && typeof custom_vals === 'object' ? custom_vals : {};
     const { rows } = await pool.query({
       name: 'items_insert',
-      text: 'INSERT INTO items(project_id,sprint_id,parent_id,tracker_id,type,title,description,status,column_id,priority,points,assignee_id,due_date,labels,custom_vals,category) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *',
-      values: [project_id, sprint_id || null, parent_id || null, tracker_id || null, type, title, description || '', status, column_id || null, priority, points ?? 3, assignee_id || null, due_date || null, labelsArr, JSON.stringify(customValsObj), category || null],
+      text: 'INSERT INTO items(project_id,sprint_id,parent_id,tracker_id,type,title,description,status,column_id,priority,points,assignee_id,due_date,labels,custom_vals,category,created_by_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING *',
+      values: [project_id, sprint_id || null, parent_id || null, tracker_id || null, type, title, description || '', status, column_id || null, priority, points ?? 3, assignee_id || null, due_date || null, labelsArr, JSON.stringify(customValsObj), category || null, userId],
     });
     res.status(201).json(rows[0]);
     logActivity(pool, project_id, userId, 'item_created', rows[0].id, { title });
@@ -210,19 +210,23 @@ router.patch('/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE item (owner/moderator/editor only)
+// DELETE item — project Share role **admin** only, and only tasks you created
 router.delete('/:id', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
     const itemCheck = await pool.query({
       name: 'items_get_for_del',
-      text: 'SELECT project_id, title FROM items WHERE id = $1',
+      text: 'SELECT project_id, title, created_by_id FROM items WHERE id = $1',
       values: [req.params.id],
     });
     if (!itemCheck.rows.length) return res.status(404).json({ error: 'Not found' });
-    const canManage = await canManageProject(pool, userId, itemCheck.rows[0].project_id);
-    if (!canManage) return res.status(403).json({ error: 'Only project owner or moderator can delete tasks' });
+    const row = itemCheck.rows[0];
+    const admin = await isProjectAdminRoleOnly(pool, userId, row.project_id);
+    if (!admin) return res.status(403).json({ error: 'Only project admins can delete tasks' });
+    if (!row.created_by_id || String(row.created_by_id) !== String(userId)) {
+      return res.status(403).json({ error: 'You can only delete tasks you created' });
+    }
     await pool.query({
       name: 'items_delete',
       text: 'DELETE FROM items WHERE id=$1',

@@ -29,6 +29,8 @@ interface PersonalTasksViewProps {
   }) => Promise<unknown>;
   onUpdateTask: (id: string, payload: Record<string, unknown>) => Promise<unknown>;
   onDeleteTask: (id: string) => Promise<void>;
+  /** When set, trash is shown only if true for that task. */
+  canDeleteTask?: (task: Initiative) => boolean;
   onOpenTask?: (task: Initiative) => void;
 }
 
@@ -39,6 +41,7 @@ export function PersonalTasksView({
   onCreateTask,
   onUpdateTask,
   onDeleteTask,
+  canDeleteTask,
   onOpenTask,
 }: PersonalTasksViewProps) {
   const [title, setTitle] = useState('');
@@ -195,15 +198,17 @@ export function PersonalTasksView({
                     <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-600">{task.priority}</span>
                   </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0 text-gray-400 hover:text-red-600"
-                  onClick={() => { if (confirm('Delete this task?')) onDeleteTask(task.id); }}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                {(!canDeleteTask || canDeleteTask(task)) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0 text-gray-400 hover:text-red-600"
+                    onClick={() => { if (confirm('Delete this task?')) onDeleteTask(task.id); }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
               </li>
             ))}
           </ul>

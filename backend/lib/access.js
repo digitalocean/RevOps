@@ -77,6 +77,89 @@ async function getAccessibleProjectIds(pool, userId) {
 /**
  * After SSO login, attach crew rows invited by email so project_members resolves by user_id too.
  */
+/**
+ * Project Share role **admin** only (not moderator/editor). Uses crew.user_id or email match to users.
+ */
+async function isProjectAdminRoleOnly(pool, userId, projectId) {
+  if (!userId || !projectId) return false;
+  const { rows } = await pool.query({
+    name: 'access_project_admin_role',
+    text: `SELECT 1 FROM project_members pm
+           INNER JOIN crew c ON c.id = pm.crew_id
+           WHERE pm.project_id = $1
+             AND pm.role = 'admin'
+             AND (c.active = true OR c.active IS NULL)
+             AND (
+               c.user_id = $2
+               OR (
+                 c.user_id IS NULL
+                 AND c.email IS NOT NULL
+                 AND EXISTS (
+                   SELECT 1 FROM users u
+                   WHERE u.id = $2
+                     AND LOWER(TRIM(u.email)) = LOWER(TRIM(c.email))
+                 )
+               )
+             )
+           LIMIT 1`,
+    values: [projectId, userId],
+  });
+  return rows.length > 0;
+}
+
+/**
+ * Crew row for this user in the project's workspace (for log_entries.author_id).
+ */
+async function getCrewIdForUserOnProjectWorkspace(pool, userId, projectId) {
+  if (!userId || !projectId) return null;
+  const { rows } = await pool.query({
+    name: 'access_crew_for_user_project_ws',
+    text: `SELECT c.id FROM crew c
+           INNER JOIN projects p ON p.workspace_id = c.workspace_id AND p.id = $1
+           WHERE (c.active = true OR c.active IS NULL)
+             AND (
+               c.user_id = $2
+               OR (
+                 c.user_id IS NULL
+                 AND c.email IS NOT NULL
+                 AND EXISTS (
+                   SELECT 1 FROM users u
+                   WHERE u.id = $2
+                     AND LOWER(TRIM(u.email)) = LOWER(TRIM(c.email))
+                 )
+               )
+             )
+           ORDER BY c.user_id NULLS LAST
+           LIMIT 1`,
+    values: [projectId, userId],
+  });
+  return rows[0]?.id ?? null;
+}
+
+/** log_entries.author_id references crew.id */
+async function crewRowBelongsToUser(pool, crewId, userId) {
+  if (!crewId || !userId) return false;
+  const { rows } = await pool.query({
+    name: 'access_crew_belongs_user',
+    text: `SELECT 1 FROM crew c
+           WHERE c.id = $1
+             AND (
+               c.user_id = $2
+               OR (
+                 c.user_id IS NULL
+                 AND c.email IS NOT NULL
+                 AND EXISTS (
+                   SELECT 1 FROM users u
+                   WHERE u.id = $2
+                     AND LOWER(TRIM(u.email)) = LOWER(TRIM(c.email))
+                 )
+               )
+             )`,
+    values: [crewId, userId],
+  });
+  return rows.length > 0;
+}
+
 async function linkCrewRowsToUserByEmail(pool, userId, email) {
   if (!userId || !email) return;
   const e = String(email).trim().toLowerCase();
@@ -152,4 +235,7 @@ module.exports = {
   requireUser,
   getUserGlobalRole,
   linkCrewRowsToUserByEmail,
+  isProjectAdminRoleOnly,
+  getCrewIdForUserOnProjectWorkspace,
+  crewRowBelongsToUser,
 };

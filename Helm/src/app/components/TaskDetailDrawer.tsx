@@ -299,6 +299,8 @@ interface Comment {
   author_email: string;
   created_at: string;
   author_id: string;
+  /** API: project admin + comment author */
+  can_delete?: boolean;
 }
 
 interface Attachment {
@@ -933,8 +935,9 @@ export function TaskDetailDrawer({
                       <div className="flex items-baseline gap-2 mb-1">
                         <span className="text-sm font-semibold text-gray-900">{c.author_name || 'User'}</span>
                         <span className="text-xs text-gray-400">{timeAgo(c.created_at)}</span>
-                        {currentUser && String(currentUser.id) === String(c.author_id) && (
+                        {c.can_delete && (
                           <button
+                            type="button"
                             onClick={() => handleDeleteComment(c.id)}
                             className="ml-auto opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity"
                           >

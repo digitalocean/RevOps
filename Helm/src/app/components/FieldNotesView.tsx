@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
-import { get, post, getApiBaseUrl } from '../api/meridian';
+import { get, post, del, getApiBaseUrl } from '../api/meridian';
 import { toast } from 'sonner';
-import { Mic, Send, FileText, Loader2 } from 'lucide-react';
+import { Mic, Send, FileText, Loader2, Trash2 } from 'lucide-react';
 import { formatLocalDateTime } from '../lib/dateFormat';
 
 interface Note {
@@ -12,6 +12,7 @@ interface Note {
   entry_type?: string;
   created_at: string;
   voice_url?: string | null;
+  can_delete?: boolean;
 }
 
 function apiPath(path: string): string {
@@ -147,6 +148,18 @@ export function FieldNotesView({ projectId, onRefresh }: FieldNotesViewProps) {
     }
   };
 
+  const handleDeleteNote = async (noteId: string) => {
+    if (!confirm('Delete this field note?')) return;
+    try {
+      await del(apiPath(`api/log/${noteId}`));
+      await loadNotes();
+      onRefresh?.();
+      toast.success('Note deleted');
+    } catch {
+      toast.error('Could not delete note');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -213,6 +226,17 @@ export function FieldNotesView({ projectId, onRefresh }: FieldNotesViewProps) {
                       {note.entry_type === 'ai' || note.voice_url ? ' · Voice' : ''}
                     </p>
                   </div>
+                  {note.can_delete && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteNote(note.id)}
+                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0"
+                      title="Delete note"
+                      aria-label="Delete note"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>

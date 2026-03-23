@@ -115,6 +115,9 @@ function mapItemToInitiative(item: {
   field_values?: Record<string, string | number | boolean | null>;
   /** Merged into field_values (standard extras like `comments` live here from API). */
   custom_vals?: unknown;
+  created_by_id?: string | null;
+  /** Set when loading My Tasks (admin varies by project). */
+  is_project_admin?: boolean;
 }): Initiative {
   const status = (item.status && STATUS_MAP[item.status]) || 'Not Started';
   const priority = (item.priority && PRIORITY_MAP[item.priority]) || 'P1';
@@ -157,6 +160,8 @@ function mapItemToInitiative(item: {
       return Object.keys(merged).length > 0 ? merged : undefined;
     })(),
     project_id: item.project_id ?? null,
+    created_by_id: item.created_by_id ?? null,
+    is_project_admin: item.is_project_admin,
   };
 }
 
@@ -316,6 +321,7 @@ export function useMeridianData(): MeridianDataResult {
           category: i.category as string | null,
           field_values: i.field_values as Record<string, string | number | boolean | null> | undefined,
           custom_vals: i.custom_vals,
+          created_by_id: i.created_by_id as string | null | undefined,
         })
       );
       setInitiatives(mapped);
@@ -382,10 +388,18 @@ export function useMeridianData(): MeridianDataResult {
         return;
       }
       const chunks = await Promise.all(
-        plist.map((p) => get<Record<string, unknown>[]>(`${apiPath('api/items')}?project_id=${p.id}`).catch(() => []))
+        plist.map(async (p) => {
+          const [items, access] = await Promise.all([
+            get<Record<string, unknown>[]>(`${apiPath('api/items')}?project_id=${p.id}`).catch(() => []),
+            get<{ is_project_admin?: boolean }>(`${apiPath(`api/projects/${p.id}/access`)}`).catch(() => ({ is_project_admin: false })),
+          ]);
+          const arr = Array.isArray(items) ? items : [];
+          const isAdmin = !!(access && access.is_project_admin);
+          return arr.map((i) => ({ item: i, is_project_admin: isAdmin }));
+        })
       );
       const flat = chunks.flat();
-      const mapped = flat.map((i) =>
+      const mapped = flat.map(({ item: i, is_project_admin }) =>
         mapItemToInitiative({
           id: String(i.id),
           title: String(i.title ?? ''),
@@ -405,6 +419,8 @@ export function useMeridianData(): MeridianDataResult {
           category: i.category as string | null,
           field_values: i.field_values as Record<string, string | number | boolean | null> | undefined,
           custom_vals: i.custom_vals,
+          created_by_id: i.created_by_id as string | null | undefined,
+          is_project_admin,
         })
       );
       setMyTasksInitiatives(mapped);

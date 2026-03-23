@@ -106,6 +106,8 @@ interface TrackerSectionProps {
     }
   ) => Promise<unknown>;
   onDeleteItem?: (id: string) => Promise<void>;
+  /** If omitted, delete is allowed whenever `onDeleteItem` is set (e.g. mock data). */
+  canDeleteTask?: (initiative: Initiative) => boolean;
   onDeleteSection?: (trackerId: string) => Promise<void>;
   onRenameSection?: (trackerId: string, newName: string) => Promise<void>;
   onMoveUp?: () => void;
@@ -992,6 +994,7 @@ export function TrackerSection({
   onCreateSubItem,
   onUpdateItem,
   onDeleteItem,
+  canDeleteTask,
   onDeleteSection,
   onRenameSection,
   onMoveUp,
@@ -1425,7 +1428,11 @@ export function TrackerSection({
                     onUpdateFieldValue={onUpdateFieldValue}
                     onAddSubItem={onCreateSubItem}
                     onUpdate={handleUpdate}
-                    onDelete={onDeleteItem}
+                    onDelete={
+                      onDeleteItem && (!canDeleteTask || canDeleteTask(initiative))
+                        ? onDeleteItem
+                        : undefined
+                    }
                     onItemCompleted={onItemCompleted}
                     priorityOptions={priorityOptions}
                     statusOptions={statusOptions}
@@ -1508,7 +1515,14 @@ export function TrackerSection({
           currentUser={currentUser}
           onClose={() => setSelectedInitiative(null)}
           onSave={onUpdateItem ? async (id, payload) => { await onUpdateItem(id, payload); } : undefined}
-          onDelete={onDeleteItem ? async (id) => { await onDeleteItem(id); setSelectedInitiative(null); } : undefined}
+          onDelete={
+            onDeleteItem && selectedInitiative && (!canDeleteTask || canDeleteTask(selectedInitiative))
+              ? async (id) => {
+                  await onDeleteItem(id);
+                  setSelectedInitiative(null);
+                }
+              : undefined
+          }
           priorityOptions={priorityOptions}
           statusOptions={statusOptions}
           categoryOptions={categoryOptions}

@@ -25,12 +25,13 @@ interface MyTasksViewProps {
   projects: { id: string; name: string }[];
   onUpdateItem: (id: string, payload: Record<string, unknown>) => Promise<unknown>;
   onDeleteItem: (id: string) => Promise<void>;
+  canDeleteTask?: (initiative: Initiative) => boolean;
   loading?: boolean;
   /** Reload tasks from all projects (manual + called after saves) */
   onRefresh?: () => Promise<void>;
 }
 
-export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdateItem, onDeleteItem, loading, onRefresh }: MyTasksViewProps) {
+export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdateItem, onDeleteItem, canDeleteTask, loading, onRefresh }: MyTasksViewProps) {
   const [filter, setFilter] = useState<FilterMode>('all');
   const [selected, setSelected] = useState<Initiative | null>(null);
   const [manualRefreshing, setManualRefreshing] = useState(false);
@@ -219,7 +220,14 @@ export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdate
           currentUser={currentUser}
           onClose={() => setSelected(null)}
           onSave={async (id, payload) => { await onUpdateItem(id, payload as Record<string, unknown>); }}
-          onDelete={async (id) => { await onDeleteItem(id); setSelected(null); }}
+          onDelete={
+            selected && (!canDeleteTask || canDeleteTask(selected))
+              ? async (id) => {
+                  await onDeleteItem(id);
+                  setSelected(null);
+                }
+              : undefined
+          }
         />
       )}
     </div>

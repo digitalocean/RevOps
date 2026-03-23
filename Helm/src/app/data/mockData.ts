@@ -34,6 +34,10 @@ export interface Initiative {
   field_values?: Record<string, string | number | boolean | null>;
   /** Present when aggregating across projects (e.g. My Tasks) */
   project_id?: string | null;
+  /** `users.id` of creator — set by API for delete rules */
+  created_by_id?: string | null;
+  /** My Tasks: Share role admin on that task's project (varies per project) */
+  is_project_admin?: boolean;
 }
 
 export interface TrackerSection {

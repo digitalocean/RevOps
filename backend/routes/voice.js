@@ -46,10 +46,10 @@ router.post('/transcribe', upload.single('audio'), async (req, res) => {
 // POST /api/voice/create — create item/note from transcript (user-scoped)
 router.post('/create', async (req, res) => {
   try {
-    const { getAccessibleProjectIds, requireUser } = require('../lib/access');
+    const { getAccessibleProjectIds, requireUser, getCrewIdForUserOnProjectWorkspace } = require('../lib/access');
     const userId = requireUser(req, res);
     if (!userId) return;
-    const { transcript, item_type = 'note', project_id, sprint_id, author_id } = req.body;
+    const { transcript, item_type = 'note', project_id, sprint_id } = req.body;
     if (!transcript || typeof transcript !== 'string') return res.status(400).json({ error: 'Transcript is required' });
     const text = transcript.trim();
     if (!text) return res.status(400).json({ error: 'Transcript is required' });
@@ -65,12 +65,17 @@ router.post('/create', async (req, res) => {
 
     let result = null;
 
+    let voiceCrewId = null;
+    if (project_id) {
+      voiceCrewId = await getCrewIdForUserOnProjectWorkspace(pool, userId, project_id);
+    }
+
     if (item_type === 'note') {
       // Notes: always use the transcript as the note content (real-time, no GPT rewrite)
       const { rows } = await pool.query({
         name: 'voice_log_insert',
         text: "INSERT INTO log_entries(project_id,sprint_id,author_id,entry_type,content) VALUES($1,$2,$3,'voice',$4) RETURNING *",
-        values: [project_id || null, sprint_id || null, author_id || null, text],
+        values: [project_id || null, sprint_id || null, voiceCrewId, text],
       });
       result = { type: 'log', entry: rows[0] };
     } else {
@@ -86,8 +91,8 @@ router.post('/create', async (req, res) => {
         const parsed = JSON.parse(content);
         const { rows } = await pool.query({
           name: 'voice_item_insert',
-          text: "INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,$6,$7,'not_started') RETURNING *",
-          values: [project_id, sprint_id || null, parsed.type || item_type, parsed.title || text.slice(0, 200), parsed.description || '', parsed.priority || 'medium', parsed.points || 3],
+          text: "INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status,created_by_id) VALUES($1,$2,$3,$4,$5,$6,$7,'not_started',$8) RETURNING *",
+          values: [project_id, sprint_id || null, parsed.type || item_type, parsed.title || text.slice(0, 200), parsed.description || '', parsed.priority || 'medium', parsed.points || 3, userId],
         });
         result = { type: 'item', item: rows[0] };
       } else {
@@ -95,8 +100,8 @@ router.post('/create', async (req, res) => {
         const itemType = (item_type === 'story' ? 'story' : 'task');
         const { rows } = await pool.query({
           name: 'voice_item_insert_fallback',
-          text: "INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status) VALUES($1,$2,$3,$4,$5,'medium',3,'not_started') RETURNING *",
-          values: [project_id, sprint_id || null, itemType, title, text],
+          text: "INSERT INTO items(project_id,sprint_id,type,title,description,priority,points,status,created_by_id) VALUES($1,$2,$3,$4,$5,'medium',3,'not_started',$6) RETURNING *",
+          values: [project_id, sprint_id || null, itemType, title, text, userId],
         });
         result = { type: 'item', item: rows[0] };
       }
@@ -106,7 +111,7 @@ router.post('/create', async (req, res) => {
       await pool.query({
         name: 'voice_recording_insert',
         text: 'INSERT INTO voice_recordings(crew_id,transcript,item_type) VALUES($1,$2,$3)',
-        values: [author_id || null, text, item_type],
+        values: [voiceCrewId, text, item_type],
       });
     } catch (logErr) {
       console.warn('Voice recording log failed:', logErr.message);

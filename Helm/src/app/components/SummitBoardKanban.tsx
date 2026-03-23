@@ -119,9 +119,10 @@ interface SummitBoardKanbanProps {
   onUpdateItem: (itemId: string, payload: Record<string, unknown>) => Promise<unknown>;
   onDeleteItem: (itemId: string) => Promise<void>;
   onAddItem: () => void;
+  canDeleteTask?: (initiative: Initiative) => boolean;
 }
 
-export function SummitBoardKanban({ initiatives, crew = [], currentUser, onUpdateStatus, onUpdateItem, onDeleteItem, onAddItem }: SummitBoardKanbanProps) {
+export function SummitBoardKanban({ initiatives, crew = [], currentUser, onUpdateStatus, onUpdateItem, onDeleteItem, onAddItem, canDeleteTask }: SummitBoardKanbanProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selectedInitiative, setSelectedInitiative] = useState<Initiative | null>(null);
 
@@ -167,7 +168,14 @@ export function SummitBoardKanban({ initiatives, crew = [], currentUser, onUpdat
           currentUser={currentUser}
           onClose={() => setSelectedInitiative(null)}
           onSave={async (id, payload) => { await onUpdateItem(id, payload as Record<string, unknown>); }}
-          onDelete={async (id) => { await onDeleteItem(id); setSelectedInitiative(null); }}
+          onDelete={
+            selectedInitiative && (!canDeleteTask || canDeleteTask(selectedInitiative))
+              ? async (id) => {
+                  await onDeleteItem(id);
+                  setSelectedInitiative(null);
+                }
+              : undefined
+          }
         />
       )}
     </DndContext>

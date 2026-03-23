@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { pool } = require('../server');
-const { requireUser, getAccessibleProjectIds } = require('../lib/access');
+const { requireUser, getAccessibleProjectIds, isProjectAdminRoleOnly } = require('../lib/access');
 const { createNotification } = require('./notifications');
 
 async function canAccessItem(pool, userId, itemId) {
@@ -27,7 +27,18 @@ async function handleListItemComments(req, res) {
       text: 'SELECT c.*, COALESCE(u.full_name, u.name) as author_name, u.email as author_email FROM item_comments c LEFT JOIN users u ON u.id = c.author_id WHERE c.item_id = $1 ORDER BY c.created_at ASC',
       values: [itemId],
     });
-    res.json(rows);
+    const proj = await pool.query({
+      name: 'comments_item_project_id',
+      text: 'SELECT project_id FROM items WHERE id = $1',
+      values: [itemId],
+    });
+    const projectId = proj.rows[0]?.project_id;
+    const isAdmin = projectId ? await isProjectAdminRoleOnly(pool, userId, projectId) : false;
+    const enriched = rows.map((c) => ({
+      ...c,
+      can_delete: isAdmin && String(c.author_id) === String(userId),
+    }));
+    res.json(enriched);
   } catch (e) { res.status(500).json({ error: e.message }); }
 }
 
@@ -42,6 +53,13 @@ async function handlePostItemComment(req, res) {
     const itemId = req.params.itemId;
     const ok = await canAccessItem(pool, userId, itemId);
     if (!ok) return res.status(404).json({ error: 'Not found' });
+    const itemProj = await pool.query({
+      name: 'comments_post_item_project',
+      text: 'SELECT project_id FROM items WHERE id = $1',
+      values: [itemId],
+    });
+    const commentProjectId = itemProj.rows[0]?.project_id;
+    const isAdminForComment = commentProjectId ? await isProjectAdminRoleOnly(pool, userId, commentProjectId) : false;
     const { body, mentions = [] } = req.body;
     if (!body?.trim()) return res.status(400).json({ error: 'body required' });
     const { rows } = await pool.query({
@@ -55,7 +73,12 @@ async function handlePostItemComment(req, res) {
       text: 'SELECT name, email FROM users WHERE id=$1',
       values: [userId],
     });
-    const comment = { ...rows[0], author_name: u.rows[0]?.name, author_email: u.rows[0]?.email };
+    const comment = {
+      ...rows[0],
+      author_name: u.rows[0]?.name,
+      author_email: u.rows[0]?.email,
+      can_delete: isAdminForComment,
+    };
     // Broadcast via WebSocket if available
     if (req.app.locals.broadcast) {
       req.app.locals.broadcast({ type: 'comment_added', itemId, comment });
@@ -111,7 +134,18 @@ router.delete('/comments/:id', async (req, res) => {
       values: [req.params.id],
     });
     if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
-    if (String(r.rows[0].author_id) !== String(userId)) return res.status(403).json({ error: 'Forbidden' });
+    const itemRes = await pool.query({
+      name: 'comments_delete_item_project',
+      text: 'SELECT project_id FROM items WHERE id = $1',
+      values: [r.rows[0].item_id],
+    });
+    const projectId = itemRes.rows[0]?.project_id;
+    if (!projectId) return res.status(404).json({ error: 'Not found' });
+    const admin = await isProjectAdminRoleOnly(pool, userId, projectId);
+    if (!admin) return res.status(403).json({ error: 'Only project admins can delete comments' });
+    if (String(r.rows[0].author_id) !== String(userId)) {
+      return res.status(403).json({ error: 'You can only delete your own comments' });
+    }
     await pool.query({
       name: 'comments_delete',
       text: 'DELETE FROM item_comments WHERE id=$1',

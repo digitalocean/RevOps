@@ -95,6 +95,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     myTasksLoading,
     loadMyTasksAcrossProjects,
   } = useMeridianData();
+  const [projectIsAdmin, setProjectIsAdmin] = useState(false);
   const [currentView, setCurrentView] = useState<NavView>('summit_board');
   const [showActivityPanel, setShowActivityPanel] = useState(false);
   const [timelineExpanded, setTimelineExpanded] = useState(true);
@@ -140,6 +141,36 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const [templatesProjectId, setTemplatesProjectId] = useState<string | null>(null);
 
   const currentUser = propsCurrentUser !== undefined ? propsCurrentUser : internalUser;
+
+  const canDeleteOwnAdminTask = useCallback(
+    (init: Initiative) => {
+      if (!fromApi) return true;
+      if (!currentUser?.id) return false;
+      const admin = init.is_project_admin ?? projectIsAdmin;
+      if (!admin) return false;
+      if (!init.created_by_id || String(init.created_by_id) !== String(currentUser.id)) return false;
+      return true;
+    },
+    [fromApi, currentUser?.id, projectIsAdmin]
+  );
+
+  useEffect(() => {
+    if (!fromApi || !selectedProjectId) {
+      setProjectIsAdmin(false);
+      return;
+    }
+    let cancelled = false;
+    get<{ is_project_admin?: boolean }>(`/api/projects/${selectedProjectId}/access`)
+      .then((d) => {
+        if (!cancelled) setProjectIsAdmin(!!d?.is_project_admin);
+      })
+      .catch(() => {
+        if (!cancelled) setProjectIsAdmin(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fromApi, selectedProjectId]);
 
   // Priority/Status options from standard fields (so add/remove in Base Camp is in sync with dropdowns)
   const priorityOptions = useMemo(() => {
@@ -238,6 +269,18 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
 
   // Keyboard navigation across all visible tasks
   const allVisibleItems = initiatives.map(i => ({ id: i.id }));
+  const keyboardOnDeleteItem = useCallback(
+    async (id: string) => {
+      const init = initiatives.find((i) => i.id === id);
+      if (!init || !canDeleteOwnAdminTask(init)) return;
+      if (confirm(`Delete "${init.name}"?`)) {
+        await deleteItem(id);
+        refreshActivity();
+        setFocusedId(null);
+      }
+    },
+    [initiatives, canDeleteOwnAdminTask, deleteItem, refreshActivity]
+  );
   useKeyboardNav({
     items: allVisibleItems,
     focusedId,
@@ -251,14 +294,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
       refreshActivity();
       toast.success('Marked complete ✓');
     },
-    onDeleteItem: async (id) => {
-      const init = initiatives.find(i => i.id === id);
-      if (init && confirm(`Delete "${init.name}"?`)) {
-        await deleteItem(id);
-        refreshActivity();
-        setFocusedId(null);
-      }
-    },
+    onDeleteItem: keyboardOnDeleteItem,
     enabled: !showGlobalSearch && !showAddInitiative && !showImport,
   });
 
@@ -448,13 +484,23 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   };
 
   const handleBulkDelete = async () => {
-    const count = selectedIds.length;
-    if (!confirm(`Delete ${count} item(s)?`)) return;
+    const deletable = selectedIds.filter((id) => {
+      const init = initiatives.find((i) => i.id === id);
+      return init && canDeleteOwnAdminTask(init);
+    });
+    if (deletable.length === 0) {
+      toast.error('No selected tasks can be deleted. Admins may only delete tasks they created.');
+      return;
+    }
+    if (deletable.length < selectedIds.length) {
+      toast.info('Some selected tasks cannot be deleted (admin + creator only). Only deletable tasks will be removed.');
+    }
+    if (!confirm(`Delete ${deletable.length} item(s)?`)) return;
     try {
-      await Promise.all(selectedIds.map((id) => deleteItem(id)));
+      await Promise.all(deletable.map((id) => deleteItem(id)));
       setSelectedIds([]);
       refreshActivity();
-      toast.success(`Deleted ${count} item(s)`);
+      toast.success(`Deleted ${deletable.length} item(s)`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to delete');
     }
@@ -773,6 +819,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                   await loadMyTasksAcrossProjects();
                   refreshActivity();
                 }}
+                canDeleteTask={canDeleteOwnAdminTask}
                 onDeleteItem={async (id) => {
                   await deleteItem(id);
                   await loadMyTasksAcrossProjects();
@@ -788,6 +835,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 onCreateTask={async (payload) => selectedProjectId && createItem(selectedProjectId, payload)}
                 onUpdateTask={updateItem}
                 onDeleteTask={deleteItem}
+                canDeleteTask={canDeleteOwnAdminTask}
                 onOpenTask={(task) => setDrawerInitiative(task)}
               />
             ) : currentView === 'expedition_map' ? (
@@ -828,8 +876,10 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               <SummitBoardKanban
                 initiatives={initiatives}
                 crew={crew}
+                currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
                 onUpdateStatus={async (id, status) => updateItem(id, { status })}
                 onUpdateItem={async (id, payload) => { await updateItem(id, payload); refreshActivity(); }}
+                canDeleteTask={canDeleteOwnAdminTask}
                 onDeleteItem={async (id) => { await deleteItem(id); refreshActivity(); }}
                 onAddItem={() => setShowAddInitiative(true)}
               />
@@ -908,6 +958,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                       await createItem(projectId, payload, undefined, trackerId ?? undefined);
                     }}
                     onUpdateItem={async (id, payload) => { await updateItem(id, payload); refreshActivity(); }}
+                    canDeleteTask={canDeleteOwnAdminTask}
                     onDeleteItem={async (id) => { await deleteItem(id); refreshActivity(); }}
                     onCreateSubItem={(parentId) => { setAddInitiativeParentId(parentId); setAddInitiativeTrackerId(null); setShowAddInitiative(true); }}
                     onItemCompleted={() => setCelebrateCount((c) => c + 1)}
@@ -950,12 +1001,17 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
           onClose={() => { setDrawerInitiative(null); setSelectedInitiativeFromSearch(null); }}
           onSave={async (id, payload) => { await updateItem(id, payload); refreshActivity(); }}
-          onDelete={async (id) => {
-            await deleteItem(id);
-            refreshActivity();
-            setDrawerInitiative(null);
-            setSelectedInitiativeFromSearch(null);
-          }}
+          onDelete={
+            (drawerInitiative || selectedInitiativeFromSearch) &&
+            canDeleteOwnAdminTask((drawerInitiative || selectedInitiativeFromSearch)!)
+              ? async (id) => {
+                  await deleteItem(id);
+                  refreshActivity();
+                  setDrawerInitiative(null);
+                  setSelectedInitiativeFromSearch(null);
+                }
+              : undefined
+          }
           priorityOptions={priorityOptions}
           statusOptions={statusOptions}
           categoryOptions={categoryOptions}

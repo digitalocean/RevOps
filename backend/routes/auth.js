@@ -5,6 +5,7 @@ const router = require('express').Router();
 const passport = require('passport');
 const bcrypt = require('bcrypt');
 const { pool } = require('../server');
+const { linkCrewRowsToUserByEmail } = require('../lib/access');
 
 const OAuth2Strategy = require('passport-oauth2').Strategy;
 const {
@@ -103,6 +104,7 @@ if (process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.
             });
             user = insert.rows[0];
           }
+          await linkCrewRowsToUserByEmail(pool, user.id, email);
           return done(null, user);
         } catch (err) {
           return done(err, null);
@@ -300,6 +302,7 @@ async function ensureSamlStrategy() {
                 global_role: insert.rows[0].global_role || globalRole,
               };
             }
+            await linkCrewRowsToUserByEmail(pool, user.id, email);
             return done(null, user);
           } catch (err) {
             return done(err, null);
@@ -348,8 +351,9 @@ router.post('/register', async (req, res) => {
       values: [emailTrim, (name && String(name).trim()) || emailTrim.split('@')[0], hash],
     });
     const user = rows[0];
-    req.login({ id: user.id, email: user.email, name: user.name, avatar_url: null }, (err) => {
+    req.login({ id: user.id, email: user.email, name: user.name, avatar_url: null }, async (err) => {
       if (err) return res.status(500).json({ error: err.message });
+      await linkCrewRowsToUserByEmail(pool, user.id, user.email);
       res.status(201).json({ user: { id: user.id, email: user.email, name: user.name, initials: (user.name || user.email).slice(0, 2).toUpperCase() } });
     });
   } catch (e) {
@@ -380,8 +384,9 @@ router.post('/login', async (req, res, next) => {
     }
     const ok = await bcrypt.compare(String(password), user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Invalid email or password' });
-    req.login({ id: user.id, email: user.email, name: user.name, avatar_url: user.avatar_url }, (err) => {
+    req.login({ id: user.id, email: user.email, name: user.name, avatar_url: user.avatar_url }, async (err) => {
       if (err) return next(err);
+      await linkCrewRowsToUserByEmail(pool, user.id, user.email);
       const initials = (user.name || user.email || '').slice(0, 2).toUpperCase();
       res.json({ user: { id: user.id, email: user.email, name: user.name, initials } });
     });

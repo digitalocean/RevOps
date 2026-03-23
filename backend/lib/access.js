@@ -48,14 +48,50 @@ async function getAccessibleProjectIds(pool, userId) {
     });
     projectIdsFromWorkspace.push(...rows.map((r) => r.id));
   }
+  // Shared projects: crew.user_id matches OR crew was invited by email before SSO linked (same email as users row).
   const { rows: sharedRows } = await pool.query({
     name: 'access_projects_shared',
-    text: 'SELECT DISTINCT pm.project_id AS id FROM project_members pm JOIN crew c ON c.id = pm.crew_id AND c.user_id = $1',
+    text: `SELECT DISTINCT pm.project_id AS id
+           FROM project_members pm
+           INNER JOIN crew c ON c.id = pm.crew_id
+           WHERE c.user_id = $1
+             AND (c.active = true OR c.active IS NULL)
+           UNION
+           SELECT DISTINCT pm.project_id AS id
+           FROM project_members pm
+           INNER JOIN crew c ON c.id = pm.crew_id
+           INNER JOIN users u ON u.id = $1
+           WHERE c.user_id IS NULL
+             AND c.email IS NOT NULL
+             AND u.email IS NOT NULL
+             AND LOWER(TRIM(c.email)) = LOWER(TRIM(u.email))
+             AND (c.active = true OR c.active IS NULL)`,
     values: [userId],
   });
   const sharedIds = sharedRows.map((r) => r.id);
   const combined = [...new Set([...projectIdsFromWorkspace.map(String), ...sharedIds.map(String)])];
   return combined;
+}
+
+/**
+ * After SSO login, attach crew rows invited by email so project_members resolves by user_id too.
+ */
+async function linkCrewRowsToUserByEmail(pool, userId, email) {
+  if (!userId || !email) return;
+  const e = String(email).trim().toLowerCase();
+  if (!e) return;
+  try {
+    await pool.query({
+      name: 'access_crew_link_user_email',
+      text: `UPDATE crew SET user_id = $1
+             WHERE LOWER(TRIM(email)) = $2
+               AND user_id IS NULL
+               AND (active = true OR active IS NULL)`,
+      values: [userId, e],
+    });
+  } catch {
+    /* non-fatal */
+  }
 }
 
 /** True if user can delete/edit project (creator or project member with owner/admin/moderator/editor role). */
@@ -65,8 +101,20 @@ async function canManageProject(pool, userId, projectId) {
     name: 'access_can_manage_project',
     text: `SELECT 1 FROM projects WHERE id = $1 AND created_by = $2
            UNION ALL
-           SELECT 1 FROM project_members pm JOIN crew c ON c.id = pm.crew_id AND c.user_id = $2
-           WHERE pm.project_id = $1 AND pm.role IN ('owner', 'admin', 'moderator', 'editor')`,
+           SELECT 1 FROM project_members pm
+             JOIN crew c ON c.id = pm.crew_id AND c.user_id = $2
+           WHERE pm.project_id = $1 AND pm.role IN ('owner', 'admin', 'moderator', 'editor')
+           UNION ALL
+           SELECT 1 FROM project_members pm
+             JOIN crew c ON c.id = pm.crew_id
+             JOIN users u ON u.id = $2
+           WHERE pm.project_id = $1
+             AND pm.role IN ('owner', 'admin', 'moderator', 'editor')
+             AND c.user_id IS NULL
+             AND c.email IS NOT NULL
+             AND u.email IS NOT NULL
+             AND LOWER(TRIM(c.email)) = LOWER(TRIM(u.email))
+             AND (c.active = true OR c.active IS NULL)`,
     values: [projectId, userId],
   });
   return rows.length > 0;
@@ -102,4 +150,5 @@ module.exports = {
   canManageProject,
   requireUser,
   getUserGlobalRole,
+  linkCrewRowsToUserByEmail,
 };

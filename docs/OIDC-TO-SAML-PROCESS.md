@@ -157,6 +157,35 @@ Your app already has **project-level roles** (e.g. in `project_members`: admin, 
 4. In the UI, call an endpoint that returns the current user’s role(s) and show/hide Admin Camp and other features accordingly.
 5. Optionally: default `project_members.role` when inviting based on `global_role` or group.
 
+### 3.1 Okta groups for the To-Do app (recommended)
+
+Use **Okta groups** and send them in the SAML assertion as attribute **`groups`** (Okta expression: `user.groups` or the standard “Group” claim your org uses). Example groups:
+
+| Okta group | App `global_role` (stored on user) | Intent |
+|------------|--------------------------------------|--------|
+| **ToDo-SuperAdmins** | `superadmin` | Full system access (workspaces, settings, audit, etc.) — *enforce in API when you add RBAC* |
+| **ToDo-Admins** | `workspace_admin` | Workspace-level admin |
+| **ToDo-ProjectManagers** | `project_manager` | Projects / tasks / sprints / crew within scope |
+| **ToDo-Members** | `member` | Standard contributor |
+| **ToDo-Viewers** | `viewer` | Read-only |
+
+**Backend behavior (`backend/lib/saml-claims.js`):** If the user is in **one or more** of these groups, the app sets `users.global_role` to the **highest-privilege** matching group (order above), not the first group in the assertion. That avoids wrong roles when people also have broad groups like `Everyone` or `All`.
+
+### Configurable env vars (groups + access gate)
+
+| Variable | Purpose |
+|----------|---------|
+| **`SAML_TODO_GROUP_PRIORITY_JSON`** | JSON array `[{ "group": "ToDo-SuperAdmins", "role": "superadmin" }, …]` — **full** ordered list (highest first). Replaces built-in defaults when set and non-empty. |
+| **`SAML_GROUP_CLAIM_KEYS`** | Comma-separated **extra** SAML attribute names to read for group membership (merged with defaults like `groups`, `Groups`). |
+| **`SAML_REQUIRE_TODO_GROUP`** | Set to **`true`** so only users who match an entry in the priority list get app access. Others see an **IT / request access** screen (no dashboard). |
+| **`SAML_ACCESS_DENIED_MESSAGE`** | Custom text for that screen (plain string; multiline OK). |
+| **`SAML_ALLOW_LOCAL_PASSWORD_USERS`** | Default **`true`**: users with a **local password** (`password_hash` set) can still use the app without a ToDo group (useful for dev). Set to **`false`** to require groups for everyone. |
+| **`SAML_TODO_ROLES_DISABLED`** | **`true`** = skip ToDo group mapping entirely; use legacy **`SAML_ROLE_MAP_JSON`** / attribute behavior only (not compatible with **`SAML_REQUIRE_TODO_GROUP`** for the ToDo model). |
+
+When **`SAML_REQUIRE_TODO_GROUP=true`**, SAML login **does not** fall back to legacy Role/Groups string mapping for `global_role` — only configured **group → role** rows count.
+
+**Note:** Today, most API routes still use **workspace / project membership** (`access.js`). `global_role` is persisted and returned on **`GET /api/auth/me`**; **`app_access`** is **`denied`** when the gate applies. You can add API middleware later to return **403** for denied users on non-auth routes.
+
 ---
 
 ## 4. Libraries and references

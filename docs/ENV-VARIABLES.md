@@ -34,6 +34,14 @@ SAML_APP_BASE_URL=https://revops-ntkll.ondigitalocean.app
 # Optional: DB with self-signed cert (e.g. DO Managed DB)
 NODE_TLS_REJECT_UNAUTHORIZED=0
 
+# Optional: Okta groups → app role (SAML). See docs/OIDC-TO-SAML-PROCESS.md
+# SAML_REQUIRE_TODO_GROUP=true
+# SAML_ACCESS_DENIED_MESSAGE=You do not have access. Please contact IT to request the To-Do application.
+# SAML_TODO_GROUP_PRIORITY_JSON=[{"group":"ToDo-SuperAdmins","role":"superadmin"},{"group":"ToDo-Admins","role":"workspace_admin"},…]
+# SAML_GROUP_CLAIM_KEYS=groups,http://schemas.okta.com/claims/groups
+# SAML_ALLOW_LOCAL_PASSWORD_USERS=false
+# SAML_TODO_ROLES_DISABLED=true
+
 # Optional: Voice / AI
 # OPENAI_API_KEY=sk-...
 # GRADIENT_MODEL_ACCESS_KEY=do-...

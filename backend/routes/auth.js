@@ -7,7 +7,12 @@ const bcrypt = require('bcrypt');
 const { pool } = require('../server');
 
 const OAuth2Strategy = require('passport-oauth2').Strategy;
-const { snapshotSamlAttributes, deriveGlobalRoleFromProfile } = require('../lib/saml-claims');
+const {
+  snapshotSamlAttributes,
+  deriveGlobalRoleFromProfile,
+  getAccessDeniedMessage,
+  isAppAccessGrantedForUser,
+} = require('../lib/saml-claims');
 const { ensureUsersTableForAuth } = require('../lib/applySchema');
 const SALT_ROUNDS = 10;
 
@@ -441,20 +446,26 @@ router.get('/me', async (req, res) => {
     : (u.email || '').slice(0, 2).toUpperCase();
   let globalRole = u.global_role ?? null;
   let samlAttributes = null;
+  let hasPasswordHash = false;
   try {
     const { rows } = await pool.query({
       name: 'auth_me_saml_fields',
-      text: 'SELECT global_role, saml_attributes FROM users WHERE id = $1',
+      text: 'SELECT global_role, saml_attributes, password_hash FROM users WHERE id = $1',
       values: [u.id],
     });
     if (rows[0]) {
       globalRole = rows[0].global_role ?? globalRole;
       samlAttributes = rows[0].saml_attributes;
+      hasPasswordHash = !!rows[0].password_hash;
     }
   } catch (_) {
     /* columns may be missing before migration */
   }
   const showSamlAttrs = process.env.SAML_EXPOSE_ATTRIBUTES_IN_ME === 'true';
+  const appAccessGranted = isAppAccessGrantedForUser({
+    global_role: globalRole,
+    has_password_hash: hasPasswordHash,
+  });
   return res.json({
     user: {
       id: u.id,
@@ -467,6 +478,8 @@ router.get('/me', async (req, res) => {
         ? { saml_attributes: samlAttributes }
         : {}),
     },
+    app_access: appAccessGranted ? 'granted' : 'denied',
+    ...(appAccessGranted ? {} : { access_denied_message: getAccessDeniedMessage() }),
   });
 });
 

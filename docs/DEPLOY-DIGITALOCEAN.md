@@ -116,6 +116,33 @@ You can also open in a new tab:
 
 ---
 
+## Troubleshooting: Login fails with `getaddrinfo ENOTFOUND` / `*.db.ondigitalocean.com`
+
+If logs show something like:
+
+`Error: getaddrinfo ENOTFOUND app-xxxx-do-user-xxxx-0.a.db.ondigitalocean.com`
+
+**Meaning:** Node could not resolve the **database hostname** in `DATABASE_URL`. The API cannot reach Postgres, so **sessions and login break** (anything that touches the DB).
+
+**Typical causes:**
+
+1. **Stale `DATABASE_URL`** — The managed database was **deleted, restored, or recreated**, so DigitalOcean issued a **new** hostname. An old connection string was left in the **api** component env vars.
+2. **Manual override** — Someone pasted a full `postgresql://…` URL from an old cluster instead of using the app-linked value **`${db.DATABASE_URL}`** (see `app.yaml`).
+3. **Database not attached** — The App Platform **database** resource named in the spec (e.g. `db`) was removed; the env reference no longer resolves to a live cluster.
+
+**What to do:**
+
+1. In **DigitalOcean** → **Databases**, open the Postgres cluster your app should use (or create one in the same region as the app).
+2. Copy the **current** connection string (**Connection details** → URI, usually port `25060`, `sslmode=require`).
+3. In **Apps** → your app → **api** component → **Environment Variables**:
+   - Either set **`DATABASE_URL`** to **`${db.DATABASE_URL}`** and ensure a **database** is **linked** to the app (same name as in the spec, e.g. `db`), **or**
+   - Paste the **new** URI as `DATABASE_URL` (encrypted), then **redeploy** the **api** component.
+4. Confirm **`/api/health`** returns JSON with `"db":"connected"` (not `"disconnected"`).
+
+**Do not** reuse hostnames from old screenshots or docs; always copy from the **current** cluster **Connection details**.
+
+---
+
 ## 5. Copy-paste env blocks
 
 See **`docs/ENV-VARIABLES.md`** and **`docs/do-api-env-paste.env`** for ready-to-paste values. Use **Add from .env** in the DO dashboard for the API component so all keys appear at once.
@@ -127,7 +154,7 @@ See **`docs/ENV-VARIABLES.md`** and **`docs/do-api-env-paste.env`** for ready-to
 | Step | Action |
 |------|--------|
 | 1 | App spec has **ingress** with `/api` → **api** and `/` → **web**. |
-| 2 | **api** component: set `SESSION_SECRET`, `FRONTEND_URL`, `APP_URL`, and DB linked. |
+| 2 | **api** component: set `SESSION_SECRET`, `FRONTEND_URL`, `APP_URL`, and **DB linked** (`DATABASE_URL` = `${db.DATABASE_URL}` or a **current** cluster URI). |
 | 3 | **web** component: set `VITE_API_URL` to app URL, then **rebuild** web. |
 | 4 | Redeploy the whole app after changing the spec or ingress. |
 | 5 | In the app, use **Check API** in the Activity panel to confirm the API is reachable. |

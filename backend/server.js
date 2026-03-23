@@ -31,6 +31,18 @@ function stripSslModeFromUrl(url) {
 }
 
 const connectionString = stripSslModeFromUrl(process.env.DATABASE_URL);
+
+/** Host from DATABASE_URL for logs only (no password). */
+function dbHostForLog() {
+  try {
+    const s = process.env.DATABASE_URL || '';
+    const m = s.match(/@([^:/?]+)(?::\d+)?(?:\/|\?|$)/);
+    return m ? m[1] : '';
+  } catch {
+    return '';
+  }
+}
+
 const poolConfig = { connectionString };
 if (!isLocalDb && dbUrl.trim()) {
   poolConfig.ssl = { rejectUnauthorized: false };
@@ -278,6 +290,15 @@ if (process.env.SERVE_STATIC === 'true' && fs.existsSync(staticDir)) {
 // ── Global error handler (catches passport and other errors that would silently 404) ─
 app.use((err, req, res, _next) => {
   console.error('Express error:', err);
+  const msg = err && err.message ? String(err.message) : '';
+  if (err.code === 'ENOTFOUND' || msg.includes('getaddrinfo ENOTFOUND')) {
+    const h = dbHostForLog();
+    console.error(
+      `[Database] DNS failed for host${h ? ` "${h}"` : ''}. ` +
+        'Update DATABASE_URL to a current connection string, or relink the DB in DigitalOcean App Platform. ' +
+        'See docs/DEPLOY-DIGITALOCEAN.md (section: Login / ENOTFOUND).'
+    );
+  }
   res.status(err.status || 500).json({
     error: err.message || 'Internal server error',
     path: req.originalUrl,

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { get } from '../api/meridian';
 import { AuthPage } from '../pages/AuthPage';
 import { Dashboard } from '../pages/Dashboard';
+import { AccessDeniedPage } from '../pages/AccessDeniedPage';
 import { toast } from 'sonner';
 
 type AuthUser = {
@@ -13,14 +14,31 @@ type AuthUser = {
   saml_attributes?: Record<string, string[]>;
 } | null;
 
+type MeResponse = {
+  user: AuthUser;
+  app_access?: 'granted' | 'denied';
+  access_denied_message?: string;
+};
+
 export function AuthGate() {
   const [user, setUser] = useState<AuthUser>(null);
   const [loading, setLoading] = useState(true);
+  const [accessDeniedMessage, setAccessDeniedMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    get<{ user: AuthUser }>('/api/auth/me')
-      .then((data) => setUser(data.user ?? null))
-      .catch(() => setUser(null))
+    get<MeResponse>('/api/auth/me')
+      .then((data) => {
+        setUser(data.user ?? null);
+        if (data.app_access === 'denied' && data.access_denied_message) {
+          setAccessDeniedMessage(data.access_denied_message);
+        } else {
+          setAccessDeniedMessage(null);
+        }
+      })
+      .catch(() => {
+        setUser(null);
+        setAccessDeniedMessage(null);
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -42,8 +60,15 @@ export function AuthGate() {
     } else if (params.get('auth') === 'ok') {
       window.history.replaceState({}, '', window.location.pathname);
       // Refetch user so we pick up the session set by the Okta callback
-      get<{ user: AuthUser }>('/api/auth/me')
-        .then((data) => setUser(data.user ?? null))
+      get<MeResponse>('/api/auth/me')
+        .then((data) => {
+          setUser(data.user ?? null);
+          if (data.app_access === 'denied' && data.access_denied_message) {
+            setAccessDeniedMessage(data.access_denied_message);
+          } else {
+            setAccessDeniedMessage(null);
+          }
+        })
         .catch(() => setUser(null));
     }
   }, []);
@@ -61,6 +86,19 @@ export function AuthGate() {
 
   if (!user) {
     return <AuthPage onSuccess={setUser} />;
+  }
+
+  if (accessDeniedMessage) {
+    return (
+      <AccessDeniedPage
+        message={accessDeniedMessage}
+        userEmail={user.email}
+        onLogout={() => {
+          setUser(null);
+          setAccessDeniedMessage(null);
+        }}
+      />
+    );
   }
 
   return (

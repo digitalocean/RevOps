@@ -165,8 +165,8 @@ Use **Okta groups** and send them in the SAML assertion as attribute **`groups`*
 |------------|--------------------------------------|--------|
 | **ToDo-SuperAdmins** | `superadmin` | Full system access (workspaces, settings, audit, etc.) — *enforce in API when you add RBAC* |
 | **ToDo-Admins** | `workspace_admin` | Workspace-level admin |
-| **ToDo-ProjectManagers** | `project_manager` | Projects / tasks / sprints / crew within scope |
-| **ToDo-Members** | `member` | Standard contributor |
+| **ToDo-ProjectManagers** | `member` | **Same as ToDo-Members** at app login tier — differentiate with **project Share** roles. |
+| **ToDo-Members** | `member` | Same app tier as Project Managers |
 | **ToDo-Viewers** | `viewer` | Read-only |
 
 **Backend behavior (`backend/lib/saml-claims.js`):** If the user is in **one or more** of these groups, the app sets `users.global_role` to the **highest-privilege** matching group (order above), not the first group in the assertion. That avoids wrong roles when people also have broad groups like `Everyone` or `All`.

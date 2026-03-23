@@ -54,7 +54,8 @@ function firstMatchingAttribute(profile, claimNames) {
 const DEFAULT_TODO_OKTA_GROUP_PRIORITY = [
   { group: 'ToDo-SuperAdmins', role: 'superadmin' },
   { group: 'ToDo-Admins', role: 'workspace_admin' },
-  { group: 'ToDo-ProjectManagers', role: 'project_manager' },
+  // Same app-tier access as ToDo-Members; use per-project Share roles to differ PM vs contributor.
+  { group: 'ToDo-ProjectManagers', role: 'member' },
   { group: 'ToDo-Members', role: 'member' },
   { group: 'ToDo-Viewers', role: 'viewer' },
 ];

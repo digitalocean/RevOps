@@ -64,8 +64,8 @@ Okta should send **group membership** in the SAML assertion (commonly attribute 
 |------------|--------------------------|---------------------|
 | **ToDo-SuperAdmins** | `superadmin` | Full system access: create/delete workspaces, all projects, tasks, crew, analytics, audit, app settings. |
 | **ToDo-Admins** | `workspace_admin` | Workspace-level admin: full CRUD on projects, tasks, sprints, crew **in their workspaces**; analytics + audit; **no** app-wide settings. |
-| **ToDo-ProjectManagers** | `project_manager` | Create/manage projects, tasks, sprints, crew **within their projects**; project analytics; **no** workspaces or audit logs. |
-| **ToDo-Members** | `member` | Standard contributor: create/edit **their** tasks, time, comments; **no** creating projects, managing sprints, or adding crew. |
+| **ToDo-ProjectManagers** | `member` | **Same app access as ToDo-Members** (`global_role` = `member`). Use **project Share** roles (admin/editor/…) to grant extra powers on specific projects. |
+| **ToDo-Members** | `member` | Same as above — shared Okta tier; per-project access still comes from workspace + **Share**. |
 | **ToDo-Viewers** | `viewer` | Read-only: view projects, tasks, analytics; **no** create/edit. |
 
 ### Variables to add (API / backend)
@@ -94,7 +94,7 @@ Use your real app URL where needed. For **`SAML_TODO_GROUP_PRIORITY_JSON`**, use
 SAML_REQUIRE_TODO_GROUP=true
 
 # Optional: omit entirely to use built-in defaults (same as this JSON)
-SAML_TODO_GROUP_PRIORITY_JSON=[{"group":"ToDo-SuperAdmins","role":"superadmin"},{"group":"ToDo-Admins","role":"workspace_admin"},{"group":"ToDo-ProjectManagers","role":"project_manager"},{"group":"ToDo-Members","role":"member"},{"group":"ToDo-Viewers","role":"viewer"}]
+SAML_TODO_GROUP_PRIORITY_JSON=[{"group":"ToDo-SuperAdmins","role":"superadmin"},{"group":"ToDo-Admins","role":"workspace_admin"},{"group":"ToDo-ProjectManagers","role":"member"},{"group":"ToDo-Members","role":"member"},{"group":"ToDo-Viewers","role":"viewer"}]
 
 # Optional: only if your IdP uses extra claim names for groups
 # SAML_GROUP_CLAIM_KEYS=groups

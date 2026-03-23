@@ -54,6 +54,60 @@ NODE_TLS_REJECT_UNAUTHORIZED=0
 
 ---
 
+## Okta groups → app roles (all configurable API variables)
+
+Okta should send **group membership** in the SAML assertion (commonly attribute name **`groups`**). The API maps **Okta group name → internal `global_role` slug** (highest privilege wins). **RBAC in routes/UI is still evolving**; today these slugs are stored and returned on `GET /api/auth/me`.
+
+### Recommended Okta groups and meaning
+
+| Okta group | App role (`global_role`) | Intended capability |
+|------------|--------------------------|---------------------|
+| **ToDo-SuperAdmins** | `superadmin` | Full system access: create/delete workspaces, all projects, tasks, crew, analytics, audit, app settings. |
+| **ToDo-Admins** | `workspace_admin` | Workspace-level admin: full CRUD on projects, tasks, sprints, crew **in their workspaces**; analytics + audit; **no** app-wide settings. |
+| **ToDo-ProjectManagers** | `project_manager` | Create/manage projects, tasks, sprints, crew **within their projects**; project analytics; **no** workspaces or audit logs. |
+| **ToDo-Members** | `member` | Standard contributor: create/edit **their** tasks, time, comments; **no** creating projects, managing sprints, or adding crew. |
+| **ToDo-Viewers** | `viewer` | Read-only: view projects, tasks, analytics; **no** create/edit. |
+
+### Variables to add (API / backend)
+
+| Variable | Required? | Description |
+|----------|-------------|-------------|
+| **`SAML_REQUIRE_TODO_GROUP`** | **Recommended `true` in prod** | If `true`, users **without** a matching Okta group get **no app UI** (IT / request-access message). If unset/false, legacy role mapping can still apply. |
+| **`SAML_TODO_GROUP_PRIORITY_JSON`** | Optional | JSON array, **highest privilege first**. Each entry: `{ "group": "<Okta group name>", "role": "<slug>" }`. **If omitted**, the table above is the built-in default (same names and slugs). **Set this** if you rename Okta groups or role slugs. |
+| **`SAML_GROUP_CLAIM_KEYS`** | Optional | Comma-separated **extra** SAML attribute names to scan for group strings (merged with defaults: `groups`, `Groups`, `group`, `Group`, etc.). Use if Okta uses a custom claim name. |
+| **`SAML_ACCESS_DENIED_MESSAGE`** | Optional | Full text shown when access is denied (IT ticket / request access). Default is a generic “contact IT” message. |
+| **`SAML_ALLOW_LOCAL_PASSWORD_USERS`** | Optional | Default **`true`**: users with a **database password** can sign in without a ToDo group (dev / break-glass). Set **`false`** to require a group for everyone. |
+| **`SAML_TODO_ROLES_DISABLED`** | Optional | **`true`** = do **not** use ToDo group mapping; use legacy **`SAML_ROLE_MAP_JSON`** / attribute logic instead. Rare; conflicts with the ToDo group model if you rely on `SAML_REQUIRE_TODO_GROUP`. |
+| **`SAML_ROLE_ATTRIBUTE_NAMES`** | Optional (legacy) | Only used when **`SAML_REQUIRE_TODO_GROUP`** is **not** `true`. Comma-separated attribute names for old Role/Groups string mapping. |
+| **`SAML_ROLE_MAP_JSON`** | Optional (legacy) | Only used when **`SAML_REQUIRE_TODO_GROUP`** is **not** `true`. JSON map from IdP string → app role. |
+
+**SAML sign-in (still required for SSO):** `SAML_IDP_METADATA_URL` (or file/XML), `SAML_SP_ENTITY_ID`, `SAML_APP_BASE_URL` — see the main block above.
+
+**Optional debugging:** `SAML_LOG_LOGIN=true`, `SAML_DEBUG_ATTRIBUTES_ENDPOINT=true`, `SAML_EXPOSE_ATTRIBUTES_IN_ME=true` — see `docs/OIDC-TO-SAML-PROCESS.md`.
+
+### Copy-paste: production-style values (DigitalOcean / `.env`)
+
+Use your real app URL where needed. For **`SAML_TODO_GROUP_PRIORITY_JSON`**, use a **single line** in the dashboard (no line breaks).
+
+```env
+# Gate: no matching ToDo group → request-access screen only
+SAML_REQUIRE_TODO_GROUP=true
+
+# Optional: omit entirely to use built-in defaults (same as this JSON)
+SAML_TODO_GROUP_PRIORITY_JSON=[{"group":"ToDo-SuperAdmins","role":"superadmin"},{"group":"ToDo-Admins","role":"workspace_admin"},{"group":"ToDo-ProjectManagers","role":"project_manager"},{"group":"ToDo-Members","role":"member"},{"group":"ToDo-Viewers","role":"viewer"}]
+
+# Optional: only if your IdP uses extra claim names for groups
+# SAML_GROUP_CLAIM_KEYS=groups
+
+# Optional: custom message for users without access
+# SAML_ACCESS_DENIED_MESSAGE=You do not have access to the To-Do app. Open an IT ticket to request membership in ToDo-Members, ToDo-Viewers, or another ToDo-* group.
+
+# Optional: set to false if no local/password users should bypass the group check
+# SAML_ALLOW_LOCAL_PASSWORD_USERS=false
+```
+
+---
+
 ## Web (frontend) — build-time only
 
 Single variable. Rebuild the web app after setting it.

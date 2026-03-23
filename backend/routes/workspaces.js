@@ -10,7 +10,7 @@ router.get('/', async (req, res) => {
     if (allowedIds.length === 0) return res.json([]);
     const placeholders = allowedIds.map((_, i) => `$${i + 1}`).join(',');
     const { rows } = await pool.query({
-      name: 'workspaces_list',
+      name: `workspaces_list_n${allowedIds.length}`,
       text: `SELECT * FROM workspaces WHERE id IN (${placeholders}) ORDER BY name ASC`,
       values: allowedIds,
     });

@@ -41,8 +41,9 @@ async function getAccessibleProjectIds(pool, userId) {
   const projectIdsFromWorkspace = [];
   if (workspaceIds.length > 0) {
     const placeholders = workspaceIds.map((_, i) => `$${i + 1}`).join(',');
+    // Statement name must vary with IN (...) length — pg caches prepared statements by name per connection.
     const { rows } = await pool.query({
-      name: 'access_projects_by_workspace',
+      name: `access_projects_by_workspace_n${workspaceIds.length}`,
       text: `SELECT id FROM projects WHERE workspace_id IN (${placeholders}) AND (is_personal = false OR created_by = $${workspaceIds.length + 1})`,
       values: [...workspaceIds, userId],
     });

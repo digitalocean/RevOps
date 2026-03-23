@@ -217,8 +217,11 @@ router.post('/:id/members', async (req, res) => {
     });
     if (!proj.rows.length) return res.status(404).json({ error: 'Project not found' });
     const workspaceId = proj.rows[0].workspace_id;
+    // Workspace members may invite; project Admins/Moderators/Editors may too (shared-only admins are not always workspace crew).
     const allowedWorkspaceIds = await getAccessibleWorkspaceIds(pool, userId);
-    if (!allowedWorkspaceIds.some(id => String(id) === String(workspaceId))) {
+    const inWorkspace = allowedWorkspaceIds.some((id) => String(id) === String(workspaceId));
+    const canInviteToProject = await canManageProject(pool, userId, projectId);
+    if (!inWorkspace && !canInviteToProject) {
       return res.status(403).json({ error: 'Access denied' });
     }
     const emailNorm = String(email).trim().toLowerCase();

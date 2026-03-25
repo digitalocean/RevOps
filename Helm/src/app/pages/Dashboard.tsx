@@ -22,7 +22,7 @@ import { NewProjectDialog } from '../components/NewProjectDialog';
 import { NewSprintDialog } from '../components/NewSprintDialog';
 import { AnalyticsView } from '../components/AnalyticsView';
 import { SummitBoardKanban } from '../components/SummitBoardKanban';
-import { FilterSlidePanel, type FilterRow } from '../components/FilterSlidePanel';
+import { TaskFiltersModal } from '../components/TaskFiltersModal';
 import { FieldNotesView } from '../components/FieldNotesView';
 import { PersonalTasksView } from '../components/PersonalTasksView';
 import { ColumnsPopover, saveVisibleColumns, loadVisibleColumns, loadColumnOrder, saveColumnOrder } from '../components/ColumnsPopover';
@@ -38,11 +38,20 @@ import { DueBanner } from '../components/DueBanner';
 import { PomodoroTimer } from '../components/PomodoroTimer';
 import { Button } from '../components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../components/ui/tooltip';
-import { HelpCircle, ChevronUp, Filter, Share2, Sparkles, AlertCircle, FileSpreadsheet } from 'lucide-react';
+import { HelpCircle, ChevronUp, Filter, ListFilter, Share2, Sparkles, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { useMeridianData } from '../data/useMeridianData';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useKeyboardNav } from '../hooks/useKeyboardNav';
 import type { Status, Priority, Category, Initiative } from '../data/mockData';
+import {
+  emptyTaskListFilters,
+  loadTaskFiltersFromStorage,
+  saveTaskFiltersToStorage,
+  activeFilterCount,
+  describeActiveFilters,
+  filterInitiativesByTaskFilters,
+  type TaskListFilters,
+} from '../lib/taskFilterUtils';
 import { get, post, patch } from '../api/meridian';
 
 const VIEW_TABS: { id: NavView; label: string }[] = [
@@ -114,16 +123,9 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [celebrateCount, setCelebrateCount] = useState(0);
-  const [filters, setFilters] = useState({
-    status: [] as Status[],
-    priority: [] as Priority[],
-    category: [] as Category[],
-    owner: [] as string[],
-    bigRocksOnly: false
-  });
-  const [showFilterSlide, setShowFilterSlide] = useState(false);
-  const [filterRows, setFilterRows] = useState<FilterRow[]>([]);
-  const [filterAndOr, setFilterAndOr] = useState<'AND' | 'OR'>('AND');
+  const [filters, setFilters] = useState<TaskListFilters>(() => emptyTaskListFilters());
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const filtersHydratedRef = useRef(false);
   const [selectedInitiativeFromSearch, setSelectedInitiativeFromSearch] = useState<Initiative | null>(null);
   const [internalUser, setInternalUser] = useState<AuthUser>(null);
   const [showAuthDialog, setShowAuthDialog] = useState(false);
@@ -200,6 +202,17 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
       return true;
     });
   }, [standardFields]);
+
+  const filterCategoryLabels = useMemo((): Category[] => {
+    const fromStd = categoryOptions?.map((o) => o.label) ?? [];
+    if (fromStd.length > 0) return fromStd as Category[];
+    return ['Engineering', 'Design', 'Sales', 'Product', 'Operations'] as Category[];
+  }, [categoryOptions]);
+
+  const filteredInitiativesForBoard = useMemo(
+    () => filterInitiativesByTaskFilters(initiatives, filters),
+    [initiatives, filters]
+  );
 
   const BUILT_IN_STANDARD_FIELD_KEYS = useMemo(
     () => new Set(['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate', 'topic']),
@@ -320,30 +333,22 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     }
   };
 
-  // Restore filters from localStorage when project changes
+  // Restore task filters when project changes (v2 storage + legacy migration)
   useEffect(() => {
-    if (!selectedProjectId) return;
-    try {
-      const saved = localStorage.getItem(`filters_${selectedProjectId}`);
-      if (saved) {
-        const { rows, andOr } = JSON.parse(saved);
-        if (Array.isArray(rows)) {
-          setFilterRows(rows);
-          if (andOr === 'AND' || andOr === 'OR') setFilterAndOr(andOr);
-          // Apply the restored filters immediately
-          const derived = rows.reduce((acc: typeof filters, r: { field: string; operator: string; value: string }) => {
-            if (r.operator !== 'is') return acc;
-            if (r.field === 'Status' && r.value) acc.status = [...acc.status, r.value as typeof filters.status[0]];
-            if (r.field === 'Priority' && r.value) acc.priority = [...acc.priority, r.value as typeof filters.priority[0]];
-            if (r.field === 'Category' && r.value) acc.category = [...acc.category, r.value as typeof filters.category[0]];
-            if (r.field === 'Owner' && r.value) acc.owner = [...acc.owner, r.value];
-            return acc;
-          }, { status: [], priority: [], category: [], owner: [], bigRocksOnly: false });
-          setFilters(derived);
-        }
-      }
-    } catch { /* ignore */ }
+    if (!selectedProjectId) {
+      filtersHydratedRef.current = false;
+      return;
+    }
+    const loaded = loadTaskFiltersFromStorage(selectedProjectId);
+    setFilters(loaded ?? emptyTaskListFilters());
+    filtersHydratedRef.current = true;
   }, [selectedProjectId]);
+
+  // Persist filters when they change (after initial hydrate for this project)
+  useEffect(() => {
+    if (!selectedProjectId || !filtersHydratedRef.current) return;
+    saveTaskFiltersToStorage(selectedProjectId, filters);
+  }, [selectedProjectId, filters]);
 
   // Load saved column selection and column order when project or user changes
   useEffect(() => {
@@ -739,12 +744,12 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               <div className="flex items-center gap-2">
                 {(currentView === 'summit_board' || currentView === 'manifest') && (
                   <>
-                    <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowFilterSlide(true)}>
+                    <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowFilterModal(true)}>
                       <Filter className="w-4 h-4" />
                       Filter
-                      {filterRows.length > 0 && (
-                        <span className="rounded-full bg-[var(--accent)] bg-opacity-20 text-[var(--accent)] px-1.5 py-0.5 text-xs font-medium">
-                          {filterRows.length}
+                      {activeFilterCount(filters) > 0 && (
+                        <span className="rounded-full bg-indigo-100 text-indigo-700 px-1.5 py-0.5 text-xs font-semibold tabular-nums">
+                          {activeFilterCount(filters)}
                         </span>
                       )}
                     </Button>
@@ -804,6 +809,61 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 )}
               </div>
             </div>
+
+            {(currentView === 'summit_board' || currentView === 'manifest') && activeFilterCount(filters) > 0 && selectedProjectId && (
+              <div className="mb-4 rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50/95 to-white px-4 py-3 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm">
+                      <ListFilter className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">Filters are applied</p>
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        List and board show matching tasks only.{' '}
+                        <span className="font-medium text-indigo-800 tabular-nums">
+                          {filteredInitiativesForBoard.length} of {initiatives.length} tasks
+                        </span>{' '}
+                        match.
+                      </p>
+                      <ul className="mt-2 flex flex-wrap gap-1.5">
+                        {describeActiveFilters(filters).map((line) => (
+                          <li
+                            key={line}
+                            className="inline-flex items-center rounded-full bg-white border border-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-950 shadow-sm"
+                          >
+                            {line}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2 shrink-0 sm:pt-0.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg bg-white border-indigo-200 text-indigo-900 hover:bg-indigo-50"
+                      onClick={() => setShowFilterModal(true)}
+                    >
+                      Edit filters
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-lg text-indigo-800 hover:bg-indigo-100/80"
+                      onClick={() => {
+                        setFilters(emptyTaskListFilters());
+                        toast.success('Filters cleared');
+                      }}
+                    >
+                      Clear all
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {currentView === 'observatory' ? (
               <AnalyticsView projectId={selectedProjectId} />
@@ -874,7 +934,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
               />
             ) : currentView === 'summit_board' ? (
               <SummitBoardKanban
-                initiatives={initiatives}
+                initiatives={filteredInitiativesForBoard}
                 crew={crew}
                 currentUser={currentUser ? { id: currentUser.id, name: currentUser.name || currentUser.email || 'User' } : null}
                 onUpdateStatus={async (id, status) => updateItem(id, { status })}
@@ -1126,20 +1186,18 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         onShared={refresh}
       />
 
-      <FilterSlidePanel
-        open={showFilterSlide}
-        onClose={() => setShowFilterSlide(false)}
-        filterRows={filterRows}
-        onFilterRowsChange={setFilterRows}
-        filterAndOr={filterAndOr}
-        onFilterAndOrChange={setFilterAndOr}
-        onApply={(derived) => { setFilters(derived); setShowFilterSlide(false); }}
-        onSaveAsView={() => { toast.info('Apply filters then use Saved Views to save.'); setShowFilterSlide(false); }}
+      <TaskFiltersModal
+        open={showFilterModal}
+        onOpenChange={setShowFilterModal}
+        value={filters}
+        onApply={(next) => {
+          setFilters(next);
+          toast.success(activeFilterCount(next) === 0 ? 'Filters cleared' : 'Filters applied');
+        }}
         statusOptions={(statusOptions?.map((o) => o.label) ?? ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete']) as Status[]}
         priorityOptions={(priorityOptions?.map((o) => o.label) ?? ['P0', 'P1', 'P2']) as Priority[]}
-        categoryOptions={['Engineering', 'Design', 'Sales', 'Product', 'Operations'] as Category[]}
-        ownerOptions={crew.map((c) => c.name)}
-        projectId={selectedProjectId}
+        categoryOptions={filterCategoryLabels}
+        ownerOptions={crew.map((c) => c.name).filter(Boolean)}
       />
 
       <AuthDialog

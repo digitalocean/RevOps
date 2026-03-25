@@ -40,6 +40,8 @@ import { AssigneeLookup } from './AssigneeLookup';
 import { SmartLinkChip, parseLinkableUrl } from './SmartLinkChip';
 import { localDateInputToIso } from '../lib/dateFormat';
 import type { Initiative, Priority, Status, Category, TrackerSection as TrackerSectionType } from '../data/mockData';
+import type { TaskListFilters } from '../lib/taskFilterUtils';
+import { filterInitiativesByTaskFilters } from '../lib/taskFilterUtils';
 
 const DEFAULT_STATUS_OPTIONS: Status[] = ['Not Started', 'On Track', 'At Risk', 'In Review', 'Blocked', 'Complete'];
 const DEFAULT_PRIORITY_OPTIONS: Priority[] = ['P0', 'P1', 'P2'];
@@ -72,13 +74,7 @@ interface CustomFieldDef {
 interface TrackerSectionProps {
   section: TrackerSectionType;
   viewMode: 'grid' | 'gantt';
-  filters: {
-    status: Status[];
-    priority: Priority[];
-    category: Category[];
-    owner: string[];
-    bigRocksOnly: boolean;
-  };
+  filters: TaskListFilters;
   selectedIds: string[];
   onSelectionChange: (ids: string[]) => void;
   projectId: string | null;
@@ -1147,14 +1143,7 @@ export function TrackerSection({
 
   if (viewMode === 'gantt') return null;
 
-  const filteredInitiatives = section.initiatives.filter((initiative) => {
-    if (filters.status.length > 0 && !filters.status.includes(initiative.status)) return false;
-    if (filters.priority.length > 0 && !filters.priority.includes(initiative.priority)) return false;
-    if (filters.category.length > 0 && !filters.category.includes(initiative.category)) return false;
-    if (filters.owner.length > 0 && !filters.owner.includes(initiative.owner)) return false;
-    if (filters.bigRocksOnly && !initiative.isBigRock) return false;
-    return true;
-  });
+  const filteredInitiatives = filterInitiativesByTaskFilters(section.initiatives, filters);
 
   const handleToggleSelect = (id: string) => {
     if (selectedIds.includes(id)) onSelectionChange(selectedIds.filter((s) => s !== id));

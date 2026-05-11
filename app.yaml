@@ -75,7 +75,7 @@ services:
         scope: RUN_TIME
     github:
       deploy_on_push: true
-      repo: digitalocean/RevOps
+      repo: praneethaitharaju/RevOps
       branch: helm-deploy
     http_port: 8080
     instance_count: 1
@@ -96,7 +96,7 @@ static_sites:
         scope: BUILD_TIME
     github:
       deploy_on_push: true
-      repo: digitalocean/RevOps
+      repo: praneethaitharaju/RevOps
       branch: helm-deploy
     output_dir: dist
     source_dir: /Helm

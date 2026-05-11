@@ -4,7 +4,7 @@
 
 1. **Clone the repo** (if you’re on a new machine):
    ```bash
-   git clone https://github.com/digitalocean/RevOps.git
+   git clone https://github.com/praneethaitharaju/RevOps.git
    cd RevOps
    ```
 

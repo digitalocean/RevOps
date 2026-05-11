@@ -1,17 +1,63 @@
 /**
  * User-based access: which workspaces and projects the current user can see.
- * Once signed in, users see only their data and what has been shared with them.
  *
- * - Workspaces: user owns (owner_id) OR is a crew member (crew.user_id).
- * - Projects: in an accessible workspace; personal projects only if created_by = user.
- *   So: "their projects" = owned/member workspaces; "shared" = non-personal projects in those workspaces.
+ *   Project RBAC (strict):
+ *     • Projects in workspaces the user OWNS → full access.
+ *     • Projects explicitly in `project_members` for the user (via crew.user_id
+ *       or email match) → access to that project only.
+ *     • A bare crew row in a workspace does NOT grant access to sibling
+ *       projects. Inviting someone to one project should not expose others.
+ *
+ *   Workspace authority:
+ *     • `getAccessibleWorkspaceIds` → owned workspaces only (admin actions:
+ *       create project, manage crew, edit workspace).
+ *     • `getVisibleWorkspaceIds` → owned + workspaces containing a shared
+ *       project (used by UI endpoints: workspace switcher, crew dropdowns).
  */
 
+/**
+ * Workspaces the user has *admin-level* authority over (create projects, manage
+ * crew, rename workspace). Restricted to workspace owners.
+ *
+ * Use `getVisibleWorkspaceIds` for UI-level "workspaces I should see in the
+ * switcher" — that broader set also includes workspaces that merely *contain*
+ * a project shared with me.
+ */
 async function getAccessibleWorkspaceIds(pool, userId) {
   if (!userId) return [];
   const { rows } = await pool.query({
-    name: 'access_workspace_ids',
-    text: `SELECT id FROM workspaces WHERE owner_id = $1 UNION SELECT workspace_id AS id FROM crew WHERE user_id = $1`,
+    name: 'access_owned_workspace_ids',
+    text: `SELECT id FROM workspaces WHERE owner_id = $1`,
+    values: [userId],
+  });
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Workspaces the user should see in read-only contexts: owned workspaces PLUS
+ * workspaces that contain at least one project shared with the user (so the
+ * workspace switcher can show them).
+ */
+async function getVisibleWorkspaceIds(pool, userId) {
+  if (!userId) return [];
+  const { rows } = await pool.query({
+    name: 'access_visible_workspace_ids',
+    text: `SELECT id FROM workspaces WHERE owner_id = $1
+           UNION
+           SELECT DISTINCT p.workspace_id AS id
+           FROM projects p
+           INNER JOIN project_members pm ON pm.project_id = p.id
+           INNER JOIN crew c ON c.id = pm.crew_id
+           WHERE (c.active = true OR c.active IS NULL)
+             AND (
+               c.user_id = $1
+               OR (
+                 c.user_id IS NULL
+                 AND c.email IS NOT NULL
+                 AND EXISTS (SELECT 1 FROM users u WHERE u.id = $1 AND LOWER(TRIM(u.email)) = LOWER(TRIM(c.email)))
+               )
+             )
+             AND p.workspace_id IS NOT NULL`,
     values: [userId],
   });
   return rows.map((r) => r.id);
@@ -35,21 +81,31 @@ async function getOrCreateDefaultWorkspaceId(pool, userId) {
   return inserted[0]?.id ?? null;
 }
 
+/**
+ * Projects the user may see / read. Two sources ONLY:
+ *   1. Projects in workspaces the user *owns* (workspaces.owner_id = user).
+ *      Personal projects in owned workspaces are only visible to their creator.
+ *   2. Projects explicitly shared with the user via project_members — matched
+ *      either by crew.user_id or (pre-link) by email equality with users.email.
+ *
+ * NOTE: a mere crew row in a workspace is NOT enough to grant workspace-wide
+ * project visibility. That would leak sibling projects to anyone invited to a
+ * single project in that workspace (see RBAC bug: sharing one project should
+ * not expose every other project in the same workspace).
+ */
 async function getAccessibleProjectIds(pool, userId) {
   if (!userId) return [];
-  const workspaceIds = await getAccessibleWorkspaceIds(pool, userId);
-  const projectIdsFromWorkspace = [];
-  if (workspaceIds.length > 0) {
-    const placeholders = workspaceIds.map((_, i) => `$${i + 1}`).join(',');
-    // Statement name must vary with IN (...) length — pg caches prepared statements by name per connection.
-    const { rows } = await pool.query({
-      name: `access_projects_by_workspace_n${workspaceIds.length}`,
-      text: `SELECT id FROM projects WHERE workspace_id IN (${placeholders}) AND (is_personal = false OR created_by = $${workspaceIds.length + 1})`,
-      values: [...workspaceIds, userId],
-    });
-    projectIdsFromWorkspace.push(...rows.map((r) => r.id));
-  }
-  // Shared projects: crew.user_id matches OR crew was invited by email before SSO linked (same email as users row).
+
+  const { rows: ownedRows } = await pool.query({
+    name: 'access_projects_in_owned_workspaces',
+    text: `SELECT p.id FROM projects p
+           INNER JOIN workspaces w ON w.id = p.workspace_id
+           WHERE w.owner_id = $1
+             AND (p.is_personal = false OR p.created_by = $1)`,
+    values: [userId],
+  });
+  const ownedProjectIds = ownedRows.map((r) => r.id);
+
   const { rows: sharedRows } = await pool.query({
     name: 'access_projects_shared',
     text: `SELECT DISTINCT pm.project_id AS id
@@ -70,7 +126,8 @@ async function getAccessibleProjectIds(pool, userId) {
     values: [userId],
   });
   const sharedIds = sharedRows.map((r) => r.id);
-  const combined = [...new Set([...projectIdsFromWorkspace.map(String), ...sharedIds.map(String)])];
+
+  const combined = [...new Set([...ownedProjectIds.map(String), ...sharedIds.map(String)])];
   return combined;
 }
 
@@ -229,6 +286,7 @@ async function getUserGlobalRole(pool, userId) {
 
 module.exports = {
   getAccessibleWorkspaceIds,
+  getVisibleWorkspaceIds,
   getAccessibleProjectIds,
   getOrCreateDefaultWorkspaceId,
   canManageProject,

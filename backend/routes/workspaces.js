@@ -1,18 +1,19 @@
 const router = require('express').Router();
 const { pool } = require('../server');
-const { getAccessibleWorkspaceIds, requireUser } = require('../lib/access');
+const { getAccessibleWorkspaceIds, getVisibleWorkspaceIds, requireUser } = require('../lib/access');
 
 router.get('/', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const allowedIds = await getAccessibleWorkspaceIds(pool, userId);
-    if (allowedIds.length === 0) return res.json([]);
-    const placeholders = allowedIds.map((_, i) => `$${i + 1}`).join(',');
+    // Visible set = owned + workspaces containing shared projects (for the switcher).
+    const visibleIds = await getVisibleWorkspaceIds(pool, userId);
+    if (visibleIds.length === 0) return res.json([]);
+    const placeholders = visibleIds.map((_, i) => `$${i + 1}`).join(',');
     const { rows } = await pool.query({
-      name: `workspaces_list_n${allowedIds.length}`,
+      name: `workspaces_list_n${visibleIds.length}`,
       text: `SELECT * FROM workspaces WHERE id IN (${placeholders}) ORDER BY name ASC`,
-      values: allowedIds,
+      values: visibleIds,
     });
     res.json(rows);
   } catch (e) {

@@ -32,6 +32,7 @@ import { ShareProjectDialog } from '../components/ShareProjectDialog';
 import { CompletionCelebration } from '../components/CompletionCelebration';
 import { AuthDialog } from '../components/AuthDialog';
 import { MyTasksView } from '../components/MyTasksView';
+import { ReportsView } from '../components/ReportsView';
 import { ProjectTemplatesDialog } from '../components/ProjectTemplatesDialog';
 import { EmptyProjectState } from '../components/EmptyProjectState';
 import { DueBanner } from '../components/DueBanner';
@@ -95,6 +96,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
     deleteItem,
     deleteSection,
     deleteProject,
+    duplicateProject,
     updateSection,
     reorderSections,
     crew,
@@ -661,6 +663,14 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           onSelectProject={(id) => setSelectedProjectId(id)}
           onOpenNewProject={() => setShowNewProject(true)}
           onDeleteProject={deleteProject}
+          onDuplicateProject={async (id, name) => {
+            try {
+              const created = await duplicateProject(id, name ? { name } : undefined);
+              if (created) toast.success(`Duplicated to "${created.name}"`);
+            } catch (err) {
+              toast.error(err instanceof Error ? err.message : 'Duplicate failed');
+            }
+          }}
           onToggleActivity={() => setShowActivityPanel(!showActivityPanel)}
           selectedProjectName={selectedProject?.name}
           sprintLabel={selectedSprint ? `${selectedSprint.start_date || ''} – ${selectedSprint.end_date || ''}` : undefined}
@@ -677,64 +687,90 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
           initiatives={initiatives}
           onOpenTask={(task) => setDrawerInitiative(task)}
         />
-        <div className="flex-1 flex overflow-hidden bg-gray-50 min-w-0">
+        <div className="flex-1 flex overflow-hidden min-w-0">
           <div className="flex-1 overflow-auto min-w-0">
           <div className="max-w-[1600px] mx-auto p-6">
             {projects.length === 0 && (
               <div className="flex flex-col items-center justify-center py-24 text-center">
-                <div className="w-16 h-16 rounded-2xl bg-indigo-100 flex items-center justify-center mb-4">
-                  <Sparkles className="w-8 h-8 text-indigo-500" />
+                <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center mb-5 shadow-[0_10px_25px_rgba(79,70,229,0.35)]">
+                  <Sparkles className="w-9 h-9 text-white" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome</h2>
-                <p className="text-gray-500 mb-6 max-w-md">Create your first project to start tracking tasks, manage your team, and ship faster.</p>
+                <h2 className="text-3xl font-bold tracking-tight text-gray-900 mb-2">Welcome to AgileOps</h2>
+                <p className="text-gray-500 mb-7 max-w-md">Create your first project to start tracking tasks, manage your team, and ship faster.</p>
                 <div className="flex gap-3">
                   <button onClick={() => setShowNewProject(true)}
-                    className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition-colors">
+                    className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl font-medium hover:from-indigo-700 hover:to-blue-700 transition-all shadow-[0_4px_14px_rgba(79,70,229,0.3)]">
                     Create a project
                   </button>
                   <button onClick={() => setShowTemplates(true)}
-                    className="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-colors flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-indigo-400" /> Start from template
+                    className="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-300 transition-colors flex items-center gap-2 shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+                    <Sparkles className="w-4 h-4 text-indigo-500" /> Start from template
                   </button>
                 </div>
               </div>
             )}
-            {selectedProject && (
-              <div className="mb-4 flex items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-gray-900">{selectedProject.name}</h2>
-                  {selectedSprint && (
-                    <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
-                      <span>
-                        {selectedSprint.start_date || '—'} – {selectedSprint.end_date || '—'}
-                      </span>
+            {selectedProject && (() => {
+              const projColor = (selectedProject.color && /^#[0-9A-Fa-f]{6}$/.test(selectedProject.color))
+                ? selectedProject.color
+                : '#4F46E5';
+              return (
+                <div className="mb-5 relative overflow-hidden rounded-2xl bg-white border border-[var(--border-soft)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] p-5">
+                  {/* Color band tied to the project */}
+                  <span
+                    aria-hidden
+                    className="absolute left-0 top-0 bottom-0 w-1.5"
+                    style={{ background: `linear-gradient(to bottom, ${projColor}, ${projColor}cc)` }}
+                  />
+                  <div className="pl-3 flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className="inline-block w-2.5 h-2.5 rounded-full ring-4 ring-white"
+                          style={{ backgroundColor: projColor, boxShadow: `0 0 0 2px ${projColor}33` }}
+                        />
+                        <h2 className="text-2xl font-semibold tracking-tight text-gray-900 truncate">{selectedProject.name}</h2>
+                      </div>
+                      {selectedProject.description ? (
+                        <p className="text-sm text-gray-500 mt-1 line-clamp-2 max-w-2xl">{selectedProject.description}</p>
+                      ) : null}
+                      {selectedSprint && (
+                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--secondary)] font-medium">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Active sprint
+                          </span>
+                          <span className="tabular-nums">
+                            {selectedSprint.start_date || '—'} – {selectedSprint.end_date || '—'}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 gap-2"
+                      onClick={() => setShowShareProject(true)}
+                    >
+                      <Share2 className="w-4 h-4" />
+                      Share
+                    </Button>
+                  </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="shrink-0 gap-2 rounded-xl"
-                  onClick={() => setShowShareProject(true)}
-                >
-                  <Share2 className="w-4 h-4" />
-                  Share
-                </Button>
-              </div>
-            )}
+              );
+            })()}
 
             <div className="flex items-center justify-between mb-4">
-              <div className="flex gap-1 border-b border-gray-200">
+              <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-white border border-[var(--border-soft)] shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
                 {VIEW_TABS.map((tab) => (
                   <button
                     type="button"
                     key={tab.id}
                     onClick={() => setCurrentView(tab.id)}
-                    className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                    className={`px-3.5 py-1.5 text-sm font-medium rounded-lg transition-all ${
                       currentView === tab.id
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-gray-600 hover:text-gray-900'
+                        ? 'bg-gradient-to-r from-indigo-50 to-blue-50 text-indigo-700 shadow-[0_1px_2px_rgba(15,23,42,0.05)]'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                     }`}
                   >
                     {tab.label}
@@ -753,6 +789,8 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                         </span>
                       )}
                     </Button>
+                    {/* Import template button — temporarily hidden (dev request).
+                        Restore by uncommenting when the feature is ready for users.
                     <Button
                       variant="outline"
                       size="sm"
@@ -763,6 +801,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                       <FileSpreadsheet className="w-4 h-4" />
                       Import template
                     </Button>
+                    */}
                     <Button
                       variant="outline"
                       size="sm"
@@ -887,6 +926,15 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 }}
                 onRefresh={loadMyTasksAcrossProjects}
               />
+            ) : currentView === 'reports' ? (
+              <ReportsView
+                projects={projects}
+                onOpenItem={(id, pid) => {
+                  if (pid && pid !== selectedProjectId) setSelectedProjectId(pid);
+                  const found = myTasksInitiatives.find((i) => i.id === id) || initiatives.find((i) => i.id === id) || null;
+                  if (found) setDrawerInitiative(found);
+                }}
+              />
             ) : currentView === 'personal_tasks' ? (
               <PersonalTasksView
                 projectId={selectedProjectId}
@@ -931,6 +979,12 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                   setSelectedProjectId(null);
                   refresh();
                 }}
+                onCategoryOptionsChanged={() => { refresh(); }}
+                collaborators={selectedProject?.collaborators ?? []}
+                onUpdateCollaborators={async (next) => {
+                  if (!selectedProjectId) return;
+                  await updateProject(selectedProjectId, { collaborators: next });
+                }}
               />
             ) : currentView === 'summit_board' ? (
               <SummitBoardKanban
@@ -970,6 +1024,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                     standardFields={standardFields}
                     // Always use project column prefs so new standard/custom fields from Base Camp appear on every tracker.
                     visibleColumns={visibleColumns}
+                    columnOrder={columnOrder}
                     onDeleteSection={deleteSection}
                     onRenameSection={async (trackerId, newName) => { await updateSection(trackerId, { name: newName }); refreshActivity(); }}
                     sectionTitleOverride={section.id === 'uncategorized' ? uncategorizedDisplayNames[selectedProjectId ?? ''] : undefined}
@@ -1142,6 +1197,10 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
         projectId={selectedProjectId}
         parentId={addInitiativeParentId}
         trackerId={addInitiativeTrackerId}
+        crew={crew.map(c => ({ id: c.id, name: c.name || 'Unnamed', initials: c.initials }))}
+        categoryOptions={categoryOptions}
+        priorityOptions={priorityOptions}
+        statusOptions={statusOptions}
         onCreate={async (projectId, payload, parentId, trackerId) => {
           await createItem(projectId, payload, parentId ?? undefined, trackerId ?? undefined);
         }}

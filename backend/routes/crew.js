@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { pool } = require('../server');
-const { getAccessibleWorkspaceIds, getAccessibleProjectIds, requireUser } = require('../lib/access');
+const { getAccessibleWorkspaceIds, getVisibleWorkspaceIds, getAccessibleProjectIds, requireUser } = require('../lib/access');
 
 /**
  * People in "Shared with" (project_members) may use a crew row from another workspace
@@ -98,8 +98,10 @@ router.get('/', async (req, res) => {
   try {
     const userId = requireUser(req, res);
     if (!userId) return;
-    const allowedWorkspaceIds = await getAccessibleWorkspaceIds(pool, userId);
-    if (allowedWorkspaceIds.length === 0) return res.json([]);
+    // Visible set includes workspaces that merely contain a shared project,
+    // so assignee dropdowns work on projects we don't own.
+    const visibleWorkspaceIds = await getVisibleWorkspaceIds(pool, userId);
+    if (visibleWorkspaceIds.length === 0) return res.json([]);
     let { workspace_id, project_id } = req.query;
 
     if (project_id && (!workspace_id || String(workspace_id).length === 0)) {
@@ -115,9 +117,9 @@ router.get('/', async (req, res) => {
     }
 
     let q = 'SELECT * FROM crew WHERE active = true AND workspace_id = ANY($1)';
-    const params = [allowedWorkspaceIds];
+    const params = [visibleWorkspaceIds];
     if (workspace_id) {
-      if (!allowedWorkspaceIds.some(id => String(id) === String(workspace_id))) return res.json([]);
+      if (!visibleWorkspaceIds.some(id => String(id) === String(workspace_id))) return res.json([]);
       params.push(workspace_id);
       q += ` AND workspace_id = $2`;
     }

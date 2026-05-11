@@ -6,11 +6,11 @@ import { TaskDetailDrawer } from './TaskDetailDrawer';
 import { Progress } from './ui/progress';
 
 const COLUMNS: { id: string; label: string; statuses: Status[]; color: string; bg: string; headerBg: string }[] = [
-  { id: 'not_started', label: 'Not Started', statuses: ['Not Started'], color: '#94a3b8', bg: 'bg-slate-50', headerBg: 'bg-slate-100' },
-  { id: 'in_progress', label: 'In Progress', statuses: ['On Track', 'At Risk'], color: '#3b82f6', bg: 'bg-blue-50/40', headerBg: 'bg-blue-50' },
-  { id: 'in_review',   label: 'In Review',   statuses: ['In Review'],           color: '#8b5cf6', bg: 'bg-violet-50/40', headerBg: 'bg-violet-50' },
-  { id: 'blocked',     label: 'Blocked',     statuses: ['Blocked'],             color: '#f97316', bg: 'bg-amber-50/40', headerBg: 'bg-amber-50' },
-  { id: 'done',        label: 'Done',        statuses: ['Complete'],            color: '#22c55e', bg: 'bg-emerald-50/40', headerBg: 'bg-emerald-50' },
+  { id: 'not_started', label: 'Not Started', statuses: ['Not Started'], color: '#94a3b8', bg: 'bg-slate-50/70', headerBg: 'bg-white' },
+  { id: 'in_progress', label: 'In Progress', statuses: ['On Track', 'At Risk'], color: '#4f46e5', bg: 'bg-indigo-50/40', headerBg: 'bg-white' },
+  { id: 'in_review',   label: 'In Review',   statuses: ['In Review'],           color: '#8b5cf6', bg: 'bg-violet-50/40', headerBg: 'bg-white' },
+  { id: 'blocked',     label: 'Blocked',     statuses: ['Blocked'],             color: '#f97316', bg: 'bg-amber-50/40', headerBg: 'bg-white' },
+  { id: 'done',        label: 'Done',        statuses: ['Complete'],            color: '#10b981', bg: 'bg-emerald-50/40', headerBg: 'bg-white' },
 ];
 
 const STATUS_TO_COLUMN: Record<Status, string> = {
@@ -38,36 +38,38 @@ function KanbanCard({ init, crew, isDrag, onClick }: {
 
   return (
     <div role="button" tabIndex={0} onClick={onClick} onKeyDown={e => e.key === 'Enter' && onClick?.()}
-      className={`group relative bg-white rounded-xl border shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer
-        transition-all duration-150 ease-out overflow-hidden
-        ${isDrag ? 'opacity-90 shadow-lg scale-[1.02] ring-2 ring-indigo-400/40' : 'border-gray-200 hover:border-gray-300'}`}>
+      className={`group relative bg-white rounded-xl border cursor-pointer overflow-hidden
+        transition-all duration-150 ease-out
+        ${isDrag
+          ? 'opacity-95 shadow-[0_12px_32px_rgba(79,70,229,0.25)] scale-[1.02] ring-2 ring-indigo-400/50 border-indigo-200'
+          : 'border-[var(--border-soft)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:shadow-[0_6px_18px_rgba(15,23,42,0.08)] hover:-translate-y-0.5 hover:border-[#D1D5DB]'}`}>
       {/* Priority accent stripe */}
-      <div className={`h-0.5 w-full ${init.priority === 'P0' ? 'bg-red-400' : init.priority === 'P1' ? 'bg-amber-400' : 'bg-blue-300'}`} />
+      <div className={`h-[3px] w-full ${init.priority === 'P0' ? 'bg-gradient-to-r from-rose-400 to-rose-500' : init.priority === 'P1' ? 'bg-gradient-to-r from-amber-400 to-orange-500' : 'bg-gradient-to-r from-sky-300 to-blue-400'}`} />
       <div className="p-4">
         <div className="flex items-start gap-2 mb-3">
           {init.isBigRock && <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500 flex-shrink-0 mt-0.5" />}
-          <p className="font-medium text-slate-800 text-sm leading-snug line-clamp-2 flex-1">{init.name}</p>
+          <p className="font-semibold text-gray-800 text-[13px] leading-snug line-clamp-2 flex-1 tracking-tight">{init.name}</p>
         </div>
 
         {init.progress > 0 && init.status !== 'Complete' && (
           <div className="mb-3">
             <Progress value={init.progress} className="h-1" />
-            <p className="text-[10px] text-gray-400 mt-0.5 text-right">{init.progress}%</p>
+            <p className="text-[10px] text-gray-400 mt-1 text-right tabular-nums">{init.progress}%</p>
           </div>
         )}
 
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-md border ${PRIORITY_STYLE[init.priority] || PRIORITY_STYLE.P2}`}>
+          <span className={`text-[10px] font-bold tracking-wide px-2 py-0.5 rounded-full border ${PRIORITY_STYLE[init.priority] || PRIORITY_STYLE.P2}`}>
             {init.priority}
           </span>
           <div className="flex items-center gap-1.5">
             {dueStr && (
-              <div className={`flex items-center gap-1 text-xs ${isOverdue ? 'text-red-500 font-medium' : 'text-slate-400'}`}>
+              <div className={`flex items-center gap-1 text-[11px] tabular-nums ${isOverdue ? 'text-rose-600 font-semibold' : 'text-gray-400'}`}>
                 <Calendar className="w-3 h-3" />{dueStr}
               </div>
             )}
             {owner && (
-              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white text-[10px] font-bold shadow-sm flex-shrink-0" title={owner.name}>
+              <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 ring-2 ring-white flex items-center justify-center text-white text-[10px] font-bold shadow-[0_2px_4px_rgba(79,70,229,0.25)] flex-shrink-0" title={owner.name}>
                 {(owner.initials || owner.name.slice(0, 2)).toUpperCase()}
               </div>
             )}
@@ -93,17 +95,26 @@ function DroppableColumn({ columnId, label, color, bg, headerBg, count, children
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: columnId });
   return (
-    <div ref={setNodeRef} className={`flex-shrink-0 w-[280px] flex flex-col rounded-2xl min-h-[400px] border-2 transition-all duration-200
-      ${isOver ? 'border-indigo-300 bg-indigo-50/60 shadow-inner' : `border-gray-200/60 ${bg}`}`}>
-      <div className={`flex items-center gap-3 px-4 py-3 rounded-t-2xl ${headerBg} border-b border-gray-200/60`}>
-        <span className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: color }} />
-        <span className="font-semibold text-slate-800 text-sm flex-1">{label}</span>
-        <span className="text-xs font-bold text-slate-500 bg-white/80 px-2 py-0.5 rounded-full border border-slate-200/80">{count}</span>
+    <div
+      ref={setNodeRef}
+      className={`flex-shrink-0 w-[300px] flex flex-col rounded-2xl min-h-[440px] border transition-all duration-200
+        ${isOver
+          ? 'border-indigo-300 bg-indigo-50/70 shadow-[inset_0_0_0_2px_rgba(79,70,229,0.18)]'
+          : `border-[var(--border-soft)] ${bg}`}`}
+      style={isOver ? undefined : { boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.6)' }}
+    >
+      <div className={`flex items-center gap-2.5 px-4 py-3 rounded-t-2xl ${headerBg} border-b border-[var(--border-soft)]`}>
+        <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color, boxShadow: `0 0 0 3px ${color}22` }} />
+        <span className="font-semibold text-gray-900 text-[13px] tracking-tight flex-1 uppercase">{label}</span>
+        <span className="text-[11px] font-bold tabular-nums text-gray-600 bg-white px-2 py-0.5 rounded-full border border-[var(--border-soft)] shadow-[0_1px_1px_rgba(15,23,42,0.04)]">{count}</span>
       </div>
       <div className="flex-1 p-3 space-y-2.5 overflow-y-auto">
         {children}
-        <button type="button" onClick={onAddTask}
-          className="w-full py-2.5 rounded-xl border-2 border-dashed text-sm font-medium transition-all duration-200 border-gray-200 text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-white/50">
+        <button
+          type="button"
+          onClick={onAddTask}
+          className="w-full py-2.5 rounded-xl border-2 border-dashed text-[12px] font-medium transition-all duration-150 border-[var(--border)] text-gray-500 hover:border-indigo-300 hover:text-indigo-600 hover:bg-white"
+        >
           + Add task
         </button>
       </div>

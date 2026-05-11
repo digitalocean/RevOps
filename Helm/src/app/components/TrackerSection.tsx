@@ -19,6 +19,11 @@ import {
   Trash2,
   Pencil,
   ChevronsLeftRight,
+  ArrowUpDown,
+  Maximize2,
+  Minimize2,
+  Bold,
+  Italic,
 } from 'lucide-react';
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors,
@@ -60,6 +65,8 @@ interface CrewMember {
   email?: string | null;
   first_name?: string | null;
   last_name?: string | null;
+  /** Optional link to a real user account — populated when the crew member has signed in. */
+  user_id?: string | null;
 }
 
 interface CustomFieldDef {
@@ -98,6 +105,7 @@ interface TrackerSectionProps {
       category?: string | null;
       progress?: number;
       topic?: string | null;
+      requester_id?: string | null;
       custom_vals?: Record<string, string | number | boolean | null>;
     }
   ) => Promise<unknown>;
@@ -125,6 +133,8 @@ interface TrackerSectionProps {
   sectionTitleOverride?: string;
   /** When set for uncategorized section, allows renaming the display name (stored in UI only). */
   onUncategorizedNameChange?: (name: string) => void;
+  /** Ordered list of column ids — used to sort the custom/extra-standard columns after the fixed-position core columns. */
+  columnOrder?: string[];
 }
 
 function getPriorityColor(priority: string, options?: StandardFieldOption[]): string {
@@ -171,7 +181,7 @@ function getCategoryColor(category: Category): string {
   }
 }
 
-const COL_KEYS = ['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate', 'topic'] as const;
+const COL_KEYS = ['name', 'category', 'priority', 'owner', 'status', 'progress', 'dueDate', 'topic', 'requester'] as const;
 
 /** Standard fields that already have dedicated table columns (field_key in standard_fields API). */
 const BUILT_IN_STANDARD_FIELD_KEYS = new Set<string>([
@@ -183,6 +193,7 @@ const BUILT_IN_STANDARD_FIELD_KEYS = new Set<string>([
   'progress',
   'dueDate',
   'topic',
+  'requester',
 ]);
 
 /** Resize key for extra standard fields (e.g. Comments) stored in items.custom_vals. */
@@ -197,6 +208,7 @@ const TRACKER_COL_DEFAULTS: Record<string, number> = {
   progress: 124,
   dueDate: 120,
   topic: 180,
+  requester: 160,
 };
 
 export const CF_COL_KEY = (fieldId: string) => `cf:${fieldId}`;
@@ -291,6 +303,188 @@ function ResizableTh({
   );
 }
 
+/** Very small subset of Markdown → plain HTML for title previews.
+ *  Supports: **bold**, *italic*, _italic_, `code`, and autolinks http(s) URLs.
+ *  The result is injected via dangerouslySetInnerHTML, so we escape first. */
+function renderSimpleMarkdown(src: string): string {
+  const escaped = src
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  return escaped
+    .replace(/`([^`]+)`/g, '<code class="rounded bg-gray-100 px-1 py-0.5 text-[11px] font-mono">$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|\s)\*([^*\s][^*]*[^*\s]|[^*\s])\*(?=\s|$)/g, '$1<em>$2</em>')
+    .replace(/(^|\s)_([^_\s][^_]*[^_\s]|[^_\s])_(?=\s|$)/g, '$1<em>$2</em>')
+    .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:underline">$1</a>')
+    .replace(/\n/g, '<br/>');
+}
+
+/** Expandable title cell: click-to-edit, Shift+Enter for newline, Cmd/Ctrl+B / I
+ *  insert Markdown bold/italic around the selection. A small "expand" button
+ *  switches between clamped (2 lines) and full display.
+ */
+function TitleCell({ value, onSave, placeholder = 'Title' }: { value: string; onSave: (v: string) => void; placeholder?: string }) {
+  const [local, setLocal] = useState(value);
+  const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { setLocal(value); }, [value]);
+  useEffect(() => {
+    if (editing) {
+      taRef.current?.focus();
+      const el = taRef.current;
+      if (el) el.selectionStart = el.selectionEnd = el.value.length;
+    }
+  }, [editing]);
+
+  const wrapSelection = (left: string, right = left) => {
+    const el = taRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? 0;
+    const before = local.slice(0, start);
+    const sel = local.slice(start, end) || 'text';
+    const after = local.slice(end);
+    const next = `${before}${left}${sel}${right}${after}`;
+    setLocal(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.selectionStart = before.length + left.length;
+      el.selectionEnd = before.length + left.length + sel.length;
+    });
+  };
+
+  const commit = () => {
+    const trimmed = local.replace(/\s+$/g, '');
+    if (trimmed !== value) onSave(trimmed);
+    setEditing(false);
+  };
+
+  if (!editing) {
+    const rendered = renderSimpleMarkdown(local || '');
+    return (
+      <div className="flex items-start gap-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          title="Click to edit"
+          aria-label="Edit title"
+          className={cn(
+            'flex-1 min-w-0 text-left text-sm font-medium text-gray-900 whitespace-pre-wrap break-words leading-snug rounded-md px-2 py-1 hover:bg-gray-50',
+            !expanded && 'line-clamp-2'
+          )}
+          dangerouslySetInnerHTML={{ __html: rendered || `<span class="text-gray-400">${placeholder}</span>` }}
+        />
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setExpanded((x) => !x); }}
+          title={expanded ? 'Collapse' : 'Expand'}
+          aria-label={expanded ? 'Collapse' : 'Expand'}
+          className="shrink-0 mt-1 text-gray-400 hover:text-gray-700"
+        >
+          {expanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1 min-w-0" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); wrapSelection('**'); }}
+          title="Bold (⌘B)"
+          className="h-6 w-6 flex items-center justify-center rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+        >
+          <Bold className="w-3.5 h-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); wrapSelection('*'); }}
+          title="Italic (⌘I)"
+          className="h-6 w-6 flex items-center justify-center rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+        >
+          <Italic className="w-3.5 h-3.5" />
+        </button>
+        <span className="text-[10px] text-gray-400 ml-1">Markdown • Shift+Enter for newline</span>
+      </div>
+      <Textarea
+        ref={taRef}
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(); }
+          else if ((e.metaKey || e.ctrlKey) && (e.key === 'b' || e.key === 'B')) { e.preventDefault(); wrapSelection('**'); }
+          else if ((e.metaKey || e.ctrlKey) && (e.key === 'i' || e.key === 'I')) { e.preventDefault(); wrapSelection('*'); }
+        }}
+        rows={expanded ? 8 : 3}
+        placeholder={placeholder}
+        className={cn('text-sm font-medium border-gray-200 bg-white resize-y whitespace-pre-wrap break-words leading-snug', expanded ? 'min-h-40' : 'min-h-[3rem]')}
+      />
+    </div>
+  );
+}
+
+/** Compact cell for the "Requester" column: shows the person who filed the item and lets you reassign from the crew list (users with a real account). */
+function RequesterCell({
+  requesterId,
+  fallbackName,
+  fallbackEmail,
+  crew,
+  onChange,
+}: {
+  requesterId: string | null | undefined;
+  fallbackName?: string | null;
+  fallbackEmail?: string | null;
+  crew: CrewMember[];
+  onChange: (userId: string | null) => void;
+}) {
+  const candidates = useMemo(() => {
+    // Dedupe by user_id; only include crew members linked to a real user account.
+    const seen = new Set<string>();
+    const out: { userId: string; name: string; initials?: string; email?: string | null }[] = [];
+    for (const m of crew) {
+      const uid = (m as CrewMember & { user_id?: string | null }).user_id;
+      if (!uid || seen.has(uid)) continue;
+      seen.add(uid);
+      out.push({ userId: uid, name: m.name || m.email || uid, initials: m.initials, email: m.email ?? null });
+    }
+    return out.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  }, [crew]);
+
+  const matched = candidates.find((c) => c.userId === (requesterId || ''));
+  const displayName = matched?.name || fallbackName || fallbackEmail || '—';
+  const title = fallbackEmail ? `${displayName}${fallbackEmail ? ` <${fallbackEmail}>` : ''}` : displayName;
+
+  const selectValue = requesterId || '__unset__';
+  return (
+    <div onClick={(e) => e.stopPropagation()} title={title}>
+      <Select
+        value={selectValue}
+        onValueChange={(v) => onChange(v === '__unset__' ? null : v)}
+      >
+        <SelectTrigger className="h-8 text-xs border border-gray-200 rounded-md px-2 bg-white text-gray-700 w-full max-w-[160px] truncate">
+          <SelectValue placeholder="Set requester">
+            <span className="truncate">{displayName}</span>
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent className="max-h-60">
+          <SelectItem value="__unset__">— Unset —</SelectItem>
+          {candidates.map((c) => (
+            <SelectItem key={c.userId} value={c.userId}>
+              {c.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 function TopicCell({ value, onSave }: { value: string; onSave: (v: string) => void }) {
   const [local, setLocal] = useState(value);
   const [editing, setEditing] = useState(false);
@@ -346,7 +540,7 @@ interface InitiativeRowEditableProps {
   isFocused?: boolean;
   onToggleSelect: (id: string) => void;
   onFocus?: (id: string) => void;
-  crew?: { id: string; name: string; initials?: string }[];
+  crew?: CrewMember[];
   customFields?: CustomFieldDef[];
   visibleColumns?: Set<string>;
   onUpdateFieldValue?: (taskId: string, fieldId: string, value: string | number | boolean | null) => Promise<unknown>;
@@ -362,6 +556,7 @@ interface InitiativeRowEditableProps {
       category?: Category;
       progress?: number;
       topic?: string | null;
+      requester_id?: string | null;
       custom_vals?: Record<string, string | number | boolean | null>;
     }
   ) => Promise<unknown>;
@@ -598,7 +793,6 @@ function InitiativeRowEditable({
   standardExtraFields = [],
 }: InitiativeRowEditableProps) {
   const colCtx = useContext(TrackerColWidthsContext);
-  const [title, setTitle] = useState(initiative.name);
   const catList: StandardFieldOption[] = (categoryOptions?.length ? categoryOptions : CATEGORIES.map((c) => ({ label: c }))).slice();
   if (initiative.category && !catList.some((o) => o.label === initiative.category)) {
     catList.push({ label: initiative.category, color: '#6b7280' });
@@ -615,14 +809,6 @@ function InitiativeRowEditable({
   const dueDateStr = initiative.endDate && !isNaN(initiative.endDate.getTime())
     ? initiative.endDate.toISOString().slice(0, 10)
     : '';
-
-  const handleTitleBlur = () => {
-    const t = title.trim();
-    if (t !== initiative.name && t) {
-      setSaving(true);
-      onUpdate(initiative.id, { title: t }).finally(() => setSaving(false));
-    }
-  };
 
   const handleStatusChange = async (status: string) => {
     const wasComplete = initiative.status === 'Complete';
@@ -659,13 +845,12 @@ function InitiativeRowEditable({
         className="py-2 px-4 align-top border-gray-50"
         style={colCtx?.cellStyle('name')}
       >
-        <Textarea
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={handleTitleBlur}
-          rows={2}
-          placeholder="Title"
-          className="min-h-[2.5rem] max-h-40 text-sm font-medium border-gray-200 bg-white resize-y whitespace-pre-wrap break-words leading-snug"
+        <TitleCell
+          value={initiative.name}
+          onSave={(v) => {
+            setSaving(true);
+            onUpdate(initiative.id, { title: v }).finally(() => setSaving(false));
+          }}
         />
       </td>
       )}
@@ -805,6 +990,17 @@ function InitiativeRowEditable({
         <TopicCell
           value={String(initiative.field_values?.topic ?? '')}
           onSave={(v) => onUpdate(initiative.id, { topic: v || null })}
+        />
+      </td>
+      )}
+      {colVisible(visibleColumns, 'requester') && (
+      <td className="py-2 px-4 align-top border-gray-50" style={colCtx?.cellStyle('requester')}>
+        <RequesterCell
+          requesterId={initiative.requester_id ?? initiative.created_by_id ?? null}
+          fallbackName={initiative.requester_name ?? initiative.created_by_name ?? null}
+          fallbackEmail={initiative.requester_email ?? initiative.created_by_email ?? null}
+          crew={crew}
+          onChange={(uid) => onUpdate(initiative.id, { requester_id: uid })}
         />
       </td>
       )}
@@ -952,7 +1148,7 @@ function SortableInitiativeRow(props: Omit<InitiativeRowEditableProps, 'dragHand
       ref={setNodeRef}
       style={style}
       data-item-id={props.initiative.id}
-      className={`group/row border-b border-gray-100 hover:bg-gray-50/50 cursor-pointer transition-colors ${props.isSelected ? 'bg-blue-50' : ''} ${props.isFocused ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/30' : ''} ${isDragging ? 'opacity-40 bg-indigo-50' : ''}`}
+      className={`group/row border-b border-[var(--border-soft)] hover:bg-[var(--secondary)]/60 cursor-pointer transition-colors ${props.isSelected ? 'bg-indigo-50/70 hover:bg-indigo-50' : ''} ${props.isFocused ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/40' : ''} ${isDragging ? 'opacity-40 bg-indigo-50 shadow-[0_4px_12px_rgba(79,70,229,0.18)]' : ''}`}
       onClick={(e) => {
         const el = e.target as HTMLElement;
         if (el.closest('button, a, input, textarea, select, [role="combobox"]')) return;
@@ -1007,14 +1203,32 @@ export function TrackerSection({
   sectionTitleOverride,
   onUncategorizedNameChange,
   standardFields = [],
+  columnOrder = [],
 }: TrackerSectionProps) {
+  /**
+   * Rank of a column id in the user-chosen order (lower = earlier). Columns
+   * missing from `columnOrder` fall back to sort_order, then name.
+   */
+  const orderRank = useMemo(() => {
+    const map = new Map<string, number>();
+    columnOrder.forEach((id, idx) => map.set(id, idx));
+    return map;
+  }, [columnOrder]);
+
   const extraStandardFields = useMemo(() => {
     return standardFields
       .filter((f) => {
         const k = f.field_key;
         return typeof k === 'string' && k.length > 0 && !BUILT_IN_STANDARD_FIELD_KEYS.has(k);
       })
-      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)) as {
+      .sort((a, b) => {
+        const ka = String(a.field_key ?? a.id);
+        const kb = String(b.field_key ?? b.id);
+        const ra = orderRank.has(ka) ? orderRank.get(ka)! : Number.MAX_SAFE_INTEGER;
+        const rb = orderRank.has(kb) ? orderRank.get(kb)! : Number.MAX_SAFE_INTEGER;
+        if (ra !== rb) return ra - rb;
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+      }) as {
         id: string;
         field_key: string;
         name: string;
@@ -1022,7 +1236,29 @@ export function TrackerSection({
         options_json?: unknown[];
         sort_order?: number;
       }[];
+  }, [standardFields, orderRank]);
+
+  /** Custom fields respect columnOrder too — they come after extraStandardFields in the fixed render site, but appear in user-chosen order within their own group. */
+  const customFieldsOrdered = useMemo(() => {
+    const arr = (customFields ?? []).slice();
+    arr.sort((a, b) => {
+      const ra = orderRank.has(a.id) ? orderRank.get(a.id)! : Number.MAX_SAFE_INTEGER;
+      const rb = orderRank.has(b.id) ? orderRank.get(b.id)! : Number.MAX_SAFE_INTEGER;
+      if (ra !== rb) return ra - rb;
+      return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+    });
+    return arr;
+  }, [customFields, orderRank]);
+
+  /** Display name for a standard column (picks up project-specific renames). */
+  const standardLabelByKey = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const f of standardFields) {
+      if (f.field_key) m[f.field_key] = f.name;
+    }
+    return m;
   }, [standardFields]);
+  const labelFor = (key: string, fallback: string) => standardLabelByKey[key] || fallback;
 
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedInitiative, setSelectedInitiative] = useState<Initiative | null>(null);
@@ -1171,6 +1407,7 @@ export function TrackerSection({
       category?: Category;
       progress?: number;
       topic?: string | null;
+      requester_id?: string | null;
       custom_vals?: Record<string, string | number | boolean | null>;
     }
   ) => {
@@ -1183,9 +1420,58 @@ export function TrackerSection({
   const [lastIds, setLastIds] = useState(currentIds);
   if (currentIds !== lastIds) { setLastIds(currentIds); setOrderedItems(filteredInitiatives.map(i => i.id)); }
 
-  const sortedInitiatives = orderedItems
-    .map(id => filteredInitiatives.find(i => i.id === id))
+  /** User-selectable sort for this section. 'manual' uses drag-and-drop order. */
+  type SortKey = 'manual' | 'priority' | 'dueDate' | 'status' | 'title' | 'assignee' | 'progress' | 'createdAsc' | 'createdDesc';
+  const sortStorageKey = `tracker_sort::${section.id}`;
+  const [sortKey, setSortKey] = useState<SortKey>(() => {
+    try {
+      const v = typeof window !== 'undefined' ? window.localStorage.getItem(sortStorageKey) : null;
+      return (v as SortKey) || 'manual';
+    } catch { return 'manual'; }
+  });
+  const setSortKeyAndPersist = (k: SortKey) => {
+    setSortKey(k);
+    try { window.localStorage.setItem(sortStorageKey, k); } catch { /* ignore */ }
+  };
+
+  const PRIORITY_RANK: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3 };
+  const STATUS_RANK: Record<string, number> = { 'Not Started': 0, 'On Track': 1, 'In Review': 2, 'At Risk': 3, 'Blocked': 4, 'Complete': 5 };
+
+  const manualOrdered = orderedItems
+    .map((id) => filteredInitiatives.find((i) => i.id === id))
     .filter(Boolean) as Initiative[];
+
+  const sortedInitiatives: Initiative[] = (() => {
+    if (sortKey === 'manual') return manualOrdered;
+    const arr = [...manualOrdered];
+    const cmp = (a: Initiative, b: Initiative): number => {
+      switch (sortKey) {
+        case 'priority':
+          return (PRIORITY_RANK[a.priority] ?? 99) - (PRIORITY_RANK[b.priority] ?? 99);
+        case 'dueDate': {
+          const at = a.endDate ? a.endDate.getTime() : Number.POSITIVE_INFINITY;
+          const bt = b.endDate ? b.endDate.getTime() : Number.POSITIVE_INFINITY;
+          return at - bt;
+        }
+        case 'status':
+          return (STATUS_RANK[a.status] ?? 99) - (STATUS_RANK[b.status] ?? 99);
+        case 'title':
+          return String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' });
+        case 'assignee':
+          return String(a.assignee_name || '').localeCompare(String(b.assignee_name || ''), undefined, { sensitivity: 'base' });
+        case 'progress':
+          return (b.progress || 0) - (a.progress || 0);
+        case 'createdAsc':
+          return String(a.id).localeCompare(String(b.id));
+        case 'createdDesc':
+          return String(b.id).localeCompare(String(a.id));
+        default:
+          return 0;
+      }
+    };
+    arr.sort(cmp);
+    return arr;
+  })();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -1193,6 +1479,10 @@ export function TrackerSection({
   );
 
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    // Drag-reorder only persists in Manual mode. Other sort modes are derived
+    // views, so we silently ignore drag events in them (the rows snap back on
+    // next render).
+    if (sortKey !== 'manual') return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const oldIndex = orderedItems.indexOf(String(active.id));
@@ -1204,12 +1494,12 @@ export function TrackerSection({
         order: newOrder.map((id, idx) => ({ id, sort_order: idx }))
       });
     } catch { /* non-critical */ }
-  }, [orderedItems]);
+  }, [orderedItems, sortKey]);
 
   return (
     <>
-      <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-        <div className="border-b border-gray-200 px-4 py-3 bg-gray-50 flex items-center justify-between gap-2">
+      <div className="bg-white rounded-2xl border border-[var(--border-soft)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] overflow-hidden transition-shadow hover:shadow-[0_2px_4px_rgba(15,23,42,0.06)]">
+        <div className="border-b border-[var(--border-soft)] px-4 py-3 bg-gradient-to-r from-white to-[var(--secondary)] flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <button
               type="button"
@@ -1268,8 +1558,8 @@ export function TrackerSection({
                   }
                 }}
               >
-                <span className="truncate">{displayTitle}</span>
-                <span className="ml-2 px-2 py-0.5 text-xs font-semibold bg-gray-200 text-gray-700 rounded-full flex-shrink-0">
+                <span className="truncate tracking-tight">{displayTitle}</span>
+                <span className="ml-2 px-2 py-0.5 text-[11px] font-semibold tabular-nums bg-white border border-[var(--border-soft)] text-gray-600 rounded-full flex-shrink-0 shadow-[0_1px_1px_rgba(15,23,42,0.04)]">
                   {filteredInitiatives.length}
                 </span>
               </button>
@@ -1294,6 +1584,28 @@ export function TrackerSection({
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
             )}
+          </div>
+          <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+            <label className="flex items-center gap-1.5 text-xs text-gray-500 mr-1">
+              <ArrowUpDown className="w-3.5 h-3.5" />
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKeyAndPersist(e.target.value as SortKey)}
+                className="h-7 text-xs border border-gray-200 rounded-md bg-white px-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                aria-label="Sort tasks in this section"
+                title="Sort tasks"
+              >
+                <option value="manual">Manual (drag)</option>
+                <option value="priority">Priority</option>
+                <option value="dueDate">Due date</option>
+                <option value="status">Status</option>
+                <option value="title">Title (A–Z)</option>
+                <option value="assignee">Assignee</option>
+                <option value="progress">Progress</option>
+                <option value="createdDesc">Newest first</option>
+                <option value="createdAsc">Oldest first</option>
+              </select>
+            </label>
           </div>
           {showSectionActions && section.id !== 'uncategorized' && (onMoveUp != null || onMoveDown != null || onDeleteSection || onRenameSection) && (
             <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -1360,10 +1672,10 @@ export function TrackerSection({
               className="table-fixed border-collapse"
               style={{ width: `max(100%, ${tableMinWidthPx}px)` }}
             >
-              <thead className="bg-white border-b border-gray-200">
+              <thead className="bg-[#FAFBFC] border-b border-[var(--border-soft)] sticky top-0 z-10">
                 <tr>
-                  <th className="py-2 px-2 w-8 max-w-8" />
-                  <th className="py-2 px-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide w-10 max-w-10">
+                  <th className="py-2.5 px-2 w-8 max-w-8" />
+                  <th className="py-2.5 px-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-[0.06em] w-10 max-w-10">
                     <Checkbox
                       checked={allSelected}
                       ref={(el) => {
@@ -1372,26 +1684,27 @@ export function TrackerSection({
                       onCheckedChange={handleSelectAll}
                     />
                   </th>
-                  {colVisible(visibleColumns, 'name') && <ResizableTh colKey="name" label="Initiative" ctx={colCtx} />}
-                  {colVisible(visibleColumns, 'category') && <ResizableTh colKey="category" label="Category" ctx={colCtx} />}
-                  {colVisible(visibleColumns, 'priority') && <ResizableTh colKey="priority" label="Priority" ctx={colCtx} />}
-                  {colVisible(visibleColumns, 'owner') && <ResizableTh colKey="owner" label="Owner" ctx={colCtx} />}
-                  {colVisible(visibleColumns, 'status') && <ResizableTh colKey="status" label="Status" ctx={colCtx} />}
-                  {colVisible(visibleColumns, 'progress') && <ResizableTh colKey="progress" label="Progress" ctx={colCtx} />}
-                  {colVisible(visibleColumns, 'dueDate') && <ResizableTh colKey="dueDate" label="Due Date" ctx={colCtx} />}
-                  {colVisible(visibleColumns, 'topic') && <ResizableTh colKey="topic" label="Topic" ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'name') && <ResizableTh colKey="name" label={labelFor('name', 'Initiative')} ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'category') && <ResizableTh colKey="category" label={labelFor('category', 'Category')} ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'priority') && <ResizableTh colKey="priority" label={labelFor('priority', 'Priority')} ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'owner') && <ResizableTh colKey="owner" label={labelFor('owner', 'Owner')} ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'status') && <ResizableTh colKey="status" label={labelFor('status', 'Status')} ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'progress') && <ResizableTh colKey="progress" label={labelFor('progress', 'Progress')} ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'dueDate') && <ResizableTh colKey="dueDate" label={labelFor('dueDate', 'Due Date')} ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'topic') && <ResizableTh colKey="topic" label={labelFor('topic', 'Topic / Link')} ctx={colCtx} />}
+                  {colVisible(visibleColumns, 'requester') && <ResizableTh colKey="requester" label={labelFor('requester', 'Requester')} ctx={colCtx} />}
                   {extraStandardFields
                     .filter((f) => colVisible(visibleColumns, f.field_key))
                     .map((f) => (
                       <ResizableTh key={f.id} colKey={STD_COL_KEY(f.field_key)} label={f.name} ctx={colCtx} />
                     ))}
-                  {customFields?.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).map((f) => (
+                  {customFieldsOrdered.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).map((f) => (
                     <ResizableTh key={f.id} colKey={CF_COL_KEY(f.id)} label={f.name} ctx={colCtx} />
                   ))}
                   <th
                     className={cn(
-                      'sticky right-0 z-30 py-2 px-2 w-[76px] min-w-[76px] max-w-[76px] text-center text-[10px] font-semibold text-gray-500 uppercase tracking-wide align-middle',
-                      'border-l border-gray-200 bg-white shadow-[-8px_0_20px_-6px_rgba(15,23,42,0.12)]'
+                      'sticky right-0 z-30 py-2.5 px-2 w-[76px] min-w-[76px] max-w-[76px] text-center text-[10px] font-semibold text-gray-500 uppercase tracking-[0.06em] align-middle',
+                      'border-l border-[var(--border-soft)] bg-[#FAFBFC] shadow-[-8px_0_20px_-6px_rgba(15,23,42,0.10)]'
                     )}
                     title="Edit and delete — stays visible when you scroll sideways"
                   >
@@ -1412,7 +1725,7 @@ export function TrackerSection({
                     onToggleSelect={handleToggleSelect}
                     onFocus={(id) => { onFocusChange?.(id); }}
                     crew={crew}
-                    customFields={customFields}
+                    customFields={customFieldsOrdered}
                     visibleColumns={visibleColumns}
                     onUpdateFieldValue={onUpdateFieldValue}
                     onAddSubItem={onCreateSubItem}
@@ -1455,9 +1768,15 @@ export function TrackerSection({
                         extraStandardFields.filter((f) => colVisible(visibleColumns, f.field_key)).length +
                         (customFields?.filter(isTaskField).filter((f) => colVisible(visibleColumns, f.id)).length ?? 0)
                       }
-                      className="py-8 px-4 text-center text-sm text-gray-500 italic"
+                      className="py-12 px-4"
                     >
-                      No items yet — click <strong>Add task</strong> below to start.
+                      <div className="flex flex-col items-center justify-center text-center">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-50 to-blue-50 flex items-center justify-center mb-3 ring-1 ring-indigo-100">
+                          <Plus className="w-5 h-5 text-indigo-500" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-700">No tasks yet</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Click <span className="font-semibold text-gray-700">Add task</span> below to get started.</p>
+                      </div>
                     </td>
                   </tr>
                 )}
@@ -1477,7 +1796,7 @@ export function TrackerSection({
         )}
 
         {isExpanded && (
-          <div className="border-t border-gray-100">
+          <div className="border-t border-[var(--border-soft)] bg-[#FAFBFC]">
             <button
               type="button"
               onClick={() => {
@@ -1487,10 +1806,12 @@ export function TrackerSection({
                   onAddItem?.();
                 }
               }}
-              className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-400 hover:text-indigo-600 hover:bg-indigo-50/40 transition-colors group"
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium text-gray-500 hover:text-indigo-700 hover:bg-gradient-to-r hover:from-indigo-50/50 hover:to-blue-50/50 transition-all group rounded-b-2xl"
             >
-              <Plus className="w-4 h-4 group-hover:text-indigo-500 transition-colors" />
-              <span className="group-hover:text-indigo-600 transition-colors">Add task</span>
+              <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-white border border-[var(--border-soft)] group-hover:border-indigo-200 group-hover:bg-indigo-50 transition-colors">
+                <Plus className="w-3 h-3 text-gray-400 group-hover:text-indigo-600 transition-colors" />
+              </span>
+              <span>Add task</span>
             </button>
           </div>
         )}

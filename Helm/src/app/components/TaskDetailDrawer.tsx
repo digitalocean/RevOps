@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { AssigneeLookup } from './AssigneeLookup';
-import { formatLocalDate, localDateInputToIso } from '../lib/dateFormat';
+import { formatLocalDate, formatLocalDateTime, localDateInputToIso } from '../lib/dateFormat';
 import { Progress } from './ui/progress';
 import { Dialog, DialogContent } from './ui/dialog';
 import { Input } from './ui/input';
@@ -303,6 +303,17 @@ interface Comment {
   can_delete?: boolean;
 }
 
+interface HistoryEntry {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  details: Record<string, unknown> | null;
+  created_at: string;
+  actor_name: string | null;
+  actor_initials: string | null;
+}
+
 interface Attachment {
   id: string;
   name: string;
@@ -402,7 +413,11 @@ export function TaskDetailDrawer({
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
   const [postingComment, setPostingComment] = useState(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'comments' | 'attachments' | 'time' | 'deps'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'comments' | 'attachments' | 'time' | 'deps' | 'history'>('overview');
+
+  // Activity / History
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   // Time tracking
   const [timeLogs, setTimeLogs] = useState<{ id: string; minutes: number; note: string | null; logged_at: string; user_name: string | null }[]>([]);
   const [totalMinutes, setTotalMinutes] = useState(0);
@@ -472,6 +487,22 @@ export function TaskDetailDrawer({
   useEffect(() => {
     if (activeTab === 'comments') void loadComments();
   }, [activeTab, loadComments]);
+
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const rows = await get<HistoryEntry[]>(apiPath(`api/activity/item/${initiative.id}`));
+      setHistory(Array.isArray(rows) ? rows : []);
+    } catch {
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [initiative.id]);
+
+  useEffect(() => {
+    if (activeTab === 'history') void loadHistory();
+  }, [activeTab, loadHistory]);
 
   useEffect(() => {
     setTopicDraft(String(initiative.field_values?.topic ?? ''));
@@ -590,13 +621,13 @@ export function TaskDetailDrawer({
       <DialogContent
         className={cn(
           '!flex !flex-col w-[min(100vw-1rem,40rem)] max-w-[40rem] max-h-[90vh] p-0 gap-0 overflow-hidden',
-          'border border-gray-200/80 z-[200] shadow-xl rounded-xl sm:rounded-xl',
+          'border border-[var(--border-soft)] z-[200] shadow-[0_25px_60px_-15px_rgba(15,23,42,0.30)] rounded-2xl sm:rounded-2xl',
           '[&>button]:hidden'
         )}
       >
-      <div className="flex flex-col min-h-0 max-h-[90vh] w-full overflow-hidden rounded-xl bg-white">
-        {/* Header — compact */}
-        <div className="flex-shrink-0 border-b border-gray-200 bg-white px-4 py-3">
+      <div className="flex flex-col min-h-0 max-h-[90vh] w-full overflow-hidden rounded-2xl bg-white">
+        {/* Header — compact, with refined gradient */}
+        <div className="flex-shrink-0 border-b border-[var(--border-soft)] bg-gradient-to-b from-white to-[#FAFBFC] px-5 py-3.5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               {editingTitle ? (
@@ -678,24 +709,25 @@ export function TaskDetailDrawer({
         </div>
 
         {/* Tabs — underline, space-efficient */}
-        <div className="flex-shrink-0 border-b border-gray-200 bg-gray-50/50 px-3 overflow-x-auto">
-          <div className="flex gap-1 min-w-max">
-            {(['overview', 'comments', 'attachments', 'time', 'deps'] as const).map((tab) => (
+        <div className="flex-shrink-0 border-b border-[var(--border-soft)] bg-white px-3 overflow-x-auto scrollbar-hide">
+          <div className="flex gap-0.5 min-w-max">
+            {(['overview', 'comments', 'attachments', 'time', 'deps', 'history'] as const).map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setActiveTab(tab)}
                 className={cn(
-                  'relative px-3 py-2.5 text-xs font-medium transition-colors whitespace-nowrap',
+                  'relative px-3 py-2.5 text-xs font-semibold transition-colors whitespace-nowrap rounded-md',
                   activeTab === tab
-                    ? 'text-indigo-700 after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-indigo-600'
-                    : 'text-gray-500 hover:text-gray-800'
+                    ? 'text-indigo-700 after:absolute after:bottom-0 after:left-2 after:right-2 after:h-[2px] after:rounded-full after:bg-gradient-to-r after:from-indigo-500 after:to-blue-500'
+                    : 'text-gray-500 hover:text-gray-800 hover:bg-[var(--secondary)]'
                 )}
               >
                 {tab === 'comments' ? `Comments${comments.length ? ` (${comments.length})` : ''}` :
                  tab === 'attachments' ? `Files${attachments.length ? ` (${attachments.length})` : ''}` :
                  tab === 'time' ? `Time${totalMinutes > 0 ? ` (${Math.round(totalMinutes/60)}h)` : ''}` :
                  tab === 'deps' ? `Depends${deps.length ? ` (${deps.length})` : ''}` :
+                 tab === 'history' ? `History${history.length ? ` (${history.length})` : ''}` :
                  'Overview'}
               </button>
             ))}
@@ -1208,12 +1240,82 @@ export function TaskDetailDrawer({
               )}
             </div>
           )}
+
+          {/* ── HISTORY TAB ── */}
+          {activeTab === 'history' && (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-700">Activity history</h3>
+                <span className="text-xs text-gray-400">Who changed what, when</span>
+              </div>
+              {historyLoading ? (
+                <p className="text-sm text-gray-400">Loading…</p>
+              ) : history.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  <Clock className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+                  <p className="text-sm">No history yet. Every change will appear here.</p>
+                </div>
+              ) : (
+                <ol className="relative ml-4 border-l border-gray-200 space-y-4">
+                  {history.map((h) => (
+                    <li key={h.id} className="pl-4">
+                      <span className="absolute -left-1.5 mt-1.5 w-3 h-3 rounded-full bg-indigo-500 ring-2 ring-white" />
+                      <div className="flex items-baseline gap-2 text-xs text-gray-500">
+                        <span className="font-medium text-gray-700">{h.actor_name || 'Someone'}</span>
+                        <span>{describeHistoryAction(h)}</span>
+                        <span className="ml-auto shrink-0">{formatLocalDateTime(h.created_at)}</span>
+                      </div>
+                      {h.details && typeof h.details === 'object' && (
+                        <HistoryDiff details={h.details as Record<string, unknown>} action={h.action} />
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Human-readable sentence for an activity entry (e.g. "changed status"). */
+function describeHistoryAction(h: HistoryEntry): string {
+  switch (h.action) {
+    case 'item_created': return 'created this item';
+    case 'status_changed': return 'changed status';
+    case 'priority_changed': return 'changed priority';
+    case 'assignee_changed': return 'changed assignee';
+    case 'title_changed': return 'renamed item';
+    case 'due_date_changed': return 'updated due date';
+    case 'category_changed': return 'changed category';
+    case 'item_updated': return 'updated item';
+    default: return h.action.replace(/_/g, ' ');
+  }
+}
+
+/** Compact "from → to" display when the activity log includes `from`/`to` fields. */
+function HistoryDiff({ details, action }: { details: Record<string, unknown>; action: string }) {
+  const from = details.from;
+  const to = details.to ?? details.assignee ?? details.title;
+  if (from == null && to == null) return null;
+  if (action === 'title_changed' && 'title' in details && to != null) {
+    return (
+      <p className="mt-1 text-xs text-gray-600 truncate">
+        <span className="text-gray-400">from</span> <span className="italic">{String(details.title)}</span>{' '}
+        <span className="text-gray-400">to</span> <span className="italic">{String(to)}</span>
+      </p>
+    );
+  }
+  return (
+    <p className="mt-1 text-xs text-gray-600">
+      {from != null && (<><span className="text-gray-400">from </span><span>{String(from)}</span>{' '}</>)}
+      {to != null && (<><span className="text-gray-400">to </span><span>{String(to)}</span></>)}
+    </p>
   );
 }
 

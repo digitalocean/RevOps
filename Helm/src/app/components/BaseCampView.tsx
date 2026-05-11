@@ -1,8 +1,15 @@
 import { useState, useEffect } from 'react';
+import { toast } from 'sonner';
 import { Button } from './ui/button';
 import { Checkbox } from './ui/checkbox';
-import { Settings2, Users, UserPlus, Trash2, ChevronUp, ChevronDown, History } from 'lucide-react';
-import { get } from '../api/meridian';
+import { Input } from './ui/input';
+import { Settings2, Users, UserPlus, Trash2, ChevronUp, ChevronDown, History, Tags, Pencil, HeartHandshake, Plus, X } from 'lucide-react';
+import { get, api } from '../api/meridian';
+import { CategoryOptionsEditor } from './CategoryOptionsEditor';
+import type { ProjectCollaborator } from '../data/useMeridianData';
+
+/** Standard fields that users can rename per-project (display label only). */
+const PROJECT_RENAMABLE_FIELD_KEYS = new Set(['topic', 'category']);
 
 interface AuditEntry {
   id: string;
@@ -25,6 +32,7 @@ const DEFAULT_STANDARD_FIELDS = [
   { id: 'progress', label: 'Progress' },
   { id: 'dueDate', label: 'Due Date' },
   { id: 'topic', label: 'Topic' },
+  { id: 'requester', label: 'Requester' },
 ] as const;
 
 export interface StandardFieldDef {
@@ -77,6 +85,14 @@ interface BaseCampViewProps {
   /** Opens share / manage access dialog (same as Share). */
   onOpenShare?: () => void;
   onDeleteProject?: (projectId: string) => void | Promise<void>;
+  /** Called after a Category override change so the parent can refetch standard fields. */
+  onCategoryOptionsChanged?: () => void;
+  /** Current list of project collaborators (free-form people tagged on the project). */
+  collaborators?: ProjectCollaborator[];
+  /** Replace the full list of collaborators. */
+  onUpdateCollaborators?: (next: ProjectCollaborator[]) => Promise<void> | void;
+  /** Whether the current user can edit collaborators (owner/admin only). */
+  canEditCollaborators?: boolean;
 }
 
 export function BaseCampView({
@@ -90,12 +106,17 @@ export function BaseCampView({
   onOpenCustomFields,
   onOpenShare,
   onDeleteProject,
+  onCategoryOptionsChanged,
+  collaborators = [],
+  onUpdateCollaborators,
+  canEditCollaborators = true,
 }: BaseCampViewProps) {
   const taskFields = customFields.filter(isTaskField);
   const standardFieldsList = (standardFieldsProp && standardFieldsProp.length > 0)
     ? standardFieldsProp.map((f) => ({ id: f.field_key || f.id, label: f.name }))
     : DEFAULT_STANDARD_FIELDS;
   const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [editCategoriesOpen, setEditCategoriesOpen] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
   const [auditFilter, setAuditFilter] = useState<'all' | 'custom_field' | 'standard_field'>('all');
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
@@ -188,6 +209,12 @@ export function BaseCampView({
           </ul>
         )}
 
+        <CollaboratorsPanel
+          collaborators={collaborators}
+          onUpdate={onUpdateCollaborators}
+          canEdit={canEditCollaborators}
+        />
+
         <div className="border-t border-gray-200 pt-3 mt-3">
           <button
             type="button"
@@ -266,12 +293,20 @@ export function BaseCampView({
         </div>
       ) : (
         <>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6">
         <h2 className="text-lg font-semibold text-gray-900">Base Camp — Columns for Trackers</h2>
-        <Button type="button" variant="outline" size="sm" onClick={onOpenCustomFields} className="gap-2">
-          <Settings2 className="w-4 h-4" />
-          Manage custom fields
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {projectId && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setEditCategoriesOpen(true)} className="gap-2">
+              <Tags className="w-4 h-4" />
+              Edit Categories for this project
+            </Button>
+          )}
+          <Button type="button" variant="outline" size="sm" onClick={onOpenCustomFields} className="gap-2">
+            <Settings2 className="w-4 h-4" />
+            Manage custom fields
+          </Button>
+        </div>
       </div>
       <p className="text-sm text-gray-500 mb-4">
         Enable fields for trackers: only checked fields will appear when you create a new section. Use the <strong>Columns</strong> button in Trackers to show/hide columns per view.
@@ -286,6 +321,7 @@ export function BaseCampView({
               const col = standardFieldsList.find((c) => c.id === colId) ?? taskFields.find((f) => f.id === colId);
               if (!col) return null;
               const label = 'label' in col ? col.label : col.name;
+              const isProjectRenamableStandard = PROJECT_RENAMABLE_FIELD_KEYS.has(colId);
               return (
                 <li key={colId} className="flex items-center justify-between gap-2 py-2 px-3 rounded-lg bg-gray-50 border border-gray-100">
                   <div className="flex items-center gap-1 shrink-0">
@@ -307,6 +343,33 @@ export function BaseCampView({
                     />
                     <span className="text-sm font-medium text-gray-800 truncate">{label}</span>
                   </label>
+                  {isProjectRenamableStandard && projectId && (
+                    <button
+                      type="button"
+                      className="p-1 rounded hover:bg-gray-200 text-gray-400 hover:text-gray-700 shrink-0"
+                      title={`Rename "${label}" for this project`}
+                      onClick={async () => {
+                        const next = window.prompt(
+                          `Rename "${label}" for this project only. Leave blank to reset to default.`,
+                          label
+                        );
+                        if (next === null) return;
+                        const trimmed = next.trim();
+                        try {
+                          await api(`/api/standard-fields/project-options/${projectId}/${colId}`, {
+                            method: 'PUT',
+                            body: { label: trimmed || null } as unknown as BodyInit,
+                          });
+                          toast.success(trimmed ? 'Renamed for this project' : 'Reverted to default name');
+                          onCategoryOptionsChanged?.();
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : 'Rename failed');
+                        }
+                      }}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -344,6 +407,144 @@ export function BaseCampView({
       </>
       )}
       </div>
+      {projectId && (
+        <CategoryOptionsEditor
+          open={editCategoriesOpen}
+          onOpenChange={setEditCategoriesOpen}
+          projectId={projectId}
+          onSaved={() => { onCategoryOptionsChanged?.(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+interface CollaboratorsPanelProps {
+  collaborators: ProjectCollaborator[];
+  onUpdate?: (next: ProjectCollaborator[]) => Promise<void> | void;
+  canEdit?: boolean;
+}
+
+function CollaboratorsPanel({ collaborators, onUpdate, canEdit }: CollaboratorsPanelProps) {
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const reset = () => {
+    setAdding(false);
+    setName('');
+    setEmail('');
+    setRole('');
+  };
+
+  const add = async () => {
+    if (!onUpdate) return;
+    const cleanName = name.trim();
+    const cleanEmail = email.trim();
+    if (!cleanName && !cleanEmail) return;
+    const next: ProjectCollaborator[] = [
+      ...collaborators,
+      { name: cleanName || cleanEmail, email: cleanEmail || null, role: role.trim() || null },
+    ];
+    setSaving(true);
+    try {
+      await onUpdate(next);
+      reset();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to add collaborator');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (idx: number) => {
+    if (!onUpdate) return;
+    const next = collaborators.filter((_, i) => i !== idx);
+    try {
+      await onUpdate(next);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to remove collaborator');
+    }
+  };
+
+  return (
+    <div className="border-t border-gray-200 pt-3 mt-3">
+      <div className="flex items-center justify-between gap-1 flex-wrap mb-2">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
+          <HeartHandshake className="w-3.5 h-3.5" />
+          Collaborators
+        </h3>
+        {canEdit && !adding && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs gap-1"
+            onClick={() => setAdding(true)}
+            title="Tag a collaborator"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add
+          </Button>
+        )}
+      </div>
+      {collaborators.length === 0 && !adding ? (
+        <p className="text-xs text-gray-500">No collaborators tagged yet.</p>
+      ) : (
+        <ul className="space-y-1.5">
+          {collaborators.map((c, idx) => (
+            <li key={`${c.email ?? ''}-${idx}`} className="flex items-center gap-2 text-sm">
+              <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center text-[10px] font-medium flex-shrink-0">
+                {(c.name || c.email || '?').slice(0, 2).toUpperCase()}
+              </span>
+              <span className="flex-1 truncate text-gray-800" title={c.email || c.name}>
+                <span className="font-medium">{c.name || c.email || 'Unknown'}</span>
+                {c.role && <span className="text-[10px] text-gray-500 ml-1">· {c.role}</span>}
+              </span>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => remove(idx)}
+                  title="Remove collaborator"
+                  className="text-gray-400 hover:text-red-600 shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {canEdit && adding && (
+        <div className="mt-2 flex flex-col gap-1.5 rounded-md border border-dashed border-gray-300 bg-white p-2">
+          <Input
+            placeholder="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="h-7 text-xs"
+          />
+          <Input
+            placeholder="Email (optional)"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="h-7 text-xs"
+          />
+          <Input
+            placeholder="Role (optional, e.g. Reviewer)"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            className="h-7 text-xs"
+          />
+          <div className="flex items-center gap-1.5 justify-end">
+            <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={reset}>Cancel</Button>
+            <Button type="button" size="sm" className="h-7 text-xs" disabled={saving || (!name.trim() && !email.trim())} onClick={add}>
+              {saving ? 'Saving…' : 'Add'}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

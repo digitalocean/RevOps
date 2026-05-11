@@ -1,16 +1,25 @@
 @custom-variant dark (&:is(.dark *));
 
-/* Light UI — previous version */
+/* Light UI — refined palette */
 :root {
   --font-size: 16px;
   --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --bg-app: #FAFAFA;
-  --bg-sidebar: #111318;
+  /* App surface: soft, slightly cool off-white that still feels neutral */
+  --bg-app: #F6F7FB;
+  --bg-sidebar: #0F1117;
   --bg-surface: #FFFFFF;
-  --border: #e5e7eb;
-  --text-primary: #111827;
-  --text-muted: #6b7280;
-  --accent: #2563eb;
+  --bg-elevated: #FFFFFF;
+  --border: #E5E7EB;
+  --border-soft: #EEF0F4;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #64748B;
+  --accent: #4F46E5;
+  /* Soft, layered shadows for cards / popovers */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 2px 4px rgba(15, 23, 42, 0.04), 0 4px 12px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 4px 8px rgba(15, 23, 42, 0.04), 0 12px 24px rgba(15, 23, 42, 0.08);
   /* Legacy aliases */
   --background: var(--bg-surface);
   --foreground: var(--text-primary);
@@ -18,36 +27,36 @@
   --card-foreground: var(--text-primary);
   --popover: var(--bg-surface);
   --popover-foreground: var(--text-primary);
-  --primary: #2563eb;
+  --primary: #4F46E5;
   --primary-foreground: #fff;
-  --secondary: #f3f4f6;
+  --secondary: #F1F5F9;
   --secondary-foreground: var(--text-primary);
-  --muted: #f3f4f6;
+  --muted: #F1F5F9;
   --muted-foreground: var(--text-muted);
   --accent-foreground: #fff;
-  --destructive: #dc2626;
+  --destructive: #DC2626;
   --destructive-foreground: #fff;
   --border: var(--border);
   --input: transparent;
   --input-background: #fff;
-  --switch-background: #d1d5db;
+  --switch-background: #CBD5E1;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --ring: #2563eb;
-  --chart-1: #2563eb;
+  --ring: #4F46E5;
+  --chart-1: #4F46E5;
   --chart-2: #059669;
-  --chart-3: #7c3aed;
-  --chart-4: #f59e0b;
-  --chart-5: #6b7280;
+  --chart-3: #7C3AED;
+  --chart-4: #F59E0B;
+  --chart-5: #64748B;
   --radius: 0.5rem;
   --sidebar: var(--bg-sidebar);
   --sidebar-foreground: var(--text-primary);
-  --sidebar-primary: #1f2937;
+  --sidebar-primary: #1F2937;
   --sidebar-primary-foreground: #fff;
-  --sidebar-accent: #e5e7eb;
+  --sidebar-accent: #E5E7EB;
   --sidebar-accent-foreground: var(--text-primary);
-  --sidebar-border: #e5e7eb;
-  --sidebar-ring: #2563eb;
+  --sidebar-border: #E5E7EB;
+  --sidebar-ring: #4F46E5;
 }
 
 .dark {
@@ -135,19 +144,56 @@
 
   body {
     font-family: var(--font-sans);
-    background: var(--bg-app);
+    /* Subtle, very soft top-left tint so the app feels less flat without being noisy. */
+    background-color: var(--bg-app);
+    background-image:
+      radial-gradient(circle at 0% 0%, rgba(79, 70, 229, 0.05), transparent 40%),
+      radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.04), transparent 35%);
+    background-attachment: fixed;
     color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 
   html {
     font-size: var(--font-size);
   }
 
-  h1 { font-size: 1.5rem; font-weight: 500; line-height: 1.5; }
-  h2 { font-size: 1.25rem; font-weight: 500; line-height: 1.5; }
-  h3 { font-size: 1.125rem; font-weight: 500; line-height: 1.5; }
-  h4 { font-size: 1rem; font-weight: 500; line-height: 1.5; }
+  h1 { font-size: 1.5rem; font-weight: 600; line-height: 1.4; letter-spacing: -0.01em; }
+  h2 { font-size: 1.25rem; font-weight: 600; line-height: 1.4; letter-spacing: -0.01em; }
+  h3 { font-size: 1.125rem; font-weight: 600; line-height: 1.4; }
+  h4 { font-size: 1rem; font-weight: 600; line-height: 1.4; }
   label { font-size: 1rem; font-weight: 500; line-height: 1.5; }
   button { font-size: 1rem; font-weight: 500; line-height: 1.5; }
   input { font-size: 1rem; font-weight: 400; line-height: 1.5; }
+
+  /* Polished scrollbars */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(15, 23, 42, 0.12);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(15, 23, 42, 0.2); background-clip: padding-box; }
+}
+
+/* Reusable utilities for elevated surfaces and gradient accents */
+@layer utilities {
+  .surface-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border-soft);
+    box-shadow: var(--shadow-sm);
+  }
+  .surface-card-md { box-shadow: var(--shadow-md); }
+  .ring-soft { box-shadow: var(--shadow-sm); }
+  .text-app-secondary { color: var(--text-secondary); }
+  .text-app-muted { color: var(--text-muted); }
+  .bg-brand-soft {
+    background-image: linear-gradient(135deg, rgba(79, 70, 229, 0.08), rgba(59, 130, 246, 0.06));
+  }
+  .scrollbar-hide { scrollbar-width: none; -ms-overflow-style: none; }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
 }

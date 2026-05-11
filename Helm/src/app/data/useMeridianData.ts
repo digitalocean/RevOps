@@ -39,6 +39,8 @@ export type CrewMemberRow = {
   email?: string | null;
   first_name?: string | null;
   last_name?: string | null;
+  /** Present when the crew member is linked to a real signed-in user account. */
+  user_id?: string | null;
 };
 
 /** Crew rows from API may omit names; merge assignees referenced on items so Owner lookup always works. */
@@ -62,6 +64,7 @@ function mergeCrewWithItemAssignees(
     email?: string | null;
     first_name?: string | null;
     last_name?: string | null;
+    user_id?: string | null;
   }): CrewMemberRow => ({
     id: String(r.id),
     name: String(r.name ?? 'Unknown'),
@@ -70,6 +73,7 @@ function mergeCrewWithItemAssignees(
     email: r.email ?? null,
     first_name: r.first_name ?? null,
     last_name: r.last_name ?? null,
+    user_id: r.user_id ?? null,
   });
   const byId = new Map<string, CrewMemberRow>();
   for (const r of crewRows) {
@@ -116,6 +120,12 @@ function mapItemToInitiative(item: {
   /** Merged into field_values (standard extras like `comments` live here from API). */
   custom_vals?: unknown;
   created_by_id?: string | null;
+  created_by_email?: string | null;
+  created_by_name?: string | null;
+  requester_id?: string | null;
+  requester_effective_id?: string | null;
+  requester_name?: string | null;
+  requester_email?: string | null;
   /** Set when loading My Tasks (admin varies by project). */
   is_project_admin?: boolean;
 }): Initiative {
@@ -161,6 +171,11 @@ function mapItemToInitiative(item: {
     })(),
     project_id: item.project_id ?? null,
     created_by_id: item.created_by_id ?? null,
+    created_by_email: item.created_by_email ?? null,
+    created_by_name: item.created_by_name ?? null,
+    requester_id: item.requester_id ?? item.requester_effective_id ?? item.created_by_id ?? null,
+    requester_name: item.requester_name ?? item.created_by_name ?? null,
+    requester_email: item.requester_email ?? item.created_by_email ?? null,
     is_project_admin: item.is_project_admin,
   };
 }
@@ -172,6 +187,14 @@ export interface Workspace {
   color?: string;
   icon?: string;
 }
+export interface ProjectCollaborator {
+  name: string;
+  email?: string | null;
+  crew_id?: string | null;
+  user_id?: string | null;
+  role?: string | null;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -179,6 +202,7 @@ export interface Project {
   description?: string;
   color?: string;
   is_personal?: boolean;
+  collaborators?: ProjectCollaborator[];
 }
 
 export interface Sprint {
@@ -203,7 +227,7 @@ export interface MeridianDataResult {
   selectedProjectId: string | null;
   setSelectedProjectId: (id: string | null) => void;
   createProject: (payload: { name: string; description?: string; color?: string; is_personal?: boolean }) => Promise<Project | null>;
-  updateProject: (projectId: string, payload: { name?: string; description?: string; color?: string }) => Promise<unknown>;
+  updateProject: (projectId: string, payload: { name?: string; description?: string; color?: string; collaborators?: ProjectCollaborator[] }) => Promise<unknown>;
   createSprint: (projectId: string, name: string, start_date?: string, end_date?: string) => Promise<Sprint | null>;
   createItem: (projectId: string, payload: { title: string; description?: string; priority?: string; status?: string; category?: string; due_date?: string; type?: string }, parentId?: string | null, trackerId?: string | null) => Promise<unknown>;
   createSection: (projectId: string, name: string, columns?: string[]) => Promise<{ id: string; name: string } | null>;
@@ -220,11 +244,13 @@ export interface MeridianDataResult {
     progress?: number;
     category?: string | null;
     topic?: string | null;
+    requester_id?: string | null;
     custom_vals?: Record<string, string | number | boolean | null>;
   }) => Promise<unknown>;
   deleteItem: (itemId: string) => Promise<void>;
   deleteSection: (trackerId: string) => Promise<void>;
   deleteProject: (projectId: string) => Promise<void>;
+  duplicateProject: (projectId: string, opts?: { name?: string; include_members?: boolean; include_items?: boolean }) => Promise<Project | null>;
   sprints: Sprint[];
   crew: CrewMemberRow[];
   customFields: { id: string; name: string; field_type: string; target: string; applies_to?: string; options_json?: unknown[] }[];
@@ -265,15 +291,20 @@ export function useMeridianData(): MeridianDataResult {
     setLoading(true);
     setError(null);
     try {
-      const [projRes, stdRes] = await Promise.all([
-        get<Project[]>(apiPath('api/projects')).catch(() => []),
-        get<{ id: string; field_key: string; name: string; field_type: string; options_json?: unknown[] }[]>(apiPath('api/standard-fields')).catch(() => []),
-      ]);
-      setStandardFields(Array.isArray(stdRes) ? stdRes : []);
+      const projRes = await get<Project[]>(apiPath('api/projects')).catch(() => []);
       const projList = Array.isArray(projRes) ? projRes : [];
       setProjects(projList);
       const pid = overrideProjectId ?? selectedProjectId ?? (projList[0]?.id ?? null);
       if (projList.length && !selectedProjectId && overrideProjectId === undefined) setSelectedProjectId(projList[0].id);
+
+      // Standard fields are fetched project-scoped so Category (and other
+      // project-scopable dropdowns) return the project-specific override.
+      const stdPath = pid
+        ? `${apiPath('api/standard-fields')}?project_id=${encodeURIComponent(String(pid))}`
+        : apiPath('api/standard-fields');
+      const stdRes = await get<{ id: string; field_key: string; name: string; field_type: string; options_json?: unknown[] }[]>(stdPath).catch(() => []);
+      setStandardFields(Array.isArray(stdRes) ? stdRes : []);
+
       if (!pid) {
         setSprints([]);
         setInitiatives([]);
@@ -297,7 +328,7 @@ export function useMeridianData(): MeridianDataResult {
         get<unknown[]>(`${apiPath('api/items')}?project_id=${pid}`).catch(() => []),
         get<{ id: string; name: string; sort_order?: number }[]>(`${apiPath('api/trackers')}?project_id=${pid}`).catch(() => []),
         get<{ id: string; name: string; field_type: string; target: string }[]>(apiPath(`api/custom-fields?project_id=${pid}`)).catch(() => []),
-        get<{ id: string; name?: string; initials?: string; role?: string }[]>(crewPath).catch(() => []),
+        get<{ id: string; name?: string; initials?: string; role?: string; email?: string | null; first_name?: string | null; last_name?: string | null; user_id?: string | null }[]>(crewPath).catch(() => []),
       ]);
       setSprints(Array.isArray(sprintsRes) ? sprintsRes : []);
       setCustomFields(Array.isArray(cfRes) ? cfRes : []);
@@ -322,6 +353,12 @@ export function useMeridianData(): MeridianDataResult {
           field_values: i.field_values as Record<string, string | number | boolean | null> | undefined,
           custom_vals: i.custom_vals,
           created_by_id: i.created_by_id as string | null | undefined,
+          created_by_email: i.created_by_email as string | null | undefined,
+          created_by_name: i.created_by_name as string | null | undefined,
+          requester_id: i.requester_id as string | null | undefined,
+          requester_effective_id: i.requester_effective_id as string | null | undefined,
+          requester_name: i.requester_name as string | null | undefined,
+          requester_email: i.requester_email as string | null | undefined,
         })
       );
       setInitiatives(mapped);
@@ -420,6 +457,12 @@ export function useMeridianData(): MeridianDataResult {
           field_values: i.field_values as Record<string, string | number | boolean | null> | undefined,
           custom_vals: i.custom_vals,
           created_by_id: i.created_by_id as string | null | undefined,
+          created_by_email: i.created_by_email as string | null | undefined,
+          created_by_name: i.created_by_name as string | null | undefined,
+          requester_id: i.requester_id as string | null | undefined,
+          requester_effective_id: i.requester_effective_id as string | null | undefined,
+          requester_name: i.requester_name as string | null | undefined,
+          requester_email: i.requester_email as string | null | undefined,
           is_project_admin,
         })
       );
@@ -444,13 +487,17 @@ export function useMeridianData(): MeridianDataResult {
     return p ?? null;
   }, [load]);
 
-  const updateProject = useCallback(async (projectId: string, payload: { name?: string; description?: string; color?: string }): Promise<unknown> => {
-    const body: Record<string, string> = {};
+  const updateProject = useCallback(async (
+    projectId: string,
+    payload: { name?: string; description?: string; color?: string; collaborators?: ProjectCollaborator[] }
+  ): Promise<unknown> => {
+    const body: Record<string, unknown> = {};
     if (payload.name !== undefined) body.name = payload.name.trim();
     if (payload.description !== undefined) body.description = payload.description;
     if (payload.color !== undefined) body.color = payload.color;
+    if (payload.collaborators !== undefined) body.collaborators = payload.collaborators;
     if (Object.keys(body).length === 0) return null;
-    const res = await patch(apiPath(`api/projects/${projectId}`), body);
+    const res = await patch(apiPath(`api/projects/${projectId}`), body as Record<string, string>);
     await load();
     return res;
   }, [load]);
@@ -551,6 +598,7 @@ export function useMeridianData(): MeridianDataResult {
       is_milestone?: boolean;
       start_date?: string | null;
       topic?: string | null;
+      requester_id?: string | null;
       custom_vals?: Record<string, string | number | boolean | null>;
     }
   ): Promise<unknown> => {
@@ -568,6 +616,7 @@ export function useMeridianData(): MeridianDataResult {
     if (payload.is_milestone !== undefined) body.is_milestone = payload.is_milestone;
     if (payload.start_date !== undefined) body.start_date = payload.start_date;
     if (payload.topic !== undefined) body.topic = payload.topic;
+    if (payload.requester_id !== undefined) body.requester_id = payload.requester_id;
     if (payload.custom_vals !== undefined) body.custom_vals = payload.custom_vals;
     const res = await patch(apiPath(`api/items/${itemId}`), body as Record<string, string>);
     await load();
@@ -589,6 +638,16 @@ export function useMeridianData(): MeridianDataResult {
     if (selectedProjectId === projectId) setSelectedProjectId(null);
     await load();
   }, [load, selectedProjectId]);
+
+  const duplicateProject = useCallback(async (projectId: string, opts: { name?: string; include_members?: boolean; include_items?: boolean } = {}): Promise<Project | null> => {
+    const created = await post<Project>(apiPath(`api/projects/${projectId}/duplicate`), opts);
+    if (created?.id) {
+      await load(created.id);
+      setSelectedProjectId(created.id);
+      return created;
+    }
+    return null;
+  }, [load]);
 
   const done = initiatives.filter((i) => i.status === 'Complete').length;
   const inProgress = initiatives.filter((i) => i.status === 'On Track' || i.status === 'At Risk').length;
@@ -616,6 +675,7 @@ export function useMeridianData(): MeridianDataResult {
     setSelectedProjectId,
     createProject,
     updateProject,
+    duplicateProject,
     createSprint,
     createItem,
     updateItem,

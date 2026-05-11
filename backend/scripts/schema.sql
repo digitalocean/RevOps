@@ -270,6 +270,25 @@ BEGIN
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'created_by') THEN
     ALTER TABLE projects ADD COLUMN created_by UUID REFERENCES users(id) ON DELETE SET NULL;
   END IF;
+  -- Projects: collaborators (free-form people tagged on the project — e.g. stakeholders who may not have access yet)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'collaborators') THEN
+    ALTER TABLE projects ADD COLUMN collaborators JSONB DEFAULT '[]';
+  END IF;
+  -- Projects: public read-only share token (tokenised link, owner/admin only can enable)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'share_token') THEN
+    ALTER TABLE projects ADD COLUMN share_token VARCHAR(64);
+    CREATE UNIQUE INDEX IF NOT EXISTS projects_share_token_key ON projects(share_token);
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'share_enabled') THEN
+    ALTER TABLE projects ADD COLUMN share_enabled BOOLEAN DEFAULT false;
+  END IF;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'projects')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'projects' AND column_name = 'share_created_at') THEN
+    ALTER TABLE projects ADD COLUMN share_created_at TIMESTAMPTZ;
+  END IF;
   -- User fields (spec)
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users')
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'full_name') THEN
@@ -312,6 +331,17 @@ BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'items')
      AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'items' AND column_name = 'position') THEN
     ALTER TABLE items ADD COLUMN position INT DEFAULT 0;
+  END IF;
+  -- Items: requester_id (who filed the item, defaults to creator but can be reassigned)
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'items')
+     AND NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'items' AND column_name = 'requester_id') THEN
+    ALTER TABLE items ADD COLUMN requester_id UUID REFERENCES users(id) ON DELETE SET NULL;
+  END IF;
+  -- Idempotent backfill so historical items (including those seeded before the
+  -- column existed) surface a useful requester instead of NULL.
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'items' AND column_name = 'requester_id')
+     AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'items' AND column_name = 'created_by_id') THEN
+    UPDATE items SET requester_id = created_by_id WHERE requester_id IS NULL AND created_by_id IS NOT NULL;
   END IF;
   -- Trackers (spec: is_collapsed, created_by_id)
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'trackers')
@@ -363,7 +393,8 @@ INSERT INTO standard_fields (field_key, name, field_type, options_json, sort_ord
   ('status', 'Status', 'select', '[{"label":"Not Started","color":"#9ca3af"},{"label":"On Track","color":"#16a34a"},{"label":"At Risk","color":"#d97706"},{"label":"In Review","color":"#7c3aed"},{"label":"Blocked","color":"#dc2626"},{"label":"Complete","color":"#0ea5e9"}]', 4),
   ('progress', 'Progress', 'number', '[]', 5),
   ('dueDate', 'Due Date', 'date', '[]', 6),
-  ('topic', 'Topic', 'text', '[]', 7)
+  ('topic', 'Topic', 'text', '[]', 7),
+  ('requester', 'Requester', 'user', '[]', 8)
 ON CONFLICT (field_key) DO NOTHING;
 
 -- SavedView (spec)
@@ -559,5 +590,26 @@ DO $$ BEGIN
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'crew' AND column_name = 'last_name') THEN
     ALTER TABLE crew ADD COLUMN last_name VARCHAR(80);
+  END IF;
+END $$;
+
+-- Project-specific overrides for standard-field dropdown options (e.g. Category
+-- should have a different set of allowed values in each project). If no row
+-- exists here for a given (project, field_key), the global standard_fields
+-- options_json applies.
+CREATE TABLE IF NOT EXISTS project_field_options (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id   UUID REFERENCES projects(id) ON DELETE CASCADE NOT NULL,
+  field_key    VARCHAR(80) NOT NULL,
+  options_json JSONB       DEFAULT '[]',
+  label        VARCHAR(120),
+  created_at   TIMESTAMPTZ DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(project_id, field_key)
+);
+CREATE INDEX IF NOT EXISTS project_field_options_project ON project_field_options(project_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='project_field_options' AND column_name='label') THEN
+    ALTER TABLE project_field_options ADD COLUMN label VARCHAR(120);
   END IF;
 END $$;

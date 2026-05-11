@@ -405,11 +405,13 @@ router.get('/ping', (req, res) => {
   });
 });
 
-// Auth providers: SAML preferred when configured (SSO button); else Okta OIDC
+// Auth providers: SAML preferred when configured (SSO button); else Okta OIDC.
+// `dev` exposes the email/password form only outside production (for local development / review).
 router.get('/providers', (req, res) => {
   res.json({
     okta: !!(process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.OKTA_ISSUER),
     saml: samlMetadataEnvPresent(),
+    dev: process.env.NODE_ENV !== 'production',
   });
 });
 

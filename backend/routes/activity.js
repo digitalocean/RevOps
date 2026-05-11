@@ -7,6 +7,44 @@ router.use((_req, res, next) => {
   next();
 });
 
+/** GET activity feed scoped to a single item (history panel on a task). */
+router.get('/item/:itemId', async (req, res) => {
+  try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const itemId = req.params.itemId;
+    const allowedProjectIds = await getAccessibleProjectIds(pool, userId);
+    // Verify the item belongs to a project the user can access.
+    const itemRes = await pool.query({
+      name: 'activity_item_project',
+      text: 'SELECT project_id FROM items WHERE id = $1',
+      values: [itemId],
+    });
+    if (!itemRes.rows.length) return res.status(404).json({ error: 'Not found' });
+    const projectId = itemRes.rows[0].project_id;
+    if (!allowedProjectIds.some((id) => String(id) === String(projectId))) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    const lim = Math.min(Number(req.query.limit) || 100, 500);
+    const { rows } = await pool.query({
+      name: 'activity_by_item',
+      text: `SELECT a.id, a.project_id, a.action, a.entity_type, a.entity_id, a.details, a.created_at,
+                    COALESCE(c.name, u.name, u.email) as actor_name,
+                    COALESCE(c.initials, UPPER(SUBSTR(COALESCE(TRIM(u.name), SPLIT_PART(u.email, '@', 1), '?'), 1, 2))) as actor_initials
+             FROM activity_log a
+             LEFT JOIN crew c ON a.crew_id = c.id
+             LEFT JOIN users u ON a.user_id = u.id
+             WHERE a.entity_type = 'item' AND a.entity_id = $1
+             ORDER BY a.created_at DESC
+             LIMIT $2`,
+      values: [itemId, lim],
+    });
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET activity feed for a project (user-scoped)
 router.get('/', async (req, res) => {
   try {

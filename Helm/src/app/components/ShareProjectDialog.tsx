@@ -48,6 +48,10 @@ export function ShareProjectDialog({
   const [inviting, setInviting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Public share token
+  const [shareEnabled, setShareEnabled] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editFirst, setEditFirst] = useState('');
   const [editLast, setEditLast] = useState('');
@@ -82,12 +86,64 @@ export function ShareProjectDialog({
   useEffect(() => {
     if (open && projectId) {
       loadMembers();
+      loadShare();
       setFirstName('');
       setLastName('');
       setEmail('');
       setEditingId(null);
     }
   }, [open, projectId]);
+
+  const loadShare = async () => {
+    if (!projectId) return;
+    try {
+      const r = await get<{ enabled: boolean; token: string | null }>(`/api/projects/${projectId}/share`);
+      setShareEnabled(!!r.enabled);
+      setShareToken(r.token ?? null);
+    } catch {
+      setShareEnabled(false);
+      setShareToken(null);
+    }
+  };
+
+  const enableShare = async () => {
+    if (!projectId) return;
+    setShareBusy(true);
+    try {
+      const r = await post<{ enabled: boolean; token: string }>(`/api/projects/${projectId}/share`, {});
+      setShareEnabled(!!r.enabled);
+      setShareToken(r.token);
+      toast.success('Public link enabled');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to enable public link');
+    } finally { setShareBusy(false); }
+  };
+
+  const disableShare = async () => {
+    if (!projectId) return;
+    setShareBusy(true);
+    try {
+      await del(`/api/projects/${projectId}/share`);
+      setShareEnabled(false);
+      setShareToken(null);
+      toast.success('Public link disabled');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to disable public link');
+    } finally { setShareBusy(false); }
+  };
+
+  const publicUrl = shareToken
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/share/${shareToken}`
+    : '';
+  const copyPublicLink = async () => {
+    if (!publicUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      toast.success('Link copied');
+    } catch {
+      toast.error('Could not copy to clipboard');
+    }
+  };
 
   const inviteValid =
     firstName.trim().length > 0 && lastName.trim().length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -202,6 +258,31 @@ export function ShareProjectDialog({
           </DialogHeader>
         </div>
         <div className="px-6 py-4 space-y-4 overflow-y-auto flex-1 min-h-0">
+          <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Public read-only link</p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  Anyone with the link can view this project (no editing). Disable any time.
+                </p>
+              </div>
+              {shareEnabled ? (
+                <Button type="button" variant="outline" size="sm" className="h-8 text-xs" disabled={shareBusy} onClick={disableShare}>
+                  {shareBusy ? '…' : 'Disable'}
+                </Button>
+              ) : (
+                <Button type="button" size="sm" className="h-8 text-xs" disabled={shareBusy} onClick={enableShare}>
+                  {shareBusy ? '…' : 'Enable'}
+                </Button>
+              )}
+            </div>
+            {shareEnabled && publicUrl && (
+              <div className="flex items-center gap-2">
+                <Input readOnly value={publicUrl} className="h-8 text-xs bg-white border-gray-200 flex-1" onFocus={(e) => e.currentTarget.select()} />
+                <Button type="button" variant="outline" size="sm" className="h-8 text-xs" onClick={copyPublicLink}>Copy</Button>
+              </div>
+            )}
+          </div>
           <p className="text-xs text-gray-500">
             All fields are required when inviting. You can edit names, email, and role for anyone in the list below
             (except the project creator).

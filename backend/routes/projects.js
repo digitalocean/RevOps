@@ -1,6 +1,7 @@
 const router = require('express').Router();
+const crypto = require('crypto');
 const { pool } = require('../server');
-const { getAccessibleWorkspaceIds, getAccessibleProjectIds, getOrCreateDefaultWorkspaceId, requireUser, canManageProject, isProjectAdminRoleOnly } = require('../lib/access');
+const { getAccessibleWorkspaceIds, getVisibleWorkspaceIds, getAccessibleProjectIds, getOrCreateDefaultWorkspaceId, requireUser, canManageProject, isProjectAdminRoleOnly } = require('../lib/access');
 
 async function logActivity(pool, projectId, userId, action, entityId, details = {}) {
   try {
@@ -48,8 +49,10 @@ router.get('/', async (req, res) => {
     let q = 'SELECT p.*, c.name as owner_name FROM projects p LEFT JOIN crew c ON p.owner_id = c.id WHERE p.id = ANY($1)';
     const params = [allowedProjectIds];
     if (workspace_id) {
-      const allowedWorkspaceIds = await getAccessibleWorkspaceIds(pool, userId);
-      if (!allowedWorkspaceIds.some(id => String(id) === String(workspace_id))) {
+      // Visible set: owned workspaces PLUS workspaces containing a shared project.
+      // Project IDs are already RBAC-filtered above; this is just a workspace-scope filter.
+      const visibleWorkspaceIds = await getVisibleWorkspaceIds(pool, userId);
+      if (!visibleWorkspaceIds.some(id => String(id) === String(workspace_id))) {
         return res.json([]);
       }
       params.push(workspace_id);
@@ -109,9 +112,29 @@ router.patch('/:id', async (req, res) => {
     if (!allowedProjectIds.some(id => String(id) === String(req.params.id))) {
       return res.status(404).json({ error: 'Not found' });
     }
-    const allowed = ['name', 'description', 'color', 'status', 'owner_id'];
+    const allowed = ['name', 'description', 'color', 'status', 'owner_id', 'collaborators'];
     const fields = Object.keys(req.body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No fields' });
+    // Only owners/admins may edit collaborators (not shared viewers)
+    if (fields.includes('collaborators')) {
+      const canManage = await canManageProject(pool, userId, req.params.id);
+      if (!canManage) return res.status(403).json({ error: 'Only project owner or admin can edit collaborators' });
+      // Normalize: must be array of { name, email?, crew_id?, user_id? }
+      const raw = req.body.collaborators;
+      if (!Array.isArray(raw)) return res.status(400).json({ error: 'collaborators must be an array' });
+      const cleaned = raw
+        .map((c) => (c && typeof c === 'object') ? c : null)
+        .filter(Boolean)
+        .map((c) => ({
+          name: String(c.name ?? c.email ?? '').trim().slice(0, 120),
+          email: c.email ? String(c.email).trim().slice(0, 200) : null,
+          crew_id: c.crew_id ? String(c.crew_id) : null,
+          user_id: c.user_id ? String(c.user_id) : null,
+          role: c.role ? String(c.role).slice(0, 40) : null,
+        }))
+        .filter((c) => c.name.length > 0 || c.email);
+      req.body.collaborators = JSON.stringify(cleaned);
+    }
     const sets = fields.map((f, i) => `${f}=$${i + 2}`).join(',');
     const { rows } = await pool.query({
       name: 'projects_patch',
@@ -323,6 +346,158 @@ router.post('/:id/members', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+/**
+ * POST /:id/duplicate — clone a project. Copies board_columns, trackers, items,
+ * and (when requested) project_members. Sprints and activity/audit logs are
+ * skipped intentionally: the clone starts with a fresh history.
+ *
+ * Body: { name?: string, include_members?: boolean, include_items?: boolean }
+ */
+router.post('/:id/duplicate', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const userId = requireUser(req, res);
+    if (!userId) { client.release(); return; }
+    const sourceId = req.params.id;
+    const { name: nameOverride, include_members = true, include_items = true } = req.body || {};
+
+    const allowed = await getAccessibleProjectIds(pool, userId);
+    if (!allowed.some((id) => String(id) === String(sourceId))) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    await client.query('BEGIN');
+
+    const srcRes = await client.query(
+      `SELECT workspace_id, name, description, color, owner_id, is_personal
+       FROM projects WHERE id = $1`,
+      [sourceId]
+    );
+    if (!srcRes.rows.length) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Project not found' });
+    }
+    const src = srcRes.rows[0];
+
+    // Only workspace owners may duplicate into someone else's workspace. If the
+    // caller is only a project_member, their clone lands in their OWN default
+    // workspace instead (they can't add to a workspace they don't own).
+    const ownedWorkspacesRes = await client.query(
+      'SELECT id FROM workspaces WHERE owner_id = $1',
+      [userId]
+    );
+    const ownedWsIds = new Set(ownedWorkspacesRes.rows.map((r) => String(r.id)));
+    let destWorkspaceId = src.workspace_id;
+    if (!ownedWsIds.has(String(src.workspace_id))) {
+      destWorkspaceId = await getOrCreateDefaultWorkspaceId(client, userId);
+      if (!destWorkspaceId) {
+        await client.query('ROLLBACK');
+        return res.status(500).json({ error: 'Could not resolve a destination workspace' });
+      }
+    }
+
+    const newName = (nameOverride && String(nameOverride).trim()) || `${src.name} (Copy)`;
+
+    const dupRes = await client.query(
+      `INSERT INTO projects (workspace_id, name, description, color, owner_id, is_personal, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      [destWorkspaceId, newName.slice(0, 200), src.description, src.color, src.owner_id, !!src.is_personal, userId]
+    );
+    const newId = dupRes.rows[0].id;
+
+    // board_columns
+    const bcRes = await client.query(
+      'SELECT name, slug, color, sort_order, is_done FROM board_columns WHERE project_id = $1 ORDER BY sort_order',
+      [sourceId]
+    );
+    for (const c of bcRes.rows) {
+      await client.query(
+        'INSERT INTO board_columns (project_id, name, slug, color, sort_order, is_done) VALUES ($1,$2,$3,$4,$5,$6)',
+        [newId, c.name, c.slug, c.color, c.sort_order, c.is_done]
+      );
+    }
+
+    // trackers → map old id → new id so items can be re-parented.
+    const trackerIdMap = new Map();
+    const trRes = await client.query(
+      'SELECT id, name, icon, columns, sort_order FROM trackers WHERE project_id = $1 ORDER BY sort_order',
+      [sourceId]
+    );
+    for (const t of trRes.rows) {
+      const insTr = await client.query(
+        `INSERT INTO trackers (project_id, name, icon, columns, sort_order, created_by_id)
+         VALUES ($1, $2, $3, COALESCE($4::jsonb, '[]'::jsonb), $5, $6) RETURNING id`,
+        [newId, t.name, t.icon, t.columns ? JSON.stringify(t.columns) : null, t.sort_order, userId]
+      );
+      trackerIdMap.set(String(t.id), insTr.rows[0].id);
+    }
+
+    // items
+    if (include_items) {
+      const itemRes = await client.query(
+        `SELECT id, tracker_id, type, title, description, status, priority, points,
+                due_date, start_date, labels, custom_vals, category, progress,
+                sort_order, is_milestone, is_big_rock, repeat_interval, repeat_ends_on
+         FROM items WHERE project_id = $1 ORDER BY sort_order, created_at`,
+        [sourceId]
+      );
+      for (const i of itemRes.rows) {
+        const newTrackerId = i.tracker_id ? (trackerIdMap.get(String(i.tracker_id)) || null) : null;
+        await client.query(
+          `INSERT INTO items
+             (project_id, tracker_id, type, title, description, status, priority, points,
+              due_date, start_date, labels, custom_vals, category, progress, sort_order,
+              is_milestone, is_big_rock, repeat_interval, repeat_ends_on, created_by_id)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+          [
+            newId, newTrackerId, i.type, i.title, i.description, i.status, i.priority,
+            i.points, i.due_date, i.start_date, i.labels || [], i.custom_vals || {},
+            i.category, i.progress, i.sort_order, !!i.is_milestone, !!i.is_big_rock,
+            i.repeat_interval, i.repeat_ends_on, userId,
+          ]
+        );
+      }
+    }
+
+    // project_members (intentional: the duplicator is the new owner; other
+    // members are copied as-is with their existing roles)
+    if (include_members) {
+      await client.query(
+        `INSERT INTO project_members (project_id, crew_id, role)
+         SELECT $1, crew_id, role FROM project_members WHERE project_id = $2
+         ON CONFLICT (project_id, crew_id) DO NOTHING`,
+        [newId, sourceId]
+      );
+    }
+
+    // project-level Category overrides — copy so the clone behaves like the source.
+    await client.query(
+      `INSERT INTO project_field_options (project_id, field_key, options_json)
+       SELECT $1, field_key, options_json FROM project_field_options WHERE project_id = $2
+       ON CONFLICT (project_id, field_key) DO NOTHING`,
+      [newId, sourceId]
+    );
+
+    await client.query(
+      `INSERT INTO activity_log (project_id, user_id, action, entity_type, entity_id, details)
+       VALUES ($1, $2, 'project_duplicated', 'project', $1, $3)`,
+      [newId, userId, JSON.stringify({ source_project_id: sourceId, source_name: src.name })]
+    );
+
+    await client.query('COMMIT');
+    const finalRes = await pool.query(
+      'SELECT p.*, c.name AS owner_name FROM projects p LEFT JOIN crew c ON p.owner_id = c.id WHERE p.id = $1',
+      [newId]
+    );
+    res.status(201).json(finalRes.rows[0]);
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (_) {}
+    res.status(500).json({ error: e.message });
+  } finally {
+    client.release();
+  }
+});
+
 // DELETE /:id — delete project (owner/moderator/editor only)
 router.delete('/:id', async (req, res) => {
   try {
@@ -496,6 +671,67 @@ router.post('/:id/apply-template', async (req, res) => {
     }
 
     res.json({ ok: true, created });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/**
+ * Public share token management
+ * --------------------------------
+ * Owner/admin-only endpoints for enabling/rotating/disabling a tokenised public
+ * read-only link. The `/api/public/projects/:token/*` family is mounted in a
+ * separate router and does not require auth; it reads this token.
+ */
+router.get('/:id/share', async (req, res) => {
+  try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const canManage = await canManageProject(pool, userId, req.params.id);
+    if (!canManage) return res.status(403).json({ error: 'Only project owner or admin can view the share link' });
+    const { rows } = await pool.query({
+      name: 'projects_share_get',
+      text: 'SELECT share_enabled, share_token, share_created_at FROM projects WHERE id = $1',
+      values: [req.params.id],
+    });
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    const r = rows[0];
+    res.json({ enabled: !!r.share_enabled, token: r.share_enabled ? r.share_token : null, created_at: r.share_created_at });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.post('/:id/share', async (req, res) => {
+  try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const canManage = await canManageProject(pool, userId, req.params.id);
+    if (!canManage) return res.status(403).json({ error: 'Only project owner or admin can enable sharing' });
+    const token = crypto.randomBytes(24).toString('base64url');
+    const { rows } = await pool.query({
+      name: 'projects_share_enable',
+      text: `UPDATE projects
+             SET share_token = $1, share_enabled = true, share_created_at = NOW()
+             WHERE id = $2
+             RETURNING share_enabled, share_token, share_created_at`,
+      values: [token, req.params.id],
+    });
+    if (!rows.length) return res.status(404).json({ error: 'Not found' });
+    logActivity(pool, req.params.id, userId, 'public_share_enabled', req.params.id, {});
+    res.json({ enabled: true, token: rows[0].share_token, created_at: rows[0].share_created_at });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.delete('/:id/share', async (req, res) => {
+  try {
+    const userId = requireUser(req, res);
+    if (!userId) return;
+    const canManage = await canManageProject(pool, userId, req.params.id);
+    if (!canManage) return res.status(403).json({ error: 'Only project owner or admin can disable sharing' });
+    await pool.query({
+      name: 'projects_share_disable',
+      text: 'UPDATE projects SET share_enabled = false, share_token = NULL WHERE id = $1',
+      values: [req.params.id],
+    });
+    logActivity(pool, req.params.id, userId, 'public_share_disabled', req.params.id, {});
+    res.json({ enabled: false });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 

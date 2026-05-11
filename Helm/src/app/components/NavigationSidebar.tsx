@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutDashboard, FileText, BarChart3, GripVertical, Triangle, Plus, ChevronRight, ChevronDown, Settings, Anchor, Layers, Inbox, Users, ListTodo, Trash2, Pencil } from 'lucide-react';
+import { LayoutDashboard, FileText, BarChart3, GripVertical, Triangle, Plus, ChevronRight, ChevronDown, Settings, Anchor, Layers, Inbox, Users, ListTodo, Trash2, Pencil, LineChart } from 'lucide-react';
 import type { Project } from '../data/useMeridianData';
 import type { Initiative, TrackerSection as TrackerSectionType } from '../data/mockData';
 import { Button } from './ui/button';
@@ -11,14 +11,14 @@ function projectDotColor(project: Project, index: number): string {
   return PROJECT_DOT_COLORS[index % PROJECT_DOT_COLORS.length];
 }
 
-export type NavView = 'summit_board' | 'manifest' | 'expedition_map' | 'field_notes' | 'observatory' | 'base_camp' | 'my_tasks' | 'personal_tasks';
+export type NavView = 'summit_board' | 'manifest' | 'expedition_map' | 'field_notes' | 'observatory' | 'base_camp' | 'my_tasks' | 'personal_tasks' | 'reports';
 
 // Board last; Tracker = Trackers view
-const VIEW_ORDER: NavView[] = ['my_tasks', 'manifest', 'expedition_map', 'field_notes', 'observatory', 'base_camp', 'summit_board'];
+const VIEW_ORDER: NavView[] = ['my_tasks', 'manifest', 'expedition_map', 'field_notes', 'observatory', 'reports', 'base_camp', 'summit_board'];
 const VIEW_LABELS: Record<NavView, string> = {
   summit_board: 'Board', manifest: 'Trackers', expedition_map: 'Gantt',
   field_notes: 'Field Notes', observatory: 'Analytics', base_camp: 'Base Camp', my_tasks: 'My Tasks',
-  personal_tasks: 'Personal tasks',
+  personal_tasks: 'Personal tasks', reports: 'Reports',
 };
 const VIEW_ICONS: Record<NavView, React.ReactNode> = {
   summit_board: <LayoutDashboard className="w-3.5 h-3.5" />,
@@ -29,6 +29,7 @@ const VIEW_ICONS: Record<NavView, React.ReactNode> = {
   base_camp: <Triangle className="w-3.5 h-3.5" />,
   my_tasks: <Inbox className="w-3.5 h-3.5" />,
   personal_tasks: <ListTodo className="w-3.5 h-3.5" />,
+  reports: <LineChart className="w-3.5 h-3.5" />,
 };
 
 const STATUS_COLORS: Record<string, string> = {
@@ -79,19 +80,25 @@ export function NavigationSidebar({
   };
 
   const sidebarContent = (
-    <div className="w-[240px] flex-shrink-0 h-screen flex flex-col border-r border-gray-200 bg-white">
-      {/* Logo */}
-      <div className="px-4 py-4 border-b border-gray-100">
-        <div className="flex items-center gap-2">
-          <Anchor className="w-4 h-4 text-blue-600 shrink-0" aria-hidden />
+    <div className="w-[244px] flex-shrink-0 h-screen flex flex-col border-r border-[var(--border-soft)] bg-white">
+      {/* Brand */}
+      <div className="px-4 py-4 border-b border-[var(--border-soft)]">
+        <div className="flex items-center gap-2.5">
+          <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-[0_2px_6px_rgba(79,70,229,0.35)]">
+            <Anchor className="w-4 h-4" aria-hidden />
+          </span>
+          <div className="flex flex-col leading-tight">
+            <span className="text-[15px] font-semibold tracking-tight text-gray-900">AgileOps</span>
+            <span className="text-[11px] text-gray-500">Get things done.</span>
+          </div>
           <button
             className="ml-auto md:hidden p-1 text-gray-400 hover:text-gray-600"
             onClick={() => setMobileOpen(false)}
+            aria-label="Close sidebar"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
-        <p className="text-[11px] text-gray-400 mt-0.5">Get things done.</p>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -111,7 +118,7 @@ export function NavigationSidebar({
           </div>
         )}
         {/* My Tasks global link */}
-        <div className="px-3 pt-2 pb-2">
+        <div className="px-3 pt-2 pb-1">
           <button type="button" onClick={() => onNavigateView('my_tasks')}
             className={`w-full flex items-center gap-2 px-2 py-2 rounded-md text-left text-sm font-medium transition-colors ${
               currentView === 'my_tasks' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
@@ -123,6 +130,16 @@ export function NavigationSidebar({
                 {myTasksCount}
               </span>
             )}
+          </button>
+        </div>
+        {/* Reports global link */}
+        <div className="px-3 pb-2">
+          <button type="button" onClick={() => onNavigateView('reports')}
+            className={`w-full flex items-center gap-2 px-2 py-2 rounded-md text-left text-sm font-medium transition-colors ${
+              currentView === 'reports' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+            }`}>
+            <LineChart className="w-4 h-4 flex-shrink-0" />
+            <span className="flex-1">Reports</span>
           </button>
         </div>
         <div className="px-3 pt-4 pb-2">
@@ -150,8 +167,10 @@ export function NavigationSidebar({
                   </button>
                   <button type="button"
                     onClick={() => { if (editingProjectId !== p.id) { onSelectProject(p.id); if (!isExpanded) toggleSet(setExpandedProjects, p.id); } }}
-                    className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-sm truncate transition-colors ${
-                      isActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                    className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-sm truncate transition-all ${
+                      isActive
+                        ? 'bg-gradient-to-r from-indigo-50 to-blue-50 text-indigo-700 font-semibold shadow-[inset_2px_0_0_rgb(79_70_229)]'
+                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                     }`}>
                     <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: dotColor }} />
                     {editingProjectId === p.id ? (
@@ -314,8 +333,8 @@ export function NavigationSidebar({
 
       </div>
 
-      <div className="px-3 py-3 border-t border-gray-100 flex justify-end">
-        <button type="button" className="p-1.5 rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600" title="Settings">
+      <div className="px-3 py-3 border-t border-[var(--border-soft)] flex justify-end">
+        <button type="button" className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition-colors" title="Settings">
           <Settings className="w-4 h-4" />
         </button>
       </div>

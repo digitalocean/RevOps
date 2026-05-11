@@ -219,6 +219,7 @@ app.use('/api',              require('./routes/analytics'));   // GET /api/proje
 app.use('/api',              require('./routes/audit'));       // GET /api/projects/:id/audit
 app.use('/api',              require('./routes/fieldValues')); // GET/PATCH /api/tasks/:id/field-values
 app.use('/api',              require('./routes/savedViews'));  // GET/POST /api/projects/:id/views, PATCH/DELETE /api/views/:id
+app.use('/api/public',       require('./routes/publicShare')); // GET /api/public/projects/:token (unauthenticated read-only)
 
 // Mount without /api prefix (DigitalOcean App Platform trims /api before forwarding to the service)
 const workspaces = require('./routes/workspaces');
@@ -252,6 +253,7 @@ app.use('/', require('./routes/analytics'));
 app.use('/', require('./routes/audit'));
 app.use('/', require('./routes/fieldValues'));
 app.use('/', require('./routes/savedViews'));
+app.use('/public', require('./routes/publicShare'));
 
 // ── Health Check (both /api/health and /health for platform checks) ─
 const healthHandler = async (req, res) => {

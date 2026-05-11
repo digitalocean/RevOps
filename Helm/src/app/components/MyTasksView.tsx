@@ -33,6 +33,7 @@ interface MyTasksViewProps {
 
 export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdateItem, onDeleteItem, canDeleteTask, loading, onRefresh }: MyTasksViewProps) {
   const [filter, setFilter] = useState<FilterMode>('all');
+  const [projectFilter, setProjectFilter] = useState<string>('all');
   const [selected, setSelected] = useState<Initiative | null>(null);
   const [manualRefreshing, setManualRefreshing] = useState(false);
 
@@ -54,10 +55,27 @@ export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdate
     return m;
   }, [projects]);
 
+  /** Tasks assigned to me, narrowed to the selected project scope. */
   const myTasks = useMemo(() => {
-    if (!currentUser) return initiatives;
-    return initiatives.filter((i) => taskAssignedToMe(i, currentUser));
-  }, [initiatives, currentUser]);
+    const baseTasks = currentUser
+      ? initiatives.filter((i) => taskAssignedToMe(i, currentUser))
+      : initiatives;
+    if (projectFilter === 'all') return baseTasks;
+    return baseTasks.filter((i) => i.project_id === projectFilter);
+  }, [initiatives, currentUser, projectFilter]);
+
+  /** Project dropdown options — only projects where I have ≥1 assigned task. */
+  const projectOptions = useMemo(() => {
+    const allAssigned = currentUser
+      ? initiatives.filter((i) => taskAssignedToMe(i, currentUser))
+      : initiatives;
+    const ids = new Set<string>();
+    allAssigned.forEach((i) => { if (i.project_id) ids.add(i.project_id); });
+    return projects
+      .filter((p) => ids.has(p.id))
+      .map((p) => ({ id: p.id, name: p.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [initiatives, currentUser, projects]);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -94,29 +112,50 @@ export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdate
   ];
 
   return (
-    <div className="max-w-3xl mx-auto">
+    <div className="max-w-4xl mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">My Tasks</h2>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-2xl font-bold tracking-tight text-gray-900">My Tasks</h2>
           <p className="text-sm text-gray-500 mt-1">
-            {currentUser ? `Tasks assigned to ${currentUser.name}` : 'All tasks across projects'} — {myTasks.length} total
+            {currentUser ? `Tasks assigned to ${currentUser.name}` : 'All tasks across projects'}
+            {projectFilter === 'all' ? ' — across all your projects' : (projectMap[projectFilter] ? ` — scoped to ${projectMap[projectFilter]}` : '')}
+            {' — '}
+            <span className="font-semibold text-gray-700">{myTasks.length}</span> total
           </p>
         </div>
-        {onRefresh && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="shrink-0 rounded-xl border-gray-200 text-gray-700 hover:bg-gray-50"
-            onClick={() => void handleRefresh()}
-            disabled={manualRefreshing}
-            title="Reload tasks from all projects"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${showRefreshSpinner ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {projectOptions.length > 0 && (
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-gray-500 hidden sm:inline">Project:</span>
+              <select
+                value={projectFilter}
+                onChange={(e) => setProjectFilter(e.target.value)}
+                className="h-9 rounded-lg border border-[var(--border)] bg-white px-2.5 text-sm text-gray-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[#CBD5E1] focus:outline-none focus:border-indigo-400 focus:ring-[3px] focus:ring-indigo-100 transition-all"
+                aria-label="Filter My Tasks by project"
+              >
+                <option value="all">All projects</option>
+                {projectOptions.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
+          {onRefresh && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => void handleRefresh()}
+              disabled={manualRefreshing}
+              title="Reload tasks from all projects"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${showRefreshSpinner ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Filter pills */}
@@ -125,16 +164,16 @@ export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdate
           <button key={f.id} onClick={() => setFilter(f.id)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all border ${
               filter === f.id
-                ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white border-transparent shadow-[0_4px_12px_rgba(79,70,229,0.30)]'
                 : f.urgent
                   ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
-                  : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                  : 'bg-white text-gray-700 border-[var(--border-soft)] shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-[#D1D5DB] hover:bg-gray-50'
             }`}>
             {f.icon}
             {f.label}
             {counts[f.countKey] > 0 && (
-              <span className={`text-xs rounded-full px-1.5 py-0.5 font-bold ${
-                filter === f.id ? 'bg-white/20 text-white' : f.urgent ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
+              <span className={`text-[10px] rounded-full px-1.5 py-0.5 font-bold tabular-nums ${
+                filter === f.id ? 'bg-white/25 text-white' : f.urgent ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
               }`}>{counts[f.countKey]}</span>
             )}
           </button>
@@ -143,15 +182,17 @@ export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdate
 
       {/* Task list */}
       {loading && myTasks.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-2xl border border-gray-200 text-gray-500 text-sm">Loading tasks from all your projects…</div>
+        <div className="text-center py-16 bg-white rounded-2xl border border-[var(--border-soft)] text-gray-500 text-sm">Loading tasks from all your projects…</div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
-          <CheckCircle2 className="w-12 h-12 text-emerald-300 mx-auto mb-3" />
-          <p className="text-lg font-semibold text-gray-700">
-            {filter === 'all' ? "You're all caught up!" : `No ${filters.find(f => f.id === filter)?.label.toLowerCase()} tasks`}
+        <div className="text-center py-16 bg-white rounded-2xl border border-[var(--border-soft)] shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-600 mx-auto mb-4 shadow-[0_8px_20px_rgba(16,185,129,0.30)]">
+            <CheckCircle2 className="w-7 h-7 text-white" />
+          </div>
+          <p className="text-lg font-semibold text-gray-800 tracking-tight">
+            {filter === 'all' ? "You're all caught up" : `No ${filters.find(f => f.id === filter)?.label.toLowerCase()} tasks`}
           </p>
-          <p className="text-sm text-gray-400 mt-1">
-            {filter === 'all' ? 'No tasks assigned to you (by account or email). Assign a task to yourself in Trackers, or link your crew profile to your user.' : 'Check other filters or add new tasks.'}
+          <p className="text-sm text-gray-500 mt-1.5 max-w-sm mx-auto">
+            {filter === 'all' ? 'No tasks assigned to you. Assign a task to yourself in Trackers, or link your crew profile to your user.' : 'Check other filters or add new tasks.'}
           </p>
         </div>
       ) : (
@@ -167,7 +208,7 @@ export function MyTasksView({ initiatives, crew, currentUser, projects, onUpdate
             return (
               <div key={init.id}
                 onClick={() => setSelected(init)}
-                className="bg-white border border-gray-200 rounded-xl px-4 py-3.5 flex items-center gap-4 cursor-pointer hover:border-indigo-300 hover:shadow-sm transition-all group">
+                className="bg-white border border-[var(--border-soft)] rounded-xl px-4 py-3.5 flex items-center gap-4 cursor-pointer hover:border-indigo-200 hover:shadow-[0_4px_12px_rgba(79,70,229,0.08)] transition-all group shadow-[0_1px_2px_rgba(15,23,42,0.04)]">
                 {/* Status dot */}
                 <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${dot}`} />
 

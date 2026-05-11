@@ -36,6 +36,13 @@ export interface Initiative {
   project_id?: string | null;
   /** `users.id` of creator — set by API for delete rules */
   created_by_id?: string | null;
+  created_by_name?: string | null;
+  created_by_email?: string | null;
+  /** `users.id` of the requester (defaults to creator, can be re-assigned). */
+  requester_id?: string | null;
+  requester_name?: string | null;
+  requester_email?: string | null;
+  requester_initials?: string | null;
   /** My Tasks: Share role admin on that task's project (varies per project) */
   is_project_admin?: boolean;
 }

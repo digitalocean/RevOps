@@ -1,5 +1,5 @@
-# DigitalOcean App Platform spec (also in .do/app.yaml).
-# Env vars are listed below; in DO dashboard edit values or add these keys if missing.
+# DigitalOcean App Platform spec (same as .do/app.yaml).
+# Production + external Managed Postgres: see app-production.yaml
 
 name: meridian
 region: nyc

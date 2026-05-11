@@ -1,0 +1,136 @@
+# =============================================================================
+# DigitalOcean App Platform — production (external Managed Postgres)
+# =============================================================================
+#
+# Use this spec when your database ALREADY EXISTS (e.g. migrated to Team B).
+# Do NOT add a `databases:` block — App Platform will not create "${db.*}" refs.
+#
+# Paths (repo root):
+#   API (Node):     source_dir: /backend     → run_command: npm start  (node server.js)
+#   UI (Vite):      source_dir: /Helm       → output_dir: dist
+#
+# Ingress: /api → api component; / → static web (same hostname as App Platform URL).
+#
+# Before deploy:
+#   1. Replace APP_PUBLIC_URL placeholders below with your real *.ondigitalocean.app URL
+#      (after first deploy, copy “Live URL” from the app overview).
+#   2. Replace github.repo / branch if you use a fork or different branch.
+#   3. Set DATABASE_URL in the DO dashboard as an ENCRYPTED var if you prefer not to
+#      put the URI in this file (recommended). Remove or override the placeholder below.
+#   4. Generate SESSION_SECRET: openssl rand -hex 32
+#   5. Align Okta/SAML URLs with APP_PUBLIC_URL (same scheme + host).
+#
+# Create app (CLI example):
+#   doctl apps create --spec app-production.yaml
+#
+# Update existing app:
+#   doctl apps update <APP_ID> --spec app-production.yaml
+#
+# =============================================================================
+
+name: meridian
+region: nyc
+
+features:
+  - buildpack-stack=ubuntu-22
+
+ingress:
+  rules:
+    - component:
+        name: api
+      match:
+        path:
+          prefix: /api
+    - component:
+        name: web
+      match:
+        path:
+          prefix: /
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED
+
+services:
+  - name: api
+    environment_slug: node-js
+    build_command: npm install && npm run build
+    envs:
+      # Paste full URI for database `db` from Managed DB → Connection details (Team B).
+      # Prefer setting this only in the dashboard as “Encrypted” and deleting from spec.
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: "postgresql://REPLACE_USER:REPLACE_PASSWORD@REPLACE_HOST:25060/db?sslmode=require"
+      - key: NODE_ENV
+        value: production
+        scope: RUN_TIME
+      - key: PORT
+        value: "8080"
+        scope: RUN_TIME
+      - key: NODE_TLS_REJECT_UNAUTHORIZED
+        value: "0"
+        scope: RUN_TIME
+      - key: SESSION_SECRET
+        value: "PASTE_OPENSSL_RAND_HEX_32"
+        scope: RUN_TIME
+      # Must match the App Platform HTTPS URL (see Live app URL in DO).
+      - key: FRONTEND_URL
+        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
+        scope: RUN_TIME
+      - key: APP_URL
+        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
+        scope: RUN_TIME
+      # OIDC — optional; leave placeholders if you only use SAML.
+      - key: OKTA_ISSUER
+        value: "PASTE_OKTA_ISSUER_OR_EMPTY"
+        scope: RUN_TIME
+      - key: OKTA_CLIENT_ID
+        value: "PASTE_OKTA_CLIENT_ID_OR_EMPTY"
+        scope: RUN_TIME
+      - key: OKTA_CLIENT_SECRET
+        value: "PASTE_OKTA_CLIENT_SECRET_OR_EMPTY"
+        scope: RUN_TIME
+      # SAML — required if you use Okta SAML app (metadata URL from Okta).
+      - key: SAML_IDP_METADATA_URL
+        value: "https://YOUR_ORG.okta.com/app/EXAMPLE/sso/saml/metadata"
+        scope: RUN_TIME
+      - key: SAML_SP_ENTITY_ID
+        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
+        scope: RUN_TIME
+      - key: SAML_APP_BASE_URL
+        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
+        scope: RUN_TIME
+      # Uncomment if IdP POST drops session cookie (common with SAML ACS):
+      # - key: SESSION_SAME_SITE
+      #   value: "none"
+      #   scope: RUN_TIME
+    github:
+      deploy_on_push: true
+      repo: digitalocean/RevOps
+      branch: production
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    run_command: npm start
+    source_dir: /backend
+
+static_sites:
+  - name: web
+    build_command: npm install && npm run build
+    environment_slug: node-js
+    envs:
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
+        scope: BUILD_TIME
+      # Same public origin as the app (API is same host under /api).
+      - key: VITE_API_URL
+        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
+        scope: BUILD_TIME
+    github:
+      deploy_on_push: true
+      repo: digitalocean/RevOps
+      branch: production
+    output_dir: dist
+    source_dir: /Helm
+    index_document: index.html
+    catchall_document: index.html

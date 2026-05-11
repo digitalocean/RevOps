@@ -1,8 +1,13 @@
-# Meridian — DigitalOcean App Platform
-# Repo: https://github.com/digitalocean/RevOps
-# Branch: helm-deploy
-# API = /backend. Web = Helm app (Meridian UI) in /Helm.
-# /api → API service; / → static site.
+# Meridian — DigitalOcean App Platform (managed DB in spec)
+# Repo: https://github.com/digitalocean/RevOps — branch: helm-deploy
+#
+# Layout:
+#   Backend API:  source_dir /backend    → run_command: node server.js
+#   Frontend UI:  source_dir /Helm       → Vite build → output_dir dist
+# Ingress: /api → api component; / → static site (same app hostname).
+#
+# If your Postgres already exists (migrated DB / Team B), use app-production.yaml at repo root
+# (external DATABASE_URL, no databases: block).
 
 name: meridian
 region: nyc

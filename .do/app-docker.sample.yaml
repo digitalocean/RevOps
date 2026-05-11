@@ -1,0 +1,80 @@
+# =============================================================================
+# App Platform — deploy from a CONTAINER IMAGE (no GitHub).
+# =============================================================================
+#
+# Prereqs:
+#   1. Create a registry: DigitalOcean → Container Registry → Create registry.
+#   2. docker login registry.digitalocean.com  (use DO API token as password)
+#   3. From repo root:
+#        docker build -t registry.digitalocean.com/<REGISTRY_NAME>/meridian:v1 .
+#        docker push registry.digitalocean.com/<REGISTRY_NAME>/meridian:v1
+#   4. Replace REGISTRY_NAME / image tag below. Set env in UI or here (no secrets in git).
+#
+# One Web Service; Express serves /api and static UI (Dockerfile sets SERVE_STATIC=true).
+#
+# Create:  doctl apps create --spec .do/app-docker.sample.yaml
+# (rename / edit paths before running)
+
+name: meridian-docker
+region: nyc
+
+features:
+  - buildpack-stack=ubuntu-22
+
+ingress:
+  rules:
+    - component:
+        name: meridian
+      match:
+        path:
+          prefix: /
+
+services:
+  - name: meridian
+    image:
+      registry_type: DOCR
+      # Omit registry if your team has one default DOCR; else set the registry name from DO UI.
+      registry: REPLACE_WITH_YOUR_REGISTRY_NAME
+      repository: meridian
+      tag: v1
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-1gb
+    http_port: 8080
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: "postgresql://USER:PASS@HOST:25060/db?sslmode=require"
+      - key: NODE_ENV
+        value: production
+        scope: RUN_TIME
+      - key: PORT
+        value: "8080"
+        scope: RUN_TIME
+      - key: NODE_TLS_REJECT_UNAUTHORIZED
+        value: "0"
+        scope: RUN_TIME
+      - key: SERVE_STATIC
+        value: "true"
+        scope: RUN_TIME
+      - key: SESSION_SECRET
+        value: "PASTE_OPENSSL_RAND_HEX_32"
+        scope: RUN_TIME
+      - key: FRONTEND_URL
+        value: "https://YOUR_APP.ondigitalocean.app"
+        scope: RUN_TIME
+      - key: APP_URL
+        value: "https://YOUR_APP.ondigitalocean.app"
+        scope: RUN_TIME
+      - key: SAML_IDP_METADATA_URL
+        value: "https://YOUR_ORG.okta.com/app/EXAMPLE/sso/saml/metadata"
+        scope: RUN_TIME
+      - key: SAML_SP_ENTITY_ID
+        value: "https://YOUR_APP.ondigitalocean.app"
+        scope: RUN_TIME
+      - key: SAML_APP_BASE_URL
+        value: "https://YOUR_APP.ondigitalocean.app"
+        scope: RUN_TIME
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED

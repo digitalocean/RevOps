@@ -1,0 +1,12 @@
+.git
+.gitignore
+**/.DS_Store
+**/node_modules
+Helm/node_modules
+backend/node_modules
+Helm/dist
+.sfdx
+*.md
+.env
+.env.*
+!.env.example

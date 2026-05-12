@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // ============================================================
-// AgileOps CSV Importer
+// ToDo CSV Importer
 // ============================================================
 // Usage:  node scripts/import-csv.js my-items.csv
 //

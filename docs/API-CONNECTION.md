@@ -17,7 +17,7 @@ The frontend calls the backend at **`VITE_API_URL`** (or `http://localhost:4000`
    npm start
    ```
 
-   You should see: `AgileOps API running on http://localhost:4000`
+   You should see: `ToDo API running on http://localhost:4000`
 
 2. **Use the same API URL in the frontend**  
    - Default is `http://localhost:4000`, so no extra config is needed if you only run frontend + backend on the same machine.  

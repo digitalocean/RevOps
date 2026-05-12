@@ -88,7 +88,7 @@ export function NavigationSidebar({
             <Anchor className="w-4 h-4" aria-hidden />
           </span>
           <div className="flex flex-col leading-tight">
-            <span className="text-[15px] font-semibold tracking-tight text-gray-900">AgileOps</span>
+            <span className="text-[15px] font-semibold tracking-tight text-gray-900">ToDo</span>
             <span className="text-[11px] text-gray-500">Get things done.</span>
           </div>
           <button

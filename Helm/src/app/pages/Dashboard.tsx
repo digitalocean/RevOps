@@ -695,7 +695,7 @@ export function Dashboard({ currentUser: propsCurrentUser, onLogout: propsOnLogo
                 <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center mb-5 shadow-[0_10px_25px_rgba(79,70,229,0.35)]">
                   <Sparkles className="w-9 h-9 text-white" />
                 </div>
-                <h2 className="text-3xl font-bold tracking-tight text-gray-900 mb-2">Welcome to AgileOps</h2>
+                <h2 className="text-3xl font-bold tracking-tight text-gray-900 mb-2">Welcome to ToDo</h2>
                 <p className="text-gray-500 mb-7 max-w-md">Create your first project to start tracking tasks, manage your team, and ship faster.</p>
                 <div className="flex gap-3">
                   <button onClick={() => setShowNewProject(true)}

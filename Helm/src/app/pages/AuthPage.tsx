@@ -119,7 +119,7 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
           <span className="inline-flex w-14 h-14 mb-4 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-[0_10px_25px_rgba(79,70,229,0.35)]">
             <Anchor className="w-6 h-6" />
           </span>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">AgileOps</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">ToDo</h1>
           <p className="text-gray-500 mt-1.5 text-sm">Get things done. Sign in to continue.</p>
         </div>
         <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(15,23,42,0.18)] border border-[var(--border-soft)] p-8">

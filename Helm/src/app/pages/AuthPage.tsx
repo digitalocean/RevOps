@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Anchor } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { get, post } from '../api/meridian';
 
@@ -98,9 +97,13 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
             'radial-gradient(circle at 0% 0%, rgba(79, 70, 229, 0.10), transparent 40%), radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.08), transparent 40%)',
         }}>
         <div className="w-full max-w-md text-center">
-          <span className="inline-flex w-14 h-14 mb-5 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-[0_10px_25px_rgba(79,70,229,0.35)]">
-            <Anchor className="w-6 h-6" />
-          </span>
+          <div
+            className="inline-flex min-w-[4.5rem] h-14 px-3 mb-4 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white text-xl font-bold tracking-tight shadow-[0_10px_25px_rgba(79,70,229,0.35)]"
+            role="img"
+            aria-label="ToDo"
+          >
+            ToDo
+          </div>
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Sign in unavailable</h1>
           <p className="text-gray-500 mt-4">SSO is not configured. Contact your administrator.</p>
         </div>
@@ -116,11 +119,12 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
       }}>
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <span className="inline-flex w-14 h-14 mb-4 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-[0_10px_25px_rgba(79,70,229,0.35)]">
-            <Anchor className="w-6 h-6" />
-          </span>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">ToDo</h1>
-          <p className="text-gray-500 mt-1.5 text-sm">Get things done. Sign in to continue.</p>
+          <h1
+            className="inline-flex min-w-[4.5rem] h-14 px-3 mb-3 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white text-xl font-bold tracking-tight shadow-[0_10px_25px_rgba(79,70,229,0.35)]"
+          >
+            ToDo
+          </h1>
+          <p className="text-gray-500 text-sm">Sign in to continue.</p>
         </div>
         <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(15,23,42,0.18)] border border-[var(--border-soft)] p-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-1 text-center">Welcome back</h2>

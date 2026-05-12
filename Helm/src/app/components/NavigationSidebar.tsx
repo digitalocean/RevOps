@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutDashboard, FileText, BarChart3, GripVertical, Triangle, Plus, ChevronRight, ChevronDown, Settings, Anchor, Layers, Inbox, Users, ListTodo, Trash2, Pencil, LineChart } from 'lucide-react';
+import { LayoutDashboard, FileText, BarChart3, GripVertical, Triangle, Plus, ChevronRight, ChevronDown, Settings, Layers, Inbox, Users, ListTodo, Trash2, Pencil, LineChart } from 'lucide-react';
 import type { Project } from '../data/useMeridianData';
 import type { Initiative, TrackerSection as TrackerSectionType } from '../data/mockData';
 import { Button } from './ui/button';
@@ -83,14 +83,11 @@ export function NavigationSidebar({
     <div className="w-[244px] flex-shrink-0 h-screen flex flex-col border-r border-[var(--border-soft)] bg-white">
       {/* Brand */}
       <div className="px-4 py-4 border-b border-[var(--border-soft)]">
-        <div className="flex items-center gap-2.5">
-          <span className="relative inline-flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-[0_2px_6px_rgba(79,70,229,0.35)]">
-            <Anchor className="w-4 h-4" aria-hidden />
+        <div className="flex items-center gap-2.5 w-full">
+          <span className="relative inline-flex h-8 px-2.5 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-blue-600 text-white text-xs font-extrabold tracking-tight shadow-[0_2px_6px_rgba(79,70,229,0.35)]">
+            ToDo
           </span>
-          <div className="flex flex-col leading-tight">
-            <span className="text-[15px] font-semibold tracking-tight text-gray-900">ToDo</span>
-            <span className="text-[11px] text-gray-500">Get things done.</span>
-          </div>
+          <div className="flex-1 md:flex-none min-w-0" />
           <button
             className="ml-auto md:hidden p-1 text-gray-400 hover:text-gray-600"
             onClick={() => setMobileOpen(false)}

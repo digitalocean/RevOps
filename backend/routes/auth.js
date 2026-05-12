@@ -17,6 +17,11 @@ const {
 const { ensureUsersTableForAuth } = require('../lib/applySchema');
 const SALT_ROUNDS = 10;
 
+/** When true, production shows email/password sign-in (no Okta/SAML required). For demos only. */
+function authSampleMode() {
+  return process.env.AUTH_SAMPLE_MODE === 'true';
+}
+
 const frontendUrl = () => {
   const u = process.env.FRONTEND_URL || process.env.VITE_API_URL || 'http://localhost:5173';
   return String(u).replace(/\/$/, '');
@@ -402,16 +407,18 @@ router.get('/ping', (req, res) => {
     path: req.path,
     okta: !!(process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.OKTA_ISSUER),
     saml: samlMetadataEnvPresent(),
+    sampleMode: authSampleMode(),
   });
 });
 
 // Auth providers: SAML preferred when configured (SSO button); else Okta OIDC.
-// `dev` exposes the email/password form only outside production (for local development / review).
+// `dev` exposes the email/password form when NODE_ENV !== 'production' or AUTH_SAMPLE_MODE=true.
 router.get('/providers', (req, res) => {
   res.json({
     okta: !!(process.env.OKTA_CLIENT_ID && process.env.OKTA_CLIENT_SECRET && process.env.OKTA_ISSUER),
     saml: samlMetadataEnvPresent(),
-    dev: process.env.NODE_ENV !== 'production',
+    dev: process.env.NODE_ENV !== 'production' || authSampleMode(),
+    sampleMode: authSampleMode(),
   });
 });
 

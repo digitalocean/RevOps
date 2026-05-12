@@ -19,6 +19,7 @@
 #      put the URI in this file (recommended). Remove or override the placeholder below.
 #   4. Generate SESSION_SECRET: openssl rand -hex 32
 #   5. Align Okta/SAML URLs with APP_PUBLIC_URL (same scheme + host).
+#   6. Demo without SSO: set AUTH_SAMPLE_MODE=true on the API and omit Okta/SAML envs (see /api/auth/providers).
 #
 # Live “stingray-app” on DO (revops / revops-helm names): see app-stingray.yaml
 #

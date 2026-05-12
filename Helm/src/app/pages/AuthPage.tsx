@@ -12,6 +12,8 @@ interface AuthProviders {
   okta: boolean;
   saml?: boolean;
   dev?: boolean;
+  /** True when API has AUTH_SAMPLE_MODE=true (email/password in production for demos). */
+  sampleMode?: boolean;
 }
 
 interface AuthUser {
@@ -23,7 +25,7 @@ interface AuthUser {
 
 export function AuthPage({ onSuccess }: AuthPageProps) {
   const [loading, setLoading] = useState(false);
-  const [providers, setProviders] = useState<AuthProviders>({ okta: false, saml: false, dev: false });
+  const [providers, setProviders] = useState<AuthProviders>({ okta: false, saml: false, dev: false, sampleMode: false });
 
   // Dev-only email/password form state (mode, fields, submit handler).
   const [mode, setMode] = useState<'login' | 'register'>('login');
@@ -34,8 +36,15 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
 
   useEffect(() => {
     get<AuthProviders>('/api/auth/providers')
-      .then((p) => setProviders({ okta: !!p.okta, saml: !!p.saml, dev: !!p.dev }))
-      .catch(() => setProviders({ okta: false, saml: false, dev: false }));
+      .then((p) =>
+        setProviders({
+          okta: !!p.okta,
+          saml: !!p.saml,
+          dev: !!p.dev,
+          sampleMode: !!p.sampleMode,
+        })
+      )
+      .catch(() => setProviders({ okta: false, saml: false, dev: false, sampleMode: false }));
   }, []);
 
   const handleSamlSignIn = () => {
@@ -116,7 +125,11 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
         <div className="bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(15,23,42,0.18)] border border-[var(--border-soft)] p-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-1 text-center">Welcome back</h2>
           <p className="text-sm text-gray-500 mb-8 text-center">
-            {hasSso ? 'Use your organization account' : 'Development mode'}
+            {hasSso
+              ? 'Use your organization account'
+              : providers.sampleMode
+                ? 'Sample app — sign in or register with email'
+                : 'Development mode'}
           </p>
 
           {hasSso && (
@@ -155,8 +168,19 @@ export function AuthPage({ onSuccess }: AuthPageProps) {
               )}
 
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 mb-4 text-xs text-amber-900">
-                <strong className="font-semibold">Dev sign-in</strong> — email/password is enabled because
-                the API is running in non-production mode. This form is hidden automatically in production.
+                {providers.sampleMode ? (
+                  <>
+                    <strong className="font-semibold">Sample sign-in</strong> — email/password is enabled via{' '}
+                    <code className="rounded bg-amber-100/80 px-1">AUTH_SAMPLE_MODE</code> on the API. Remove it and
+                    configure Okta/SAML for production SSO; anyone can register while this is on.
+                  </>
+                ) : (
+                  <>
+                    <strong className="font-semibold">Dev sign-in</strong> — email/password is enabled because the
+                    API is running in non-production mode. This form is hidden automatically when{' '}
+                    <code className="rounded bg-amber-100/80 px-1">NODE_ENV=production</code> unless sample mode is on.
+                  </>
+                )}
               </div>
 
               <div className="flex gap-1 mb-4 p-1 bg-[var(--secondary)] rounded-lg" role="tablist">

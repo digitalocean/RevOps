@@ -31,6 +31,9 @@ SAML_IDP_METADATA_URL=https://your-org.okta.com/app/xxxxx/sso/saml/metadata
 SAML_SP_ENTITY_ID=https://revops-ntkll.ondigitalocean.app
 SAML_APP_BASE_URL=https://revops-ntkll.ondigitalocean.app
 
+# Sample / demo: email + password in production without Okta/SAML (omit all OKTA_* and SAML_* above)
+# AUTH_SAMPLE_MODE=true
+
 # Optional: DB with self-signed cert (e.g. DO Managed DB)
 NODE_TLS_REJECT_UNAUTHORIZED=0
 

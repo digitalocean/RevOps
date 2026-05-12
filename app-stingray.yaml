@@ -14,7 +14,8 @@
 # Before first use:
 #   1. Replace DATABASE_URL (or delete from spec and set Encrypted in DO dashboard).
 #   2. SESSION_SECRET: openssl rand -hex 32
-#   3. Align Okta SAML ACS / Audience with the public URL below.
+# Sample mode (current): AUTH_SAMPLE_MODE=true — email/password only; no Okta/SAML in spec.
+#   For SSO later: set AUTH_SAMPLE_MODE=false (or remove), add SAML_* / OKTA_* envs on revops.
 #
 # =============================================================================
 
@@ -67,23 +68,8 @@ services:
       - key: APP_URL
         value: "https://stingray-app-mc7ii.ondigitalocean.app"
         scope: RUN_TIME
-      - key: OKTA_ISSUER
-        value: ""
-        scope: RUN_TIME
-      - key: OKTA_CLIENT_ID
-        value: ""
-        scope: RUN_TIME
-      - key: OKTA_CLIENT_SECRET
-        value: ""
-        scope: RUN_TIME
-      - key: SAML_IDP_METADATA_URL
-        value: "https://digitalocean.okta.com/app/exk1a2t62juiN4Nmk2p8/sso/saml/metadata"
-        scope: RUN_TIME
-      - key: SAML_SP_ENTITY_ID
-        value: "https://stingray-app-mc7ii.ondigitalocean.app"
-        scope: RUN_TIME
-      - key: SAML_APP_BASE_URL
-        value: "https://stingray-app-mc7ii.ondigitalocean.app"
+      - key: AUTH_SAMPLE_MODE
+        value: "true"
         scope: RUN_TIME
     github:
       deploy_on_push: true

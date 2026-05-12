@@ -72,5 +72,5 @@ services:
         scope: RUN_TIME
     github:
       deploy_on_push: true
-      repo: praneethaitharaju/RevOps
+      repo: digitalocean/RevOps
       branch: helm-deploy

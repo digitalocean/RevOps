@@ -106,8 +106,8 @@ services:
       #   scope: RUN_TIME
     github:
       deploy_on_push: true
-      repo: praneethaitharaju/RevOps
-      branch: production
+      repo: digitalocean/RevOps
+      branch: helm-deploy
     http_port: 8080
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
@@ -128,8 +128,8 @@ static_sites:
         scope: BUILD_TIME
     github:
       deploy_on_push: true
-      repo: praneethaitharaju/RevOps
-      branch: production
+      repo: digitalocean/RevOps
+      branch: helm-deploy
     output_dir: dist
     source_dir: /Helm
     index_document: index.html

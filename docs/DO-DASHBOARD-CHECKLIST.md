@@ -40,7 +40,7 @@ If you want to keep the current app structure and only fix the one component:
    | **Build Command** | `npm ci && npm run build` |
    | **Run Command** | `node server.js` |
 
-4. If you see **Repository** or **Repo**, ensure it is: `praneethaitharaju/RevOps` (or your actual repo).
+4. If you see **Repository** or **Repo**, ensure it is: `digitalocean/RevOps` (or your actual repo).
 5. **Save** the component.
 6. **Force Build and Deploy** for the app → optionally **Clear Build Cache**.
 7. Wait for the new deployment, then check **Runtime Logs** for **revops**. You should see Meridian, not helm-backend.

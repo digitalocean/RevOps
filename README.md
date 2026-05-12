@@ -120,6 +120,7 @@ curl -X POST http://localhost:4000/api/auth/register \
 ## 🚀 Deploy (DigitalOcean App Platform)
 
 The repo is ready for DigitalOcean App Platform using **`app.yaml`** (root) or **`.do/app.yaml`**.  
+**External / existing Postgres:** use **`app-production.yaml`** (generic `api` / `web` names). **Live stingray-app** (`revops` / `revops-helm`): use **`app-stingray.yaml`**.  
 **Full step-by-step (ingress, env vars, fixing Activity panel):** see **[docs/DEPLOY-DIGITALOCEAN.md](docs/DEPLOY-DIGITALOCEAN.md)**.
 
 ### Required environment variables
@@ -132,7 +133,7 @@ The repo is ready for DigitalOcean App Platform using **`app.yaml`** (root) or *
 
 ### Repo layout expected by the spec
 
-- **API service**: `source_dir: /backend` — runs `node server.js` on port 8080.
+- **API service**: `source_dir: /backend` — runs `npm start` (`node server.js`) on port 8080.
 - **Web (static)**: `source_dir: /Helm` — runs `npm run build`, serves `dist/`.
 
 Push a branch that has `backend/` and `Helm/` at the repo root. In App Spec, set the **web** component’s build env `VITE_API_URL` to your app URL (same URL you open in the browser). After deploy, the UI will call that URL for `/api/*`.

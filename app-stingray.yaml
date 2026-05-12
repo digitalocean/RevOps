@@ -1,24 +1,25 @@
-# Meridian — DigitalOcean App Platform (App Platform–managed Postgres)
-# Repo: https://github.com/digitalocean/RevOps — branch: helm-deploy
+# =============================================================================
+# DigitalOcean App Platform — stingray-app (live Meridian / RevOps)
+# =============================================================================
 #
-# Layout:
-#   Backend API:  source_dir /backend    → run_command: npm start
-#   Frontend UI:  source_dir /Helm      → Vite build → output_dir dist
-# Ingress: /api → api component; / → static site (same app hostname).
+# External Managed Postgres only — no `databases:` block (avoids create/delete
+# spec errors when the app has no App Platform–managed database).
 #
-# External DB / migrated cluster (no `databases:` in spec): use app-production.yaml
-# or app-stingray.yaml at repo root instead of this file.
+# Component names match a typical live app: revops (API), revops-helm (static UI).
+# Ingress: /api → API, / → Vite static site (same hostname).
 #
-# Replace APP_PUBLIC_URL with your app’s subdomain (no https://) everywhere it appears
-# in URLs below, or edit after first deploy from the DO “Live URL”.
+# Update (replace APP_ID with your app UUID from `doctl apps list`):
+#   doctl apps update APP_ID --spec app-stingray.yaml
+#
+# Before first use:
+#   1. Replace DATABASE_URL (or delete from spec and set Encrypted in DO dashboard).
+#   2. SESSION_SECRET: openssl rand -hex 32
+#   3. Align Okta SAML ACS / Audience with the public URL below.
+#
+# =============================================================================
 
-name: meridian
+name: stingray-app
 region: nyc
-
-databases:
-  - engine: PG
-    name: db
-    version: "17"
 
 features:
   - buildpack-stack=ubuntu-22
@@ -26,12 +27,12 @@ features:
 ingress:
   rules:
     - component:
-        name: api
+        name: revops
       match:
         path:
           prefix: /api
     - component:
-        name: web
+        name: revops-helm
       match:
         path:
           prefix: /
@@ -41,13 +42,13 @@ alerts:
   - rule: DOMAIN_FAILED
 
 services:
-  - name: api
+  - name: revops
     environment_slug: node-js
     build_command: npm install && npm run build
     envs:
       - key: DATABASE_URL
         scope: RUN_TIME
-        value: ${db.DATABASE_URL}
+        value: "postgresql://REPLACE_USER:REPLACE_PASSWORD@REPLACE_HOST:25060/db?sslmode=require"
       - key: NODE_ENV
         value: production
         scope: RUN_TIME
@@ -58,44 +59,44 @@ services:
         value: "0"
         scope: RUN_TIME
       - key: SESSION_SECRET
-        value: "PASTE_LONG_RANDOM_STRING"
+        value: "PASTE_OPENSSL_RAND_HEX_32"
         scope: RUN_TIME
       - key: FRONTEND_URL
-        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
+        value: "https://stingray-app-mc7ii.ondigitalocean.app"
         scope: RUN_TIME
       - key: APP_URL
-        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
+        value: "https://stingray-app-mc7ii.ondigitalocean.app"
         scope: RUN_TIME
       - key: OKTA_ISSUER
-        value: "PASTE_OKTA_ISSUER"
+        value: ""
         scope: RUN_TIME
       - key: OKTA_CLIENT_ID
-        value: "PASTE_OKTA_CLIENT_ID"
+        value: ""
         scope: RUN_TIME
       - key: OKTA_CLIENT_SECRET
-        value: "PASTE_OKTA_CLIENT_SECRET"
+        value: ""
         scope: RUN_TIME
       - key: SAML_IDP_METADATA_URL
         value: "https://digitalocean.okta.com/app/exk1a2t62juiN4Nmk2p8/sso/saml/metadata"
         scope: RUN_TIME
       - key: SAML_SP_ENTITY_ID
-        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
+        value: "https://stingray-app-mc7ii.ondigitalocean.app"
         scope: RUN_TIME
       - key: SAML_APP_BASE_URL
-        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
+        value: "https://stingray-app-mc7ii.ondigitalocean.app"
         scope: RUN_TIME
     github:
       deploy_on_push: true
       repo: digitalocean/RevOps
       branch: helm-deploy
     http_port: 8080
-    instance_count: 1
+    instance_count: 2
     instance_size_slug: apps-s-1vcpu-1gb
     run_command: npm start
     source_dir: /backend
 
 static_sites:
-  - name: web
+  - name: revops-helm
     build_command: npm install && npm run build
     environment_slug: node-js
     envs:
@@ -103,7 +104,7 @@ static_sites:
         value: "false"
         scope: BUILD_TIME
       - key: VITE_API_URL
-        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
+        value: "https://stingray-app-mc7ii.ondigitalocean.app"
         scope: BUILD_TIME
     github:
       deploy_on_push: true

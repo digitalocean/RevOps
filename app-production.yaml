@@ -20,6 +20,8 @@
 #   4. Generate SESSION_SECRET: openssl rand -hex 32
 #   5. Align Okta/SAML URLs with APP_PUBLIC_URL (same scheme + host).
 #
+# Live “stingray-app” on DO (revops / revops-helm names): see app-stingray.yaml
+#
 # Create app (CLI example):
 #   doctl apps create --spec app-production.yaml
 #

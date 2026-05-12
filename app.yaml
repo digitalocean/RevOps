@@ -1,5 +1,5 @@
 # DigitalOcean App Platform spec (same as .do/app.yaml).
-# Production + external Managed Postgres: see app-production.yaml
+# External Managed Postgres (no App Platform DB): see app-production.yaml or app-stingray.yaml
 
 name: meridian
 region: nyc
@@ -50,10 +50,10 @@ services:
         value: "PASTE_LONG_RANDOM_STRING"
         scope: RUN_TIME
       - key: FRONTEND_URL
-        value: "https://revops-ntkll.ondigitalocean.app"
+        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
         scope: RUN_TIME
       - key: APP_URL
-        value: "https://revops-ntkll.ondigitalocean.app"
+        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
         scope: RUN_TIME
       - key: OKTA_ISSUER
         value: "PASTE_OKTA_ISSUER"
@@ -68,10 +68,10 @@ services:
         value: "https://digitalocean.okta.com/app/exk1a2t62juiN4Nmk2p8/sso/saml/metadata"
         scope: RUN_TIME
       - key: SAML_SP_ENTITY_ID
-        value: "https://revops-ntkll.ondigitalocean.app"
+        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
         scope: RUN_TIME
       - key: SAML_APP_BASE_URL
-        value: "https://revops-ntkll.ondigitalocean.app"
+        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
         scope: RUN_TIME
     github:
       deploy_on_push: true
@@ -80,7 +80,7 @@ services:
     http_port: 8080
     instance_count: 1
     instance_size_slug: apps-s-1vcpu-1gb
-    run_command: node server.js
+    run_command: npm start
     source_dir: /backend
 
 static_sites:
@@ -92,7 +92,7 @@ static_sites:
         value: "false"
         scope: BUILD_TIME
       - key: VITE_API_URL
-        value: "https://revops-ntkll.ondigitalocean.app"
+        value: "https://APP_PUBLIC_URL.ondigitalocean.app"
         scope: BUILD_TIME
     github:
       deploy_on_push: true

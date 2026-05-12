@@ -24,12 +24,30 @@ const STATUS_MAP: Record<string, Status> = {
   done: 'Complete',
   blocked: 'Blocked',
 };
-const PRIORITY_MAP: Record<string, Priority> = {
-  high: 'P0',
-  critical: 'P0',
-  medium: 'P1',
-  low: 'P2',
-};
+
+/** DB stores P0/P1/P2 (and optionally legacy slugs). Never conflate with broken high/medium maps. */
+function priorityFromApi(raw: string | null | undefined): Priority {
+  if (!raw || typeof raw !== 'string') return 'P1';
+  const k = raw.trim();
+  const m = /^P([0-2])$/i.exec(k);
+  if (m) return `P${m[1]}` as Priority;
+  const legacy: Record<string, Priority> = {
+    critical: 'P0',
+    high: 'P1',
+    medium: 'P2',
+    low: 'P2',
+  };
+  return legacy[k.toLowerCase()] || 'P1';
+}
+
+/** Send Px to API as-is (matches seed + standard field labels). */
+function priorityToApi(p: string | undefined | null): string {
+  if (p == null || p === '') return 'P1';
+  const t = String(p).trim();
+  const m = /^P([0-2])$/i.exec(t);
+  if (m) return `P${m[1]}`;
+  return t;
+}
 
 export type CrewMemberRow = {
   id: string;
@@ -130,7 +148,7 @@ function mapItemToInitiative(item: {
   is_project_admin?: boolean;
 }): Initiative {
   const status = (item.status && STATUS_MAP[item.status]) || 'Not Started';
-  const priority = (item.priority && PRIORITY_MAP[item.priority]) || 'P1';
+  const priority = priorityFromApi(item.priority);
   const endDate = item.due_date ? new Date(item.due_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   const rawCat = typeof item.category === 'string' ? item.category.trim() : '';
   const category: Category =
@@ -528,7 +546,7 @@ export function useMeridianData(): MeridianDataResult {
       project_id: projectId,
       title: payload.title.trim(),
       description: payload.description || '',
-      priority: payload.priority || 'medium',
+      priority: priorityToApi(payload.priority || 'P1'),
       type: payload.type || 'task',
       status: payload.status || 'not_started',
     };
@@ -580,7 +598,6 @@ export function useMeridianData(): MeridianDataResult {
     'Blocked': 'blocked',
     'Complete': 'done',
   };
-  const priorityToSlug: Record<string, string> = { P0: 'critical', P1: 'high', P2: 'medium', P3: 'low' };
 
   const updateItem = useCallback(async (
     itemId: string,
@@ -606,7 +623,7 @@ export function useMeridianData(): MeridianDataResult {
     if (payload.title !== undefined) body.title = payload.title;
     if (payload.description !== undefined) body.description = payload.description;
     if (payload.status !== undefined) body.status = statusToSlug[payload.status] || payload.status;
-    if (payload.priority !== undefined) body.priority = priorityToSlug[payload.priority] || payload.priority;
+    if (payload.priority !== undefined) body.priority = priorityToApi(payload.priority);
     if (payload.assignee_id !== undefined) body.assignee_id = payload.assignee_id;
     if (payload.due_date !== undefined) body.due_date = payload.due_date;
     if (payload.points !== undefined) body.points = payload.points;

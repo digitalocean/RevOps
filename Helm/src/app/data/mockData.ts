@@ -1,4 +1,5 @@
-export type Priority = 'P0' | 'P1' | 'P2';
+/** Stored as `items.priority` — P0…P2 defaults; Base Camp may add P3, P4, … */
+export type Priority = string;
 export type Status = 'On Track' | 'At Risk' | 'Complete' | 'Blocked' | 'Not Started' | 'In Review';
 /** Stored as `items.category` / Base Camp standard field labels — not limited to the default five. */
 export type Category = string;

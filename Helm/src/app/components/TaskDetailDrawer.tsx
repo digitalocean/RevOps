@@ -508,6 +508,33 @@ export function TaskDetailDrawer({
     setTopicDraft(String(initiative.field_values?.topic ?? ''));
   }, [initiative.id, initiative.field_values?.topic]);
 
+  /** After PATCH + reload, parent passes updated initiative — keep picklists in sync (was stuck on first open). */
+  useEffect(() => {
+    if (!editingTitle) setTitle(initiative.name);
+    if (!editingDesc) setDescription(initiative.description || '');
+    setStatus(initiative.status);
+    setPriority(String(initiative.priority));
+    setAssigneeId(initiative.assignee_id ?? null);
+    setCategory(initiative.category);
+    setProgress(initiative.progress ?? 0);
+    const d = initiative.endDate && !isNaN(initiative.endDate.getTime())
+      ? initiative.endDate.toISOString().slice(0, 10)
+      : '';
+    setDueDate(d);
+  }, [
+    initiative.id,
+    initiative.name,
+    initiative.description,
+    initiative.status,
+    initiative.priority,
+    initiative.category,
+    initiative.assignee_id,
+    initiative.progress,
+    initiative.endDate,
+    editingTitle,
+    editingDesc,
+  ]);
+
   const save = useCallback(async (patch: TaskDetailSavePayload) => {
     if (!onSave) return;
     setSaving(true);

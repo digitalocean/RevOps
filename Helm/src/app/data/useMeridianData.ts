@@ -11,7 +11,6 @@ import {
   type Category,
 } from './mockData';
 
-const CATEGORIES: Category[] = ['Engineering', 'Design', 'Sales', 'Product', 'Operations'];
 const STATUS_MAP: Record<string, Status> = {
   backlog: 'Not Started',
   not_started: 'Not Started',
@@ -25,12 +24,12 @@ const STATUS_MAP: Record<string, Status> = {
   blocked: 'Blocked',
 };
 
-/** DB stores P0/P1/P2 (and optionally legacy slugs). Never conflate with broken high/medium maps. */
+/** DB stores P0, P1, P2, … (any P<number>) and optionally legacy slugs. */
 function priorityFromApi(raw: string | null | undefined): Priority {
   if (!raw || typeof raw !== 'string') return 'P1';
   const k = raw.trim();
-  const m = /^P([0-2])$/i.exec(k);
-  if (m) return `P${m[1]}` as Priority;
+  const m = /^P(\d+)$/i.exec(k);
+  if (m) return `P${m[1]}`;
   const legacy: Record<string, Priority> = {
     critical: 'P0',
     high: 'P1',
@@ -40,11 +39,11 @@ function priorityFromApi(raw: string | null | undefined): Priority {
   return legacy[k.toLowerCase()] || 'P1';
 }
 
-/** Send Px to API as-is (matches seed + standard field labels). */
+/** Send priority to API: normalize P0…Pn; pass through other labels (custom options). */
 function priorityToApi(p: string | undefined | null): string {
   if (p == null || p === '') return 'P1';
   const t = String(p).trim();
-  const m = /^P([0-2])$/i.exec(t);
+  const m = /^P(\d+)$/i.exec(t);
   if (m) return `P${m[1]}`;
   return t;
 }
@@ -151,10 +150,8 @@ function mapItemToInitiative(item: {
   const priority = priorityFromApi(item.priority);
   const endDate = item.due_date ? new Date(item.due_date) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
   const rawCat = typeof item.category === 'string' ? item.category.trim() : '';
-  const category: Category =
-    rawCat.length > 0
-      ? rawCat
-      : CATEGORIES[Math.abs((item.title || '').length) % CATEGORIES.length];
+  /** Keep API truth — do not substitute a random category when empty (that hid real saves). */
+  const category: Category = rawCat;
   return {
     id: item.id,
     name: item.title,
